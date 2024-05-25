@@ -15,12 +15,15 @@ public class VersionService implements VersionPort {
     }
 
     @Override
-    public Version getCurrentVersion() {
-        return versionRepository.getCurrentVersion();
+    public boolean isVersionOld() {
+        Version currentVersion = versionRepository.getCurrentVersion();
+        Version latestVersion = versionRepository.getLatestVersion();
+
+        return currentVersion.isOlderThan(latestVersion);
     }
 
     @Override
-    public Version getLatestVersion() {
-        return versionRepository.getLatestVersion();
+    public Version getCurrentVersion() {
+        return versionRepository.getCurrentVersion();
     }
 }

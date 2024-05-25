@@ -22,7 +22,7 @@ public class DomainValidatorTests {
     @Test
     void notNull_throwsException_whenInputIsNull() {
         assertThrows(
-                InvalidDomainObjectException.class,
-                () -> notNull(null, new InvalidDomainObjectException("")));
+            InvalidDomainObjectException.class,
+            () -> notNull(null, new InvalidDomainObjectException("")));
     }
 }

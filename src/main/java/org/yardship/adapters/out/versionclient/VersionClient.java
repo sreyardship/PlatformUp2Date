@@ -11,18 +11,22 @@ public class VersionClient implements VersionRepository {
     @RestClient
     private YardshipClient yardshipClient;
 
-    public String hello() {
-        return yardshipClient.getApiVersion().Version();
-    }
-
     @Override
     public Version getCurrentVersion() {
-        String versionResponse = yardshipClient.getApiVersion().Version();
-        return new Version(versionResponse);
+        VersionResponseDTO response = yardshipClient.getApiVersion();
+        throwIfNull(response);
+
+        return new Version(response.Version());
     }
 
     @Override
     public Version getLatestVersion() {
-        return null;
+        return new Version("4.20.69"); // Hard coded for now..
+    }
+
+    private void throwIfNull(VersionResponseDTO input) {
+        if (input == null) {
+            throw new InvalidVersionResponseException("Version Response was null");
+        }
     }
 }

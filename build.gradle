@@ -10,10 +10,13 @@ repositories {
 
 dependencies {
     implementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    implementation 'io.quarkus:quarkus-rest'
     implementation 'io.quarkus:quarkus-rest-client'
     implementation 'io.quarkus:quarkus-arc'
     implementation 'io.quarkus:quarkus-rest-client-jackson'
+    implementation 'com.vdurmont:semver4j:3.1.0'
     testImplementation 'io.quarkus:quarkus-junit5'
+    testImplementation 'io.quarkus:quarkus-junit5-mockito'
 }
 
 group 'org.yardship'
@@ -26,6 +29,7 @@ java {
 
 test {
     systemProperty "java.util.logging.manager", "org.jboss.logmanager.LogManager"
+    jvmArgs '-XX:+EnableDynamicAgentLoading', '-Djdk.instrument.traceUsage'
 }
 compileJava {
     options.encoding = 'UTF-8'
