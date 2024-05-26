@@ -4,7 +4,7 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 
-@RegisterRestClient(baseUri = "https://deployments.sreyardship.com/")
+@RegisterRestClient(baseUri = "{app.clients.argo-cd.baseurl}")
 public interface YardshipClient {
 
     @GET

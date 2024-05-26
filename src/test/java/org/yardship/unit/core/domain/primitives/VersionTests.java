@@ -1,4 +1,4 @@
-package org.yardship.unit.domain.primitives;
+package org.yardship.unit.core.domain.primitives;
 
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;

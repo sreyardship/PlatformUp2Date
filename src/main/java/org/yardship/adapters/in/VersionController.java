@@ -7,10 +7,10 @@ import org.yardship.core.ports.in.VersionPort;
 @Path("/api/v1")
 public class VersionController {
 
-    private final VersionPort versionService;
+    private final VersionPort versionPort;
 
-    public VersionController(VersionPort versionService) {
-        this.versionService = versionService;
+    public VersionController(VersionPort versionPort) {
+        this.versionPort = versionPort;
     }
 
     @GET
@@ -22,6 +22,6 @@ public class VersionController {
     @GET
     @Path("version")
     public String getVersion() {
-        return versionService.getCurrentVersion().value();
+        return versionPort.getCurrentVersion().value();
     }
 }

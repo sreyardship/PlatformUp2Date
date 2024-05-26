@@ -1,0 +1,20 @@
+platform:
+  apps:
+    - argo-cd:
+        current:
+          uri: https://deployments.sreyardship.com/api/version
+        latest:
+          uri: https://api.github.com/repos/argoproj/argo-cd/releases
+          repo: argo-cd
+    - argo-cd:
+        current:
+          uri: https://deployments.sreyardship.com/api/version
+        latest:
+          uri: https://api.github.com/repos/argoproj/argo-cd/releases
+          repo: argo-cd
+    - git-tea:
+        current:
+          uri: https://git.sreyardship.com/api/v1/version
+        latest:
+          uri: https://api.github.com/repos/go-gitea/gitea/releases
+          repo: go-gitea
