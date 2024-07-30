@@ -31,7 +31,7 @@ public class VersionController {
     public Map<String, ApplicationStatus> getVersion() throws URISyntaxException {
         Map<String, ApplicationStatus> appStatusList = new HashMap<>();
 
-        applicationVersionPort.getListOfOldApplications()
+        applicationVersionPort.getApplications()
                 .forEach(app -> {
                             var status = new ApplicationStatus(app.current().value(), app.latest().value());
                             appStatusList.put(app.name(), status);

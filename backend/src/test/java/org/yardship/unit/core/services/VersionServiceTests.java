@@ -3,7 +3,6 @@ package org.yardship.unit.core.services;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.yardship.core.domain.primitives.Version;
 import org.yardship.core.domain.primitives.VersionApplication;
@@ -36,7 +35,7 @@ public class VersionServiceTests {
                 );
 
         // Act
-        List<VersionApplication> oldApplications = sut.getListOfOldApplications();
+        List<VersionApplication> oldApplications = sut.getApplications();
 
         // Assert
         assertEquals(oldApplications.size(), 1);

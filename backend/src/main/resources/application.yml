@@ -6,3 +6,6 @@ platform-config:
     - name: git-tea
       current: https://git.sreyardship.com/api/v1/version
       latest: https://api.github.com/repos/go-gitea/gitea/releases/latest
+    - name: sharry
+      current: https://fileshare.sreyardship.com/api/v2/open/info/version
+      latest: https://api.github.com/repos/eikek/sharry/releases/latest

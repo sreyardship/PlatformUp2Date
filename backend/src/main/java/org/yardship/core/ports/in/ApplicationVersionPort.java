@@ -6,5 +6,5 @@ import java.net.URISyntaxException;
 import java.util.List;
 
 public interface ApplicationVersionPort {
-    List<VersionApplication> getListOfOldApplications() throws URISyntaxException;
+    List<VersionApplication> getApplications() throws URISyntaxException;
 }
