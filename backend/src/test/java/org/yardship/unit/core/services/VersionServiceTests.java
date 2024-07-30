@@ -24,7 +24,7 @@ public class VersionServiceTests {
     private ApplicationVersionService sut;
 
     @Test
-    void getListOfOldApplications_onlyReturnsOldVersionApplications() {
+    void getListOfOldApplications_shouldReturnAllVersionApplications() {
         // Arrange
         VersionApplication oldApplication = createOldApplication();
         VersionApplication up2DateApplication = createUp2DateApplication();
@@ -38,8 +38,9 @@ public class VersionServiceTests {
         List<VersionApplication> oldApplications = sut.getApplications();
 
         // Assert
-        assertEquals(oldApplications.size(), 1);
+        assertEquals(oldApplications.size(), 2);
         assertEquals(oldApplications.getFirst(), oldApplication);
+        assertEquals(oldApplications.getLast(), up2DateApplication);
     }
 
     private VersionApplication createOldApplication() {
