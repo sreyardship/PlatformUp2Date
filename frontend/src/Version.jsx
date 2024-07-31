@@ -12,18 +12,19 @@ const Version = ({ name, ver }) => {
         width: '95%',
         my: '2px',
         px: '0.6rem',
+        py: '1rem',
       }}
     >
-      <Typography variant='h6'>{name}:</Typography>
+      <Typography variant='h4'>{name}:</Typography>
       <Typography
-        variant='h6'
+        variant='h4'
         sx={{
           color: color,
         }}
       >
         {ver.current}
       </Typography>
-      <Typography variant='h6'>{ver.latest}</Typography>
+      <Typography variant='h4'>{ver.latest}</Typography>
     </Paper>
   )
 }

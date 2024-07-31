@@ -1,10 +1,20 @@
 import { Container } from '@mui/material'
-import Colors from './Colors'
+import { useState, useEffect } from 'react'
 
-import data from './fakeData'
+import versionClient from './api/versionClient'
 import Display from './Display'
 
 const App = () => {
+  const [versionData, setVersionData] = useState({})
+
+  useEffect(() => {
+    const fetchVersionData = async () => {
+      const response = await versionClient.getVersions()
+      setVersionData(response)
+    }
+    fetchVersionData()
+  }, [])
+
   return (
     <Container
       sx={{
@@ -14,8 +24,7 @@ const App = () => {
         height: '100vh',
       }}
     >
-      <Display data={data} />
-      {/* <Colors /> */}
+      <Display versions={versionData} />
     </Container>
   )
 }

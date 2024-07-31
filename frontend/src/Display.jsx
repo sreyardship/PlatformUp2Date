@@ -1,25 +1,21 @@
 import { Paper } from '@mui/material'
-import Version from './Version'
+import Title from './Title'
+import VersionList from './VersionList'
 
-const Display = ({ data }) => {
+const Display = ({ versions }) => {
   return (
     <Paper
       sx={{
         display: 'flex',
         flexDirection: 'column',
-        // justifyContent: 'space-around',
-        pt: '1rem',
+        pt: '0.6rem',
         alignItems: 'center',
         height: '90%',
-        width: '50%',
+        width: '100%',
       }}
     >
-      {Object.entries(data).map(([key, val]) => (
-        <Version
-          name={key}
-          ver={val}
-        />
-      ))}
+      <Title />
+      <VersionList versions={versions} />
     </Paper>
   )
 }
