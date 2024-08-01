@@ -71,25 +71,6 @@
         "type": "github"
       }
     },
-    "makes": {
-      "inputs": {
-        "nixpkgs": "nixpkgs_2"
-      },
-      "locked": {
-        "lastModified": 1717525248,
-        "narHash": "sha256-vw3QboNxGYHxf1tyeFx2VReOqUccK1b+ZQIBjMiH1eg=",
-        "owner": "fluidattacks",
-        "repo": "makes",
-        "rev": "7e4ac2ba9fc3df505c76dea1678bf92e7b531399",
-        "type": "github"
-      },
-      "original": {
-        "owner": "fluidattacks",
-        "repo": "makes",
-        "rev": "7e4ac2ba9fc3df505c76dea1678bf92e7b531399",
-        "type": "github"
-      }
-    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1704161960,
@@ -108,21 +89,6 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1667092106,
-        "narHash": "sha256-ZQwHNd/RemupaV52ePNNv4Kp+LHzPjssEAumLijum4E=",
-        "owner": "nix-community",
-        "repo": "nixpkgs.lib",
-        "rev": "2c15a4c90737d33309daf869bae0daaa35eeb264",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nix-community",
-        "repo": "nixpkgs.lib",
-        "type": "github"
-      }
-    },
-    "nixpkgs_3": {
-      "locked": {
         "lastModified": 1718870667,
         "narHash": "sha256-jab3Kpc8O1z3qxwVsCMHL4+18n5Wy/HHKyu1fcsF7gs=",
         "owner": "NixOS",
@@ -140,8 +106,7 @@
         "devshell": "devshell",
         "flake-compat": "flake-compat",
         "flake-utils": "flake-utils_2",
-        "makes": "makes",
-        "nixpkgs": "nixpkgs_3"
+        "nixpkgs": "nixpkgs_2"
       }
     },
     "systems": {

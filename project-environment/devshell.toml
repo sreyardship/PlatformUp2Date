@@ -1,7 +1,6 @@
 # https://numtide.github.io/devshell
 [devshell]
 packages = [
-  "makes",
   "quarkus",
   "gradle",
 ]
