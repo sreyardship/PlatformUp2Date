@@ -39,6 +39,14 @@ info:
 openapi: 3.0.2
 paths:
   /v1/application:
+    get:
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+        "404": {}
     parameters:
     - description: name of the application you want to look at
       in: query
@@ -46,7 +54,14 @@ paths:
       required: true
       schema:
         type: string
-  /v1/applications: {}
+  /v1/applications:
+    get:
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Applications'
 tags:
 - description: version of the API
   name: version
