@@ -1,0 +1,15 @@
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-authenticated
+spec:
+  action: ALLOW
+  targetRefs:
+  - kind: Gateway
+    group: gateway.networking.k8s.io
+    name: waypoint
+  rules:
+  - from:
+    - source:
+        requestPrincipals: ["*"]

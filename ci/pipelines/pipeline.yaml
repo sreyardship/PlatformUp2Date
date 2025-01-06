@@ -1,0 +1,45 @@
+apiVersion: tekton.dev/v1 # or tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: build-test
+spec:
+  params:
+    - name: url
+      description: "Repository URL to clone from."
+      type: string
+    - name: revision
+      description: "Revision to checkout. (branch, tag, sha, ref, etc...)"
+      type: string
+      default: ""
+  workspaces:
+    - name: source
+    - name: ssh-directory
+  tasks:
+    - name: git-clone
+      taskRef:
+        resolver: cluster
+        params:
+          - name: name 
+            value: git-clone  #expects a Workspace named "source"
+          - name: namespace 
+            value: tekton-pipelines
+            
+      params:
+        - name: url
+          value: "$(params.url)"
+        - name: revision
+          value: "$(params.revision)"
+      workspaces:
+        - name: output # <- mapping workspace name
+          workspace: source
+        - name: ssh-directory
+          workspace: ssh-directory
+    - name: list-files
+      runAfter:
+        - git-clone
+      taskRef:
+        name: list-files
+      workspaces:
+        - name: source
+          workspace: source
+

@@ -1,0 +1,49 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: clone-test
+spec:
+  params:
+  - name: ref
+    description: The Git commit revision
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1beta1
+    kind: PipelineRun
+    metadata:
+      generateName: clone-test-
+    spec:
+      pipelineRef:
+        name: on-push
+      podTemplate:
+        securityContext:
+          fsGroup: 65532
+      params:
+      - name: url
+        value: git@git.sreyardship.com:SREYardship/PlatformUp2Date.git
+      - name: revision
+        value: $(tt.params.ref)
+      workspaces:
+        - name: ssh-directory
+          secret:
+            secretName: git-creds
+        - name: source
+          volumeClaimTemplate:
+            spec:
+              accessModes:
+                - ReadWriteMany
+              storageClassName: ceph-filesystem
+              resources:
+                requests:
+                  storage: 2Gi
+---
+
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  name: clone-test-binding
+  namespace: tekton-pipelines
+spec:
+  params:
+  - name: ref
+    value: $(body.ref)
+---
