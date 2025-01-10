@@ -23,11 +23,13 @@ spec:
       taskRef:
         resolver: cluster
         params:
-          - name: gitea-set-status
+          - name: name
             value: gitea-set-status
           - name: namespace
             value: tekton-pipelines
       params:
+        - name: GITEA_TOKEN_SECRET_NAME
+          value: git-ci-status-token
         - name: REPO_FULL_NAME
           value: SREYardship/PlatformUp2Date
         - name: GITEA_HOST_URL
