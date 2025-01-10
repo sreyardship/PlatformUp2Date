@@ -22,6 +22,8 @@ spec:
         value: git@git.sreyardship.com:SREYardship/PlatformUp2Date.git
       - name: revision
         value: $(tt.params.ref)
+      - name: sha
+        value: $(tt.params.head_commit.id)
       workspaces:
         - name: ssh-directory
           secret:

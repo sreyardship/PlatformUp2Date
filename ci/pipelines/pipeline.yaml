@@ -11,10 +11,35 @@ spec:
       description: "Revision to checkout. (branch, tag, sha, ref, etc...)"
       type: string
       default: ""
+    - name: sha
+      description: "sha being worked on"
+      type: string
+      default: ""
   workspaces:
     - name: source
     - name: ssh-directory
   tasks:
+    - name: set-pending-status
+      taskRef:
+        resolver: cluster
+        params:
+          - name: gitea-set-status
+            value: gitea-set-status
+          - name: namespace
+            value: tekton-pipelines
+      params:
+        - name: REPO_FULL_NAME
+          value: SREYardship/PlatformUp2Date
+        - name: GITEA_HOST_URL
+          value: git.sreyardship.com
+        - name: SHA
+          value: $(params.sha)
+        - name: DESCRIPTION
+          value: "Build has started"
+        - name: STATE
+          value: pending
+        - name: TARGET_URL
+          value: https://dashboard.ci.sreyardship.com/#/namespaces/platformup2date/pipelineruns
     - name: git-clone
       taskRef:
         resolver: cluster
@@ -42,4 +67,3 @@ spec:
       workspaces:
         - name: source
           workspace: source
-
