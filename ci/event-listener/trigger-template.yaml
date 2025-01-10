@@ -6,6 +6,8 @@ spec:
   params:
   - name: ref
     description: The Git commit revision
+  - name: sha
+    description: The Git commit sha
   resourcetemplates:
   - apiVersion: tekton.dev/v1beta1
     kind: PipelineRun
@@ -23,7 +25,7 @@ spec:
       - name: revision
         value: $(tt.params.ref)
       - name: sha
-        value: $(tt.params.head_commit.id)
+        value: $(tt.params.sha)
       workspaces:
         - name: ssh-directory
           secret:
@@ -48,4 +50,7 @@ spec:
   params:
   - name: ref
     value: $(body.ref)
+  - name: sha
+    value: $(body.head_commit.id)
+
 ---
