@@ -12,7 +12,7 @@ spec:
       #    - cel:
       #        filter: "body.ref == 'refs/heads/main'"
     bindings:
-    - ref: clone-test-binding
+    - ref: platformup2date-binding
     template:
-      ref: clone-test
+      ref: platformup2date
 ---

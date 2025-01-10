@@ -1,7 +1,7 @@
 apiVersion: triggers.tekton.dev/v1alpha1
 kind: TriggerTemplate
 metadata:
-  name: clone-test
+  name: platformup2date
 spec:
   params:
   - name: ref
@@ -15,7 +15,7 @@ spec:
       generateName: clone-test-
     spec:
       pipelineRef:
-        name: on-push
+        name: build-test
       podTemplate:
         securityContext:
           fsGroup: 65532
@@ -44,7 +44,7 @@ spec:
 apiVersion: triggers.tekton.dev/v1alpha1
 kind: TriggerBinding
 metadata:
-  name: clone-test-binding
+  name: platformup2date-binding
   namespace: tekton-pipelines
 spec:
   params:
