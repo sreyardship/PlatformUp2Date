@@ -41,7 +41,7 @@ spec:
         - name: STATE
           value: pending
         - name: TARGET_URL
-          value: https://dashboard.ci.sreyardship.com/#/namespaces/platformup2date/pipelineruns
+          value: https://dashboard.ci.sreyardship.com/#/namespaces/platformup2date/pipelineruns/platform-up-2-date-$(params.sha)
     - name: git-clone
       taskRef:
         resolver: cluster
