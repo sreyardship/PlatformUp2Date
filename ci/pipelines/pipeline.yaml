@@ -79,8 +79,6 @@ spec:
             value: gitea-set-status
           - name: namespace
             value: tekton-pipelines
-          - name: pipelineStatus
-            value: "$(tasks.status)"
       params:
         - name: GITEA_TOKEN_SECRET_NAME
           value: git-ci-status-token
@@ -93,7 +91,7 @@ spec:
         - name: DESCRIPTION
           value: "Build has started"
         - name: STATE
-          value: $(params.pipelineStatus)
+          value: "$(tasks.status)"
         - name: TARGET_URL
           value: https://dashboard.ci.sreyardship.com/#/namespaces/platformup2date/pipelineruns
 
