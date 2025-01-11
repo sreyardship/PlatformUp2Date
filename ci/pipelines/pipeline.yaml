@@ -69,3 +69,31 @@ spec:
       workspaces:
         - name: source
           workspace: source
+  finally:
+    - name: pipeline-state
+      displayName: "Pipeline Final State"
+      taskRef:
+        resolver: cluster
+        params:
+          - name: name
+            value: gitea-set-status
+          - name: namespace
+            value: tekton-pipelines
+          - name: pipelineStatus
+            value: "$(tasks.status)"
+      params:
+        - name: GITEA_TOKEN_SECRET_NAME
+          value: git-ci-status-token
+        - name: REPO_FULL_NAME
+          value: SREYardship/PlatformUp2Date
+        - name: GITEA_HOST_URL
+          value: git.sreyardship.com
+        - name: SHA
+          value: $(params.sha)
+        - name: DESCRIPTION
+          value: "Build has started"
+        - name: STATE
+          value: $(params.pipelineStatus)
+        - name: TARGET_URL
+          value: https://dashboard.ci.sreyardship.com/#/namespaces/platformup2date/pipelineruns
+
