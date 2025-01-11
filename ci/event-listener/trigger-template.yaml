@@ -12,7 +12,7 @@ spec:
   - apiVersion: tekton.dev/v1beta1
     kind: PipelineRun
     metadata:
-      generateName: clone-test-
+      name: platform-up-2-date-${tt.params.ref}
     spec:
       pipelineRef:
         name: build-test
