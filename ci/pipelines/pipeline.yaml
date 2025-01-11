@@ -37,7 +37,7 @@ spec:
         - name: SHA
           value: $(params.sha)
         - name: DESCRIPTION
-          value: "Build has started"
+          value: "Pipeline has started"
         - name: STATE
           value: pending
         - name: TARGET_URL
@@ -89,7 +89,7 @@ spec:
         - name: SHA
           value: $(params.sha)
         - name: DESCRIPTION
-          value: "Build has started"
+          value: "Pipeline has finished"
         - name: STATE
           value: "$(tasks.status)"
         - name: TARGET_URL
