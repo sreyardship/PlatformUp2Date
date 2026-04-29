@@ -1,12 +1,12 @@
 # Gradle
 **/.gradle/
 **/build/
+**/build-native/
 
 # Eclipse
 **/.project
 **/.classpath
 **/.settings/
-**/bin/
 
 # IntelliJ
 **/.idea

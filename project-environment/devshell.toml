@@ -3,4 +3,13 @@
 packages = [
   "quarkus",
   "gradle",
+  "binutils",
+  "buildah",
+  "runc",        # OCI runtime required by buildkitd
+  "skopeo",      # Container image operations (inspect, copy, etc.)
+  "jq",          # For JSON parsing in CI scripts
+  "curl",        # For health checks and API testing
+  "gnugrep",     # For robust text searching in scripts
+  "util-linux",  # unshare for creating user namespaces (rootless buildkitd)
+  "kaniko",      # Kaniko image builder (executor binary)
 ]

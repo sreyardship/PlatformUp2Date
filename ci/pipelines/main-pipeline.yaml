@@ -1,7 +1,7 @@
-apiVersion: tekton.dev/v1 # or tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: build-test
+  name: main-release
 spec:
   params:
     - name: url
@@ -15,6 +15,9 @@ spec:
       description: "sha being worked on"
       type: string
       default: ""
+    - name: branch_name
+      description: "Sanitized branch name of the merged PR"
+      type: string
   workspaces:
     - name: source
     - name: ssh-directory
@@ -37,38 +40,56 @@ spec:
         - name: SHA
           value: $(params.sha)
         - name: DESCRIPTION
-          value: "Pipeline has started"
+          value: "Release pipeline has started"
         - name: STATE
           value: pending
+        - name: CONTEXT
+          value: ci/main-release
         - name: TARGET_URL
-          value: https://dashboard.ci.sreyardship.com/#/namespaces/platformup2date/pipelineruns/platform-up-2-date-$(params.sha)
+          value: https://dashboard.ci.sreyardship.com/#/namespaces/platformup2date/pipelineruns
+
     - name: git-clone
       taskRef:
         resolver: cluster
         params:
-          - name: name 
-            value: git-clone  #expects a Workspace named "source"
-          - name: namespace 
+          - name: name
+            value: git-clone
+          - name: namespace
             value: tekton-pipelines
-            
       params:
         - name: url
           value: "$(params.url)"
         - name: revision
           value: "$(params.revision)"
       workspaces:
-        - name: output # <- mapping workspace name
+        - name: output
           workspace: source
         - name: ssh-directory
           workspace: ssh-directory
-    - name: list-files
+
+    - name: retag-container
       runAfter:
         - git-clone
       taskRef:
-        name: list-files
+        resolver: cluster
+        params:
+          - name: name
+            value: nix-devshell-run
+          - name: namespace
+            value: tekton-pipelines
+      params:
+        - name: script
+          value: >-
+            backend/ci/bin/retag-release.sh
+            --registry container-registry.sreyardship.com
+            --image platformup2date/backend
+            --branch $(params.branch_name)
+        - name: env-secret
+          value: registry-env
       workspaces:
         - name: source
           workspace: source
+
   finally:
     - name: pipeline-state
       displayName: "Pipeline Final State"
@@ -89,9 +110,10 @@ spec:
         - name: SHA
           value: $(params.sha)
         - name: DESCRIPTION
-          value: "Pipeline has finished"
+          value: "Release pipeline has finished"
         - name: STATE
           value: "$(tasks.status)"
+        - name: CONTEXT
+          value: ci/main-release
         - name: TARGET_URL
           value: https://dashboard.ci.sreyardship.com/#/namespaces/platformup2date/pipelineruns
-

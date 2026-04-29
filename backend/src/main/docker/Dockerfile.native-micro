@@ -6,7 +6,7 @@
 #
 # Before building the container image run:
 #
-# ./gradlew build -Dquarkus.native.enabled=true
+# gradle build -Dquarkus.native.enabled=true
 #
 # Then, build the image with:
 #

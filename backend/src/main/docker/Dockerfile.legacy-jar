@@ -3,7 +3,7 @@
 #
 # Before building the container image run:
 #
-# ./gradlew build -Dquarkus.package.jar.type=legacy-jar
+# gradle build -Dquarkus.package.jar.type=legacy-jar
 #
 # Then, build the image with:
 #

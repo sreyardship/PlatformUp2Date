@@ -21,6 +21,11 @@
         in
         pkgs.devshell.mkShell {
           imports = [ (pkgs.devshell.importTOML ./devshell.toml) ];
+          packages = [ pkgs.graalvmPackages.graalvm-ce ];
+          env = [{
+            name = "GRAALVM_HOME";
+            value = pkgs.graalvmPackages.graalvm-ce;
+          }];
         };
     });
 }

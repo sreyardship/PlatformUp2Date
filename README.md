@@ -1,5 +1,4 @@
 # Platform-up-2-date
-
 ## Build for development
 
 Simplest way to build and run the whole application is using Docker. An unfortunate pre-requisite, as of now, is that the backend application has to be build before hand.
@@ -8,7 +7,7 @@ Navigate to the backend folder and build using gradle:
 
 ```bash
 $ cd backend
-$ ./gradlew build
+$ gradle build
 ```
 
 Then, go back to the root folder and run the docker compose:

@@ -18,7 +18,7 @@ dependencies {
     implementation 'io.quarkus:quarkus-config-yaml'
     implementation 'io.quarkus:quarkus-vertx'
     implementation 'com.vdurmont:semver4j:3.1.0'
-    implementation 'io.quarkiverse.openapi.generator:quarkus-openapi-generator-server:3.0.0-SNAPSHOT'
+    implementation 'io.quarkiverse.openapi.generator:quarkus-openapi-generator-server:2.14.0'
 
     testImplementation 'io.quarkus:quarkus-junit5'
     testImplementation 'io.quarkus:quarkus-junit5-mockito'
@@ -26,6 +26,10 @@ dependencies {
 
 group 'org.yardship'
 version '1.0.0-SNAPSHOT'
+
+if (project.hasProperty('customBuildDir')) {
+    layout.buildDirectory = layout.projectDirectory.dir(project.property('customBuildDir'))
+}
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
@@ -39,6 +43,21 @@ test {
 compileJava {
     options.encoding = 'UTF-8'
     options.compilerArgs << '-parameters'
+
+    // When pre-built classes are available (CI test step), skip recompilation.
+    // Code generation tasks are also disabled below to avoid invalidating the cache.
+    if (project.hasProperty('preBuiltClasses')) {
+        outputs.upToDateWhen { true }
+    }
+}
+
+// Skip code generation when using pre-built classes — regenerating sources
+// would give them newer timestamps than the compiled classes, making Gradle
+// think compileJava is stale even though the output is identical.
+if (project.hasProperty('preBuiltClasses')) {
+    tasks.matching { it.name in ['quarkusGenerateCode', 'quarkusGenerateCodeDev'] }.configureEach {
+        enabled = false
+    }
 }
 
 compileTestJava {
