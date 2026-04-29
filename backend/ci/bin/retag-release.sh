@@ -12,9 +12,9 @@ set -euo pipefail
 #   --branch        Sanitized branch name of the merged PR (e.g. feature-cool-thing)
 #
 # Authentication:
-#   Uses skopeo's default auth locations (~/.docker/config.json, etc.).
-#   If REGISTRY_USER and REGISTRY_PASSWORD env vars are set, the script
-#   will call `skopeo login` automatically before proceeding.
+#   Reads REGISTRY_USER and REGISTRY_PASSWORD from env vars or from files
+#   at /etc/env-secret/. Generates a docker auth config and passes it to
+#   skopeo via --authfile.
 #
 # Checks the merge commit message for [minor] or [major] to override the
 # default patch bump.
@@ -41,13 +41,27 @@ done
 [[ -z "$IMAGE_NAME" ]] && { echo "Error: --image is required" >&2; usage; }
 [[ -z "$BRANCH_NAME" ]] && { echo "Error: --branch is required" >&2; usage; }
 
-if [[ -n "${REGISTRY_USER:-}" ]] && [[ -n "${REGISTRY_PASSWORD:-}" ]]; then
-    echo "Logging in to $REGISTRY via env credentials..."
-    skopeo login --username "$REGISTRY_USER" --password "$REGISTRY_PASSWORD" "$REGISTRY"
+ENV_SECRET_DIR="/etc/env-secret"
+REGISTRY_USER="${REGISTRY_USER:-}"
+REGISTRY_PASSWORD="${REGISTRY_PASSWORD:-}"
+[[ -z "$REGISTRY_USER" ]] && [[ -f "$ENV_SECRET_DIR/REGISTRY_USER" ]] && REGISTRY_USER="$(cat "$ENV_SECRET_DIR/REGISTRY_USER")"
+[[ -z "$REGISTRY_PASSWORD" ]] && [[ -f "$ENV_SECRET_DIR/REGISTRY_PASSWORD" ]] && REGISTRY_PASSWORD="$(cat "$ENV_SECRET_DIR/REGISTRY_PASSWORD")"
+
+AUTH_FILE=""
+if [[ -n "$REGISTRY_USER" ]] && [[ -n "$REGISTRY_PASSWORD" ]]; then
+    echo "Generating docker auth config from credentials..."
+    AUTH_FILE="$(mktemp)"
+    AUTH=$(printf '%s:%s' "$REGISTRY_USER" "$REGISTRY_PASSWORD" | base64 -w0)
+    printf '{"auths":{"%s":{"auth":"%s"}}}' "$REGISTRY" "$AUTH" > "$AUTH_FILE"
+fi
+
+SKOPEO_AUTH_ARGS=""
+if [[ -n "$AUTH_FILE" ]]; then
+    SKOPEO_AUTH_ARGS="--authfile $AUTH_FILE"
 fi
 
 get_registry_tags() {
-    skopeo list-tags "docker://$REGISTRY/$IMAGE_NAME" 2>/dev/null \
+    skopeo list-tags $SKOPEO_AUTH_ARGS "docker://$REGISTRY/$IMAGE_NAME" 2>/dev/null \
         | jq -r '.Tags[]' 2>/dev/null || true
 }
 
@@ -106,6 +120,8 @@ SRC="docker://$REGISTRY/$IMAGE_NAME:$PRERELEASE_TAG"
 DST="docker://$REGISTRY/$IMAGE_NAME:$NEXT_VERSION"
 
 echo "Retagging: $SRC -> $DST"
-skopeo copy "$SRC" "$DST"
+skopeo copy $SKOPEO_AUTH_ARGS "$SRC" "$DST"
 
 echo "Successfully published $REGISTRY/$IMAGE_NAME:$NEXT_VERSION"
+
+[[ -n "$AUTH_FILE" ]] && rm -f "$AUTH_FILE"
