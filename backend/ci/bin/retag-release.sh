@@ -60,6 +60,13 @@ if [[ -n "$AUTH_FILE" ]]; then
     SKOPEO_AUTH_ARGS="--authfile $AUTH_FILE"
 fi
 
+# Ensure containers policy.json exists (skopeo requires it for copy operations)
+POLICY_DIR="$HOME/.config/containers"
+if [[ ! -f "$POLICY_DIR/policy.json" ]]; then
+    mkdir -p "$POLICY_DIR"
+    printf '{"default":[{"type":"insecureAcceptAnything"}]}' > "$POLICY_DIR/policy.json"
+fi
+
 get_registry_tags() {
     skopeo list-tags $SKOPEO_AUTH_ARGS "docker://$REGISTRY/$IMAGE_NAME" 2>/dev/null \
         | jq -r '.Tags[]' 2>/dev/null || true
