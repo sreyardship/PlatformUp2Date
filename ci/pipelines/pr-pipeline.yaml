@@ -135,7 +135,7 @@ spec:
           value: backend
         - name: image-name
           value: platformup2date/backend
-        - name: prerelease
+        - name: tag
           value: $(params.branch_name)
         - name: env-secret
           value: registry-env

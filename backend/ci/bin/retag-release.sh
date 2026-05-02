@@ -109,9 +109,8 @@ fi
 NEXT_VERSION="${MAJOR}.${MINOR}.${PATCH}"
 echo "Next stable version: $NEXT_VERSION"
 
-# Find the prerelease tag that matches NEXT_VERSION-<branch>.N (highest N)
-# Prerelease tags follow the pattern: X.Y.Z-<label>.N
-PRERELEASE_PATTERN="^${NEXT_VERSION}-${BRANCH_NAME}\.[0-9]+$"
+# Find the branch tag matching <branch>.N (highest N)
+PRERELEASE_PATTERN="^${BRANCH_NAME}\.[0-9]+$"
 PRERELEASE_TAG="$({ echo "$ALL_TAGS" | grep -E "$PRERELEASE_PATTERN" || true; } | sort -V | tail -n 1)"
 
 if [[ -z "$PRERELEASE_TAG" ]]; then
