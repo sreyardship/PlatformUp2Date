@@ -118,7 +118,7 @@ spec:
         - name: source
           workspace: source
 
-    - name: build-and-publish-container
+    - name: build-and-publish-backend-container
       runAfter:
         - build-backend-native
       taskRef:
@@ -135,6 +135,65 @@ spec:
           value: backend
         - name: image-name
           value: platformup2date/backend
+        - name: tag
+          value: $(params.branch_name)
+        - name: env-secret
+          value: registry-env
+      workspaces:
+        - name: source
+          workspace: source
+
+    - name: build-frontend
+      runAfter:
+        - git-clone
+      taskRef:
+        resolver: cluster
+        params:
+          - name: name
+            value: nix-devshell-run
+          - name: namespace
+            value: tekton-pipelines
+      params:
+        - name: script
+          value: frontend/ci/bin/build.sh
+      workspaces:
+        - name: source
+          workspace: source
+
+    - name: test-frontend
+      runAfter:
+        - build-frontend
+      taskRef:
+        resolver: cluster
+        params:
+          - name: name
+            value: nix-devshell-run
+          - name: namespace
+            value: tekton-pipelines
+      params:
+        - name: script
+          value: frontend/ci/bin/test.sh
+      workspaces:
+        - name: source
+          workspace: source
+
+    - name: build-and-publish-frontend-container
+      runAfter:
+        - build-frontend
+      taskRef:
+        resolver: cluster
+        params:
+          - name: name
+            value: container-build-push
+          - name: namespace
+            value: tekton-pipelines
+      params:
+        - name: dockerfile
+          value: frontend/Dockerfile
+        - name: context
+          value: frontend
+        - name: image-name
+          value: platformup2date/frontend
         - name: tag
           value: $(params.branch_name)
         - name: env-secret

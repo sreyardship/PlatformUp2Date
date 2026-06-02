@@ -12,4 +12,6 @@ packages = [
   "gnugrep",     # For robust text searching in scripts
   "util-linux",  # unshare for creating user namespaces (rootless buildkitd)
   "kaniko",      # Kaniko image builder (executor binary)
+  "yarn",        # Frontend package manager
+  "nodejs",      # Node.js runtime for frontend builds
 ]

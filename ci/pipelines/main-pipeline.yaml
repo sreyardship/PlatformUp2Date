@@ -67,7 +67,7 @@ spec:
         - name: ssh-directory
           workspace: ssh-directory
 
-    - name: retag-container
+    - name: retag-backend-container
       runAfter:
         - git-clone
       taskRef:
@@ -80,9 +80,32 @@ spec:
       params:
         - name: script
           value: >-
-            backend/ci/bin/retag-release.sh
+            ci/bin/retag-release.sh
             --registry container-registry.sreyardship.com
             --image platformup2date/backend
+            --branch $(params.branch_name)
+        - name: env-secret
+          value: registry-env
+      workspaces:
+        - name: source
+          workspace: source
+
+    - name: retag-frontend-container
+      runAfter:
+        - git-clone
+      taskRef:
+        resolver: cluster
+        params:
+          - name: name
+            value: nix-devshell-run
+          - name: namespace
+            value: tekton-pipelines
+      params:
+        - name: script
+          value: >-
+            ci/bin/retag-release.sh
+            --registry container-registry.sreyardship.com
+            --image platformup2date/frontend
             --branch $(params.branch_name)
         - name: env-secret
           value: registry-env
