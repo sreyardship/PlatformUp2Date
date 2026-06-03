@@ -12,6 +12,7 @@ import org.yardship.core.services.ApplicationVersionService;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 @QuarkusTest
@@ -24,23 +25,56 @@ public class VersionServiceTests {
     private ApplicationVersionService sut;
 
     @Test
-    void getListOfOldApplications_shouldReturnAllVersionApplications() {
+    void getApplications_returnsCachedVersionApplications() {
         // Arrange
         VersionApplication oldApplication = createOldApplication();
         VersionApplication up2DateApplication = createUp2DateApplication();
         when(versionRepository.getAllVersionApplications())
-                .thenReturn(List.of(
-                        oldApplication,
-                        up2DateApplication)
-                );
+                .thenReturn(List.of(oldApplication, up2DateApplication));
 
         // Act
-        List<VersionApplication> oldApplications = sut.getApplications();
+        sut.scrape();
+        List<VersionApplication> result = sut.getApplications();
 
         // Assert
-        assertEquals(oldApplications.size(), 2);
-        assertEquals(oldApplications.getFirst(), oldApplication);
-        assertEquals(oldApplications.getLast(), up2DateApplication);
+        assertEquals(2, result.size());
+        assertEquals(oldApplication, result.getFirst());
+        assertEquals(up2DateApplication, result.getLast());
+    }
+
+    @Test
+    void getApplications_returnsEmptyList_beforeFirstScrape() {
+        // Arrange — no scrape() called
+
+        // Act
+        List<VersionApplication> result = sut.getApplications();
+
+        // Assert
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void scrape_keepsOldCache_whenRepositoryThrows() {
+        // Arrange
+        VersionApplication oldApplication = createOldApplication();
+        VersionApplication up2DateApplication = createUp2DateApplication();
+        List<VersionApplication> expectedApplications = List.of(oldApplication, up2DateApplication);
+
+        when(versionRepository.getAllVersionApplications())
+                .thenReturn(expectedApplications);
+        sut.scrape();
+
+        when(versionRepository.getAllVersionApplications())
+                .thenThrow(new RuntimeException("connection failed"));
+
+        // Act
+        sut.scrape();
+        List<VersionApplication> result = sut.getApplications();
+
+        // Assert
+        assertEquals(2, result.size());
+        assertEquals(oldApplication, result.getFirst());
+        assertEquals(up2DateApplication, result.getLast());
     }
 
     private VersionApplication createOldApplication() {

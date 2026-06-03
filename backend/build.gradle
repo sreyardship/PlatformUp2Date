@@ -16,6 +16,7 @@ dependencies {
     implementation 'io.quarkus:quarkus-rest-jackson'
     implementation 'io.quarkus:quarkus-rest-client-jackson'
     implementation 'io.quarkus:quarkus-config-yaml'
+    implementation 'io.quarkus:quarkus-scheduler'
     implementation 'io.quarkus:quarkus-vertx'
     implementation 'com.vdurmont:semver4j:3.1.0'
     implementation 'io.quarkiverse.openapi.generator:quarkus-openapi-generator-server:2.14.0'

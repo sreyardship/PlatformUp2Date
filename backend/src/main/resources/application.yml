@@ -1,4 +1,5 @@
 platform-config:
+  scrape-interval: 1h
   apps:
     - name: argo-cd
       current: https://deployments.sreyardship.com/api/version

@@ -1,14 +1,11 @@
 package org.yardship.adapters.in;
 
-import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.yardship.adapters.out.versionclient.ApplicationConfigLoader;
 import org.yardship.core.ports.in.ApplicationVersionPort;
 
-import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -23,12 +20,9 @@ public class VersionController {
         this.applicationVersionPort = applicationVersionPort;
     }
 
-    @Inject
-    ApplicationConfigLoader loader;
-
     @GET
     @Path("version")
-    public Map<String, ApplicationStatus> getVersion() throws URISyntaxException {
+    public Map<String, ApplicationStatus> getVersion() {
         Map<String, ApplicationStatus> appStatusList = new HashMap<>();
 
         applicationVersionPort.getApplications()

@@ -1,7 +1,7 @@
 package org.yardship.adapters.out.versionclient;
 
 import io.quarkus.rest.client.reactive.QuarkusRestClientBuilder;
-import jakarta.enterprise.context.RequestScoped;
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,7 +13,7 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 
-@RequestScoped
+@ApplicationScoped
 public class ApplicationVersionClient implements VersionRepository {
 
     private final Logger logger = LoggerFactory.getLogger(ApplicationVersionClient.class);

@@ -2,11 +2,11 @@ package org.yardship.adapters.out.versionclient;
 
 import io.smallrye.config.ConfigMapping;
 
-import java.net.URI;
 import java.util.List;
 
 @ConfigMapping(prefix = "platform-config")
 public interface ApplicationConfigLoader {
+    String scrapeInterval();
     List<AppConfig> apps();
 
     interface AppConfig {
