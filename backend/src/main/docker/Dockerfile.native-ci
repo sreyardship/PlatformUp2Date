@@ -1,9 +1,25 @@
-FROM quay.io/quarkus/quarkus-micro-image:2.0
+# ci bump 2
+# The native binary is built in the Nix devshell, so its ELF interpreter and
+# RUNPATH point into /nix/store paths that don't exist in the runtime image.
+# Patch the interpreter to the standard glibc loader and drop the Nix RUNPATH
+# so the loader resolves libc/libpthread/librt/libdl from the micro image's
+# /lib64. The binary requires GLIBC_2.34, so the runtime base must be UBI9
+# (glibc 2.34) — quarkus-micro-image:2.0 is UBI8 (glibc 2.28) and is too old.
+FROM alpine:3 AS patcher
+RUN apk add --no-cache patchelf
+WORKDIR /work/
+COPY build-native/*-runner /work/application
+RUN patchelf \
+        --set-interpreter /lib64/ld-linux-x86-64.so.2 \
+        --remove-rpath \
+        /work/application
+
+FROM registry.access.redhat.com/ubi9/ubi-micro:9.8
 WORKDIR /work/
 RUN chown 1001 /work \
     && chmod "g+rwX" /work \
     && chown 1001:root /work
-COPY --chown=1001:root build-native/*-runner /work/application
+COPY --from=patcher --chown=1001:root /work/application /work/application
 
 EXPOSE 8080
 USER 1001
