@@ -1,4 +1,3 @@
-# ci bump 3
 # The native binary is built in the Nix devshell, so its ELF interpreter and
 # RUNPATH point into /nix/store paths that don't exist in the runtime image.
 # Patch the interpreter to the standard glibc loader and drop the Nix RUNPATH
