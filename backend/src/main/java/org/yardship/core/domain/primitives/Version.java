@@ -18,7 +18,7 @@ public class Version {
             this.semver = new Semver(input);
         }
         catch (SemverException ex) {
-            throw new InvalidVersionException("Unable to parse version input");
+            throw new InvalidVersionException("Unable to parse version input: '" + input + "'");
         }
     }
 

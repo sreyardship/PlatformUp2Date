@@ -1,12 +1,23 @@
-platform-config:
-  scrape-interval: 1h
-  apps:
-    - name: argo-cd
-      current: https://deployments.sreyardship.com/api/version
-      latest: https://api.github.com/repos/argoproj/argo-cd/releases/latest
-    - name: git-tea
-      current: https://git.sreyardship.com/api/v1/version
-      latest: https://api.github.com/repos/go-gitea/gitea/releases/latest
-    - name: sharry
-      current: https://fileshare.sreyardship.com/api/v2/open/info/version
-      latest: https://api.github.com/repos/eikek/sharry/releases/latest
+# platform-config (the apps to monitor + scrape interval) is environment-specific.
+#
+# In production it is supplied exclusively by a mounted ConfigMap, pointed to via
+# QUARKUS_CONFIG_LOCATIONS=/config/platform-config.yaml — see
+# apps/service-spaces/platformup2date/app/ in the jumziCluster repo. Nothing is
+# baked into the default (prod) profile on purpose, so changing the watched apps
+# is a ConfigMap edit, not an image rebuild.
+#
+# The values below apply to local dev only (`gradle quarkusDev`). Tests supply
+# their own minimal config in src/test/resources/application.properties.
+"%dev":
+  platform-config:
+    scrape-interval: 1h
+    apps:
+      - name: argo-cd
+        current: https://deployments.sreyardship.com/api/version
+        latest: https://api.github.com/repos/argoproj/argo-cd/releases/latest
+      - name: git-tea
+        current: https://git.sreyardship.com/api/v1/version
+        latest: https://api.github.com/repos/go-gitea/gitea/releases/latest
+      - name: sharry
+        current: https://fileshare.sreyardship.com/api/v2/open/info/version
+        latest: https://api.github.com/repos/eikek/sharry/releases/latest
