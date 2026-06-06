@@ -24,6 +24,12 @@ dependencies {
     testImplementation 'io.quarkus:quarkus-junit5'
     testImplementation 'io.quarkus:quarkus-junit5-mockito'
     testImplementation 'org.wiremock:wiremock:3.9.1'
+
+    // Black-box integration tests (@QuarkusIntegrationTest) run via the `quarkusIntTest`
+    // task against the built artifact (native in CI). Separate `integrationTest` source set.
+    integrationTestImplementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    integrationTestImplementation 'io.quarkus:quarkus-junit5'
+    integrationTestImplementation 'org.wiremock:wiremock:3.9.1'
 }
 
 group 'org.yardship'

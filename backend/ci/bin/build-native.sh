@@ -13,12 +13,17 @@ export GRADLE_OPTS="-XX:MaxMetaspaceSize=384m -XX:+HeapDumpOnOutOfMemoryError -X
 NATIVE_BUILD_DIR="$PROJECT_ROOT/build-native"
 
 echo "Building native executable (this may take several minutes)..."
-cd "$PROJECT_ROOT" && gradle --no-daemon --project-cache-dir "$PROJECT_ROOT/.gradle/native" build \
+# `quarkusIntTest` runs the @QuarkusIntegrationTest suite against the freshly built
+# native binary. This is the only place native-image regressions (e.g. a REST-client
+# provider that can't be reflectively instantiated in native) get caught before the
+# image is published — JVM-mode unit tests cannot see them. `-x test` skips the unit
+# tests here; those run in the separate `unit-test` pipeline task.
+cd "$PROJECT_ROOT" && gradle --no-daemon --project-cache-dir "$PROJECT_ROOT/.gradle/native" build quarkusIntTest \
   -Dorg.gradle.jvmargs="-XX:MaxMetaspaceSize=384m -XX:+HeapDumpOnOutOfMemoryError -Xms256m -Xmx512m" \
   -PcustomBuildDir="$NATIVE_BUILD_DIR" \
   -Dquarkus.native.enabled=true \
   -Dquarkus.package.jar.enabled=false \
   -x test
 
-echo "✓ Native build complete!"
+echo "✓ Native build + integration tests complete!"
 echo "Binary location: $NATIVE_BUILD_DIR/*-runner"

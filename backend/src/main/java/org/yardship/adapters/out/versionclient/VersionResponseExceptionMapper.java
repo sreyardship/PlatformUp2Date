@@ -1,5 +1,6 @@
 package org.yardship.adapters.out.versionclient;
 
+import io.quarkus.runtime.annotations.RegisterForReflection;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.rest.client.ext.ResponseExceptionMapper;
@@ -10,7 +11,12 @@ import org.eclipse.microprofile.rest.client.ext.ResponseExceptionMapper;
  * truncated copy of the response body. The per-app scrape loop only has to log
  * {@code e.getMessage()} to get an informative diagnostic (e.g. a GitHub
  * rate-limit JSON or an HTML login page).
+ *
+ * Registered by class on the REST client builder, so the native image must keep its
+ * constructor reflectively accessible — hence {@link RegisterForReflection}. Without it
+ * the rest client cannot instantiate the provider in native mode and bean construction fails.
  */
+@RegisterForReflection
 public class VersionResponseExceptionMapper implements ResponseExceptionMapper<RuntimeException> {
 
     private static final int MAX_BODY = 512;
