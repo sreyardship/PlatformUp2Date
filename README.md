@@ -36,3 +36,46 @@ $ docker compose -f "compose.apicurio.yml" up -d
 ```
 
 then [open it up](http://localhost:8888) in your browser. The schemas does not persist, however, so make sure to download them before tearing down the containers.
+
+## Metrics & Alerting
+
+The backend exposes Prometheus metrics at `/q/metrics` (via the Micrometer Prometheus
+registry). The custom metric for version monitoring is a single gauge:
+
+```
+# HELP app_version_drift_level How far the deployed version is behind latest (0=current, 1=patch, 2=minor, 3=major)
+# TYPE app_version_drift_level gauge
+app_version_drift_level{app="argo-cd"} 3
+app_version_drift_level{app="git-tea"} 0
+```
+
+One gauge answers both questions: whether an app is outdated, and how far behind it is.
+The value encodes the highest-significance semver difference between the deployed and
+latest version — `0` current, `1` patch behind, `2` minor behind, `3` major behind.
+(Pre-release/build-only differences are reported as `1`.)
+
+### Prometheus alert rules
+
+```yaml
+groups:
+  - name: platform-up-2-date
+    rules:
+      - alert: AppOutdated
+        expr: app_version_drift_level > 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.app }} is behind its latest release"
+
+      - alert: AppMajorVersionBehind
+        expr: app_version_drift_level >= 3
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.app }} is a major version behind latest"
+```
+
+For more detail than the gauge carries (the actual current/latest version strings),
+use the frontend or the `GET /api/v1/version` endpoint.

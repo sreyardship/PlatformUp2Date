@@ -26,6 +26,20 @@ public class Version {
         return this.semver.isLowerThan(comparable.semver);
     }
 
+    public enum Diff {
+        NONE, PATCH, MINOR, MAJOR
+    }
+
+    public Diff diff(Version other) {
+        Semver.VersionDiff versionDiff = this.semver.diff(other.semver);
+        return switch (versionDiff) {
+            case MAJOR -> Diff.MAJOR;
+            case MINOR -> Diff.MINOR;
+            case PATCH, SUFFIX, BUILD -> Diff.PATCH;
+            case NONE -> Diff.NONE;
+        };
+    }
+
     public String value() {
         return semver.getValue();
     }

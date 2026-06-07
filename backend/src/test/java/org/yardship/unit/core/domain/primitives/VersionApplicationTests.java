@@ -37,4 +37,40 @@ public class VersionApplicationTests {
         assertTrue(oldApplication.isOld());
         assertFalse(up2dateApplication.isOld());
     }
+
+    @Test
+    void drift_isMajor_whenMajorBehind() {
+        VersionApplication app = new VersionApplication(validName, new Version("1.1.1"), new Version("2.2.2"));
+        assertEquals(Version.Diff.MAJOR, app.drift());
+    }
+
+    @Test
+    void drift_isMinor_whenMinorBehind() {
+        VersionApplication app = new VersionApplication(validName, new Version("2.1.0"), new Version("2.2.0"));
+        assertEquals(Version.Diff.MINOR, app.drift());
+    }
+
+    @Test
+    void drift_isPatch_whenPatchBehind() {
+        VersionApplication app = new VersionApplication(validName, new Version("2.2.1"), new Version("2.2.2"));
+        assertEquals(Version.Diff.PATCH, app.drift());
+    }
+
+    @Test
+    void drift_isNone_whenVersionsEqual() {
+        VersionApplication app = new VersionApplication(validName, new Version("2.2.2"), new Version("2.2.2"));
+        assertEquals(Version.Diff.NONE, app.drift());
+    }
+
+    @Test
+    void drift_isNone_whenCurrentIsAheadOfLatest() {
+        VersionApplication app = new VersionApplication(validName, new Version("3.0.0"), new Version("2.0.0"));
+        assertEquals(Version.Diff.NONE, app.drift());
+    }
+
+    @Test
+    void drift_isPatch_whenOnlySuffixDifferenceWhileBehind() {
+        VersionApplication app = new VersionApplication(validName, new Version("2.0.0-rc1"), new Version("2.0.0"));
+        assertEquals(Version.Diff.PATCH, app.drift());
+    }
 }

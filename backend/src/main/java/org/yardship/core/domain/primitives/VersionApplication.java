@@ -18,4 +18,11 @@ public record VersionApplication(String name, Version current, Version latest) {
     public boolean isOld() {
         return current.isOlderThan(latest);
     }
+
+    public Version.Diff drift() {
+        if (!isOld()) {
+            return Version.Diff.NONE;
+        }
+        return current.diff(latest);
+    }
 }
