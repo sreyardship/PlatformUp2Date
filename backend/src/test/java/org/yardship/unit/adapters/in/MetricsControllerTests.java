@@ -34,9 +34,9 @@ public class MetricsControllerTests {
 
         String output = sut.getMetrics();
 
-        assertTrue(output.contains("app_version_drift_level{app=\"argo-cd\"} 3"),
+        assertTrue(output.contains("platformup2date_version_drift_level{app=\"argo-cd\"} 3"),
                 "expected argo-cd major drift in: " + output);
-        assertTrue(output.contains("app_version_drift_level{app=\"grafana\"} 0"),
+        assertTrue(output.contains("platformup2date_version_drift_level{app=\"grafana\"} 0"),
                 "expected grafana current drift in: " + output);
     }
 }

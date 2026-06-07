@@ -39,20 +39,28 @@ then [open it up](http://localhost:8888) in your browser. The schemas does not p
 
 ## Metrics & Alerting
 
-The backend exposes Prometheus metrics at `/q/metrics` (via the Micrometer Prometheus
-registry). The custom metric for version monitoring is a single gauge:
+The backend exposes a Prometheus scrape endpoint at `/metrics`, hand-rendered in the
+Prometheus text exposition format (no Micrometer). The custom metric for version
+monitoring is a single gauge:
 
 ```
-# HELP app_version_drift_level How far the deployed version is behind latest (0=current, 1=patch, 2=minor, 3=major)
-# TYPE app_version_drift_level gauge
-app_version_drift_level{app="argo-cd"} 3
-app_version_drift_level{app="git-tea"} 0
+# HELP platformup2date_version_drift_level How far the deployed version is behind latest (0=current, 1=patch, 2=minor, 3=major)
+# TYPE platformup2date_version_drift_level gauge
+platformup2date_version_drift_level{app="argo-cd"} 3
+platformup2date_version_drift_level{app="git-tea"} 0
 ```
 
 One gauge answers both questions: whether an app is outdated, and how far behind it is.
 The value encodes the highest-significance semver difference between the deployed and
 latest version — `0` current, `1` patch behind, `2` minor behind, `3` major behind.
 (Pre-release/build-only differences are reported as `1`.)
+
+### Scraping
+
+In the cluster the endpoint is scraped via a Prometheus Operator `ServiceMonitor`
+targeting the backend `Service` on its `http` port at path `/metrics`. Both live in
+the deployment manifests under `apps/service-spaces/platformup2date/` in the
+jumziCluster repo.
 
 ### Prometheus alert rules
 
@@ -61,7 +69,7 @@ groups:
   - name: platform-up-2-date
     rules:
       - alert: AppOutdated
-        expr: app_version_drift_level > 0
+        expr: platformup2date_version_drift_level > 0
         for: 1h
         labels:
           severity: warning
@@ -69,7 +77,7 @@ groups:
           summary: "{{ $labels.app }} is behind its latest release"
 
       - alert: AppMajorVersionBehind
-        expr: app_version_drift_level >= 3
+        expr: platformup2date_version_drift_level >= 3
         for: 1h
         labels:
           severity: critical

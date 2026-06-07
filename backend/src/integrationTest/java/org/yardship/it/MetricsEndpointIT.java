@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Black-box integration test asserting the Prometheus scrape endpoint exposes the
- * {@code app_version_drift_level} gauge for the WireMock-served app. WireMock serves
+ * {@code platformup2date_version_drift_level} gauge for the WireMock-served app. WireMock serves
  * good-app current 1.0.0 / latest 2.0.0 — a major drift, so the value must be 3.
  */
 @QuarkusIntegrationTest
@@ -37,10 +37,10 @@ class MetricsEndpointIT {
         while (Instant.now().isBefore(deadline)) {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
             body = response.body();
-            if (response.statusCode() == 200 && body.contains("app_version_drift_level{app=\"good-app\"}")) {
-                assertTrue(body.contains("# TYPE app_version_drift_level gauge"),
+            if (response.statusCode() == 200 && body.contains("platformup2date_version_drift_level{app=\"good-app\"}")) {
+                assertTrue(body.contains("# TYPE platformup2date_version_drift_level gauge"),
                         "expected TYPE line in: " + body);
-                assertTrue(body.contains("app_version_drift_level{app=\"good-app\"} 3"),
+                assertTrue(body.contains("platformup2date_version_drift_level{app=\"good-app\"} 3"),
                         "expected major drift value 3 in: " + body);
                 String contentType = response.headers().firstValue("content-type").orElse("");
                 assertTrue(contentType.startsWith("text/plain"),
@@ -49,6 +49,6 @@ class MetricsEndpointIT {
             }
             Thread.sleep(500);
         }
-        fail("Timed out waiting for /metrics to expose app_version_drift_level. Last body: " + body);
+        fail("Timed out waiting for /metrics to expose platformup2date_version_drift_level. Last body: " + body);
     }
 }

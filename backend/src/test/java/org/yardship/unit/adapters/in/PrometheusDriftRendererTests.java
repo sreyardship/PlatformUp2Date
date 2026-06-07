@@ -14,9 +14,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PrometheusDriftRendererTests {
 
     private static final String HELP_LINE =
-            "# HELP app_version_drift_level How far the deployed version is behind latest "
+            "# HELP platformup2date_version_drift_level How far the deployed version is behind latest "
                     + "(0=current, 1=patch, 2=minor, 3=major)";
-    private static final String TYPE_LINE = "# TYPE app_version_drift_level gauge";
+    private static final String TYPE_LINE = "# TYPE platformup2date_version_drift_level gauge";
 
     private final PrometheusDriftRenderer sut = new PrometheusDriftRenderer();
 
@@ -38,10 +38,10 @@ class PrometheusDriftRendererTests {
         assertEquals(1, countOccurrences(output, HELP_LINE), "HELP must appear exactly once");
         assertEquals(1, countOccurrences(output, TYPE_LINE), "TYPE must appear exactly once");
 
-        assertTrue(output.contains("app_version_drift_level{app=\"major-app\"} 3"), output);
-        assertTrue(output.contains("app_version_drift_level{app=\"minor-app\"} 2"), output);
-        assertTrue(output.contains("app_version_drift_level{app=\"patch-app\"} 1"), output);
-        assertTrue(output.contains("app_version_drift_level{app=\"current-app\"} 0"), output);
+        assertTrue(output.contains("platformup2date_version_drift_level{app=\"major-app\"} 3"), output);
+        assertTrue(output.contains("platformup2date_version_drift_level{app=\"minor-app\"} 2"), output);
+        assertTrue(output.contains("platformup2date_version_drift_level{app=\"patch-app\"} 1"), output);
+        assertTrue(output.contains("platformup2date_version_drift_level{app=\"current-app\"} 0"), output);
     }
 
     @Test
@@ -50,7 +50,7 @@ class PrometheusDriftRendererTests {
 
         assertTrue(output.contains(HELP_LINE), "expected HELP line in: " + output);
         assertTrue(output.contains(TYPE_LINE), "expected TYPE line in: " + output);
-        assertFalse(output.contains("app_version_drift_level{"),
+        assertFalse(output.contains("platformup2date_version_drift_level{"),
                 "expected no sample lines in: " + output);
     }
 
@@ -61,7 +61,7 @@ class PrometheusDriftRendererTests {
 
         String output = sut.render(List.of(weird));
 
-        assertTrue(output.contains("app_version_drift_level{app=\"we\\\"ird\\\\name\"} 3"),
+        assertTrue(output.contains("platformup2date_version_drift_level{app=\"we\\\"ird\\\\name\"} 3"),
                 "expected escaped label value in: " + output);
     }
 
@@ -74,7 +74,7 @@ class PrometheusDriftRendererTests {
 
         // The embedded newline must become a literal backslash-n, not a real line break,
         // otherwise the sample would split across two physical lines and break parsing.
-        assertTrue(output.contains("app_version_drift_level{app=\"line1\\nline2\"} 3"),
+        assertTrue(output.contains("platformup2date_version_drift_level{app=\"line1\\nline2\"} 3"),
                 "expected newline escaped as literal \\n in: " + output);
     }
 
