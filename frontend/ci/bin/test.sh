@@ -15,6 +15,6 @@ echo "Installing dependencies..."
 cd "$PROJECT_ROOT" && yarn install --frozen-lockfile
 
 echo "Running frontend tests..."
-yarn test --watchAll=false --ci --passWithNoTests
+yarn test
 
 echo "All frontend tests passed!"
