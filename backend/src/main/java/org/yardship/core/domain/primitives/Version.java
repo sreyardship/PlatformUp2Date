@@ -1,8 +1,8 @@
 package org.yardship.core.domain.primitives;
 
-import com.vdurmont.semver4j.SemverException;
+import org.semver4j.SemverException;
 import org.yardship.core.domain.exceptions.InvalidVersionException;
-import com.vdurmont.semver4j.Semver;
+import org.semver4j.Semver;
 
 import static org.yardship.core.domain.primitives.DomainValidator.notNull;
 
@@ -35,13 +35,13 @@ public class Version {
         return switch (versionDiff) {
             case MAJOR -> Diff.MAJOR;
             case MINOR -> Diff.MINOR;
-            case PATCH, SUFFIX, BUILD -> Diff.PATCH;
+            case PATCH, PRE_RELEASE, BUILD -> Diff.PATCH;
             case NONE -> Diff.NONE;
         };
     }
 
     public String value() {
-        return semver.getValue();
+        return semver.getVersion();
     }
 
     @Override

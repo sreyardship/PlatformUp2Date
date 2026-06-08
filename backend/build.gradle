@@ -16,20 +16,21 @@ dependencies {
     implementation 'io.quarkus:quarkus-rest-jackson'
     implementation 'io.quarkus:quarkus-rest-client-jackson'
     implementation 'io.quarkus:quarkus-config-yaml'
+    implementation 'io.quarkus:quarkus-hibernate-validator'
     implementation 'io.quarkus:quarkus-scheduler'
     implementation 'io.quarkus:quarkus-vertx'
-    implementation 'com.vdurmont:semver4j:3.1.0'
-    implementation 'io.quarkiverse.openapi.generator:quarkus-openapi-generator-server:2.14.0'
+    implementation 'org.semver4j:semver4j:6.0.0'
+    implementation 'io.quarkiverse.openapi.generator:quarkus-openapi-generator-server:2.17.0-lts'
 
     testImplementation 'io.quarkus:quarkus-junit5'
     testImplementation 'io.quarkus:quarkus-junit5-mockito'
-    testImplementation 'org.wiremock:wiremock:3.9.1'
+    testImplementation 'org.wiremock:wiremock:3.13.2'
 
     // Black-box integration tests (@QuarkusIntegrationTest) run via the `quarkusIntTest`
     // task against the built artifact (native in CI). Separate `integrationTest` source set.
     integrationTestImplementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
     integrationTestImplementation 'io.quarkus:quarkus-junit5'
-    integrationTestImplementation 'org.wiremock:wiremock:3.9.1'
+    integrationTestImplementation 'org.wiremock:wiremock:3.13.2'
 }
 
 group 'org.yardship'
