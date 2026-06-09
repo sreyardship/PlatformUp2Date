@@ -87,3 +87,110 @@ groups:
 
 For more detail than the gauge carries (the actual current/latest version strings),
 use the frontend or the `GET /api/v1/version` endpoint.
+
+## MCP endpoint
+
+The backend exposes a [Model Context Protocol](https://modelcontextprotocol.io/) server
+so an AI agent can ask "which monitored applications are out of date, and how far behind?"
+without any custom integration. It is a third read surface over the same data as `/metrics`
+and `GET /api/v1/version` — any MCP-capable host (Claude Desktop, IDE agents, your own)
+can connect and discover the tools at runtime.
+
+Transport is **streamable HTTP / SSE**, served at `/mcp/sse` on the backend's HTTP port.
+
+### Tools
+
+- **`list_outdated_applications(minSeverity?)`** — returns the applications running behind
+  their latest upstream release, each as `{ name, current, latest, outdated, drift }` where
+  `drift` is `PATCH` / `MINOR` / `MAJOR`. The optional `minSeverity` argument
+  (`PATCH` | `MINOR` | `MAJOR`) filters by how far behind an app is; omit it to get every
+  app with any drift.
+- **`get_application(name)`** — returns the status of a single application by exact name,
+  or nothing if it isn't monitored.
+
+The drift verdict is computed server-side by the same tested semver logic that backs the
+metrics gauge, so the agent never has to compare versions itself.
+
+### Connecting a client
+
+Point any MCP client at the SSE endpoint. For Claude Code:
+
+```bash
+claude mcp add --transport sse platformup2date https://platformup2date.example.com/mcp/sse
+```
+
+### Security
+
+The endpoint ships **unauthenticated** — it is meant to sit behind a reverse proxy that
+enforces access, exactly like the `/metrics` endpoint. Do not expose it directly on an
+untrusted network: it enumerates your infrastructure's version drift, which is useful recon
+for an attacker.
+
+A common setup is [`oauth2-proxy`](https://oauth2-proxy.github.io/oauth2-proxy/) in front of
+`/mcp/sse`, configured to accept bearer JWTs from your OIDC issuer:
+
+```
+--skip-jwt-bearer-tokens=true
+--oidc-issuer-url=https://auth.example.com/realms/yourrealm
+```
+
+Most MCP clients can't perform an interactive OIDC login on their own, so a small wrapper
+fetches a token with [`oauth2c`](https://github.com/cloudentity/oauth2c) and bridges the
+client's stdio to the protected SSE endpoint via
+[`mcp-remote`](https://www.npmjs.com/package/mcp-remote).
+
+**1. Token helper — `oidc-token.sh`** (PKCE public-client flow, cached until the JWT expires):
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+OIDC_ISSUER="${OIDC_ISSUER:-https://auth.example.com/realms/yourrealm}"
+OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-platformup2date-mcp}"
+CACHE="${XDG_RUNTIME_DIR:-/tmp}/platformup2date-mcp-token"
+
+token_expired() {
+  local t="${1:-}"; [ -z "$t" ] && return 0
+  local exp
+  exp=$(echo "$t" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null | jq -r '.exp // 0')
+  [ "$(date +%s)" -ge "$exp" ]
+}
+
+token=$(cat "$CACHE" 2>/dev/null || true)
+if token_expired "$token"; then
+  token=$(oauth2c "$OIDC_ISSUER" \
+    --client-id "$OIDC_CLIENT_ID" \
+    --response-types code --grant-type authorization_code \
+    --auth-method none --pkce --scopes openid --silent \
+    | jq -r '.access_token // empty')
+  [ -n "$token" ] || { echo "failed to obtain OIDC token" >&2; exit 1; }
+  umask 177; printf '%s' "$token" > "$CACHE"
+fi
+printf '%s' "$token"
+```
+
+**2. MCP wrapper — `platformup2date-mcp.sh`** (bridges the client to the protected SSE URL):
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+TOKEN=$("$(dirname "$0")/oidc-token.sh")
+MCP_URL="${PLATFORMUP2DATE_MCP_URL:-https://platformup2date.example.com/mcp/sse}"
+
+exec npx -y mcp-remote "$MCP_URL" --header "Authorization: Bearer ${TOKEN}"
+```
+
+**3. Register the wrapper with your client:**
+
+```bash
+claude mcp add platformup2date -- /path/to/platformup2date-mcp.sh
+```
+
+The wrapper runs per session: it reuses the cached token, transparently re-runs the
+`oauth2c` login once the JWT expires, and oauth2-proxy validates the bearer token before
+the request reaches the backend. The application itself stays auth-agnostic.
+
+> If your client supports remote SSE servers with custom headers directly, you can skip
+> `mcp-remote` and pass `Authorization: Bearer $(./oidc-token.sh)` as a header — but a
+> wrapper keeps the token fresh across expiries without editing client config.

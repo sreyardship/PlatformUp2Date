@@ -73,4 +73,47 @@ public class VersionApplicationTests {
         VersionApplication app = new VersionApplication(validName, new Version("2.0.0-rc1"), new Version("2.0.0"));
         assertEquals(Version.Diff.PATCH, app.drift());
     }
+
+    // hasDriftAtLeast: "does this app drift by at least the given minimum severity?"
+    // Drift ordering contract: NONE < PATCH < MINOR < MAJOR.
+
+    @Test
+    void hasDriftAtLeast_isFalseAtEveryThreshold_whenCurrent() {
+        VersionApplication current = new VersionApplication(validName,
+                new Version("2.2.2"), new Version("2.2.2"));
+
+        assertFalse(current.hasDriftAtLeast(Version.Diff.PATCH));
+        assertFalse(current.hasDriftAtLeast(Version.Diff.MINOR));
+        assertFalse(current.hasDriftAtLeast(Version.Diff.MAJOR));
+    }
+
+    @Test
+    void hasDriftAtLeast_patchApp_meetsOnlyPatchThreshold() {
+        VersionApplication patchBehind = new VersionApplication(validName,
+                new Version("2.2.1"), new Version("2.2.2"));
+
+        assertTrue(patchBehind.hasDriftAtLeast(Version.Diff.PATCH));
+        assertFalse(patchBehind.hasDriftAtLeast(Version.Diff.MINOR));
+        assertFalse(patchBehind.hasDriftAtLeast(Version.Diff.MAJOR));
+    }
+
+    @Test
+    void hasDriftAtLeast_minorApp_meetsPatchAndMinorThresholds() {
+        VersionApplication minorBehind = new VersionApplication(validName,
+                new Version("2.1.0"), new Version("2.2.0"));
+
+        assertTrue(minorBehind.hasDriftAtLeast(Version.Diff.PATCH));
+        assertTrue(minorBehind.hasDriftAtLeast(Version.Diff.MINOR));
+        assertFalse(minorBehind.hasDriftAtLeast(Version.Diff.MAJOR));
+    }
+
+    @Test
+    void hasDriftAtLeast_majorApp_meetsEveryThreshold() {
+        VersionApplication majorBehind = new VersionApplication(validName,
+                new Version("1.1.1"), new Version("2.2.2"));
+
+        assertTrue(majorBehind.hasDriftAtLeast(Version.Diff.PATCH));
+        assertTrue(majorBehind.hasDriftAtLeast(Version.Diff.MINOR));
+        assertTrue(majorBehind.hasDriftAtLeast(Version.Diff.MAJOR));
+    }
 }

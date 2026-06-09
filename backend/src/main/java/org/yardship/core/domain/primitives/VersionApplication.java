@@ -25,4 +25,8 @@ public record VersionApplication(String name, Version current, Version latest) {
         }
         return current.diff(latest);
     }
+
+    public boolean hasDriftAtLeast(Version.Diff minimum) {
+        return drift().isAtLeast(minimum);
+    }
 }

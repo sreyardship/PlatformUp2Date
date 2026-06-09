@@ -56,6 +56,35 @@ public class VersionTests {
         assertFalse(newVersion.isOlderThan(oldVersion));
     }
 
+    @Test
+    void diffIsAtLeast_isTrue_whenSeverityIsEqual() {
+        assertTrue(Version.Diff.NONE.isAtLeast(Version.Diff.NONE));
+        assertTrue(Version.Diff.PATCH.isAtLeast(Version.Diff.PATCH));
+        assertTrue(Version.Diff.MINOR.isAtLeast(Version.Diff.MINOR));
+        assertTrue(Version.Diff.MAJOR.isAtLeast(Version.Diff.MAJOR));
+    }
+
+    @Test
+    void diffIsAtLeast_isTrue_whenThisIsMoreSevere() {
+        // Ordering contract: NONE < PATCH < MINOR < MAJOR
+        assertTrue(Version.Diff.PATCH.isAtLeast(Version.Diff.NONE));
+        assertTrue(Version.Diff.MINOR.isAtLeast(Version.Diff.PATCH));
+        assertTrue(Version.Diff.MINOR.isAtLeast(Version.Diff.NONE));
+        assertTrue(Version.Diff.MAJOR.isAtLeast(Version.Diff.MINOR));
+        assertTrue(Version.Diff.MAJOR.isAtLeast(Version.Diff.PATCH));
+        assertTrue(Version.Diff.MAJOR.isAtLeast(Version.Diff.NONE));
+    }
+
+    @Test
+    void diffIsAtLeast_isFalse_whenThisIsLessSevere() {
+        assertFalse(Version.Diff.NONE.isAtLeast(Version.Diff.PATCH));
+        assertFalse(Version.Diff.NONE.isAtLeast(Version.Diff.MINOR));
+        assertFalse(Version.Diff.NONE.isAtLeast(Version.Diff.MAJOR));
+        assertFalse(Version.Diff.PATCH.isAtLeast(Version.Diff.MINOR));
+        assertFalse(Version.Diff.PATCH.isAtLeast(Version.Diff.MAJOR));
+        assertFalse(Version.Diff.MINOR.isAtLeast(Version.Diff.MAJOR));
+    }
+
     private static List<String> invalidInputs() {
         return List.of(
                 "Version",

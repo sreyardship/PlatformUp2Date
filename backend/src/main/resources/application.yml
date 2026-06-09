@@ -1,3 +1,9 @@
+quarkus:
+  mcp:
+    server:
+      server-info:
+        name: platformup2date
+
 # platform-config (the apps to monitor + scrape interval) is environment-specific.
 #
 # In production it is supplied exclusively by a mounted ConfigMap, pointed to via

@@ -27,7 +27,14 @@ public class Version {
     }
 
     public enum Diff {
-        NONE, PATCH, MINOR, MAJOR
+        // Declaration order IS the severity contract: NONE < PATCH < MINOR < MAJOR.
+        // isAtLeast compares by ordinal, so reordering these constants would
+        // silently redefine "severity" — keep them in ascending severity order.
+        NONE, PATCH, MINOR, MAJOR;
+
+        public boolean isAtLeast(Diff other) {
+            return this.ordinal() >= other.ordinal();
+        }
     }
 
     public Diff diff(Version other) {
