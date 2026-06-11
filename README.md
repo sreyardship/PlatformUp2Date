@@ -96,7 +96,7 @@ without any custom integration. It is a third read surface over the same data as
 and `GET /api/v1/version` — any MCP-capable host (Claude Desktop, IDE agents, your own)
 can connect and discover the tools at runtime.
 
-Transport is **streamable HTTP / SSE**, served at `/mcp/sse` on the backend's HTTP port.
+Transport is **streamable HTTP / SSE**, served at `/api/mcp/sse` on the backend's HTTP port.
 
 ### Tools
 
@@ -116,7 +116,7 @@ metrics gauge, so the agent never has to compare versions itself.
 Point any MCP client at the SSE endpoint. For Claude Code:
 
 ```bash
-claude mcp add --transport sse platformup2date https://platformup2date.example.com/mcp/sse
+claude mcp add --transport sse platformup2date https://platformup2date.example.com/api/mcp/sse
 ```
 
 ### Security
@@ -127,7 +127,7 @@ untrusted network: it enumerates your infrastructure's version drift, which is u
 for an attacker.
 
 A common setup is [`oauth2-proxy`](https://oauth2-proxy.github.io/oauth2-proxy/) in front of
-`/mcp/sse`, configured to accept bearer JWTs from your OIDC issuer:
+`/api/mcp/sse`, configured to accept bearer JWTs from your OIDC issuer:
 
 ```
 --skip-jwt-bearer-tokens=true
@@ -176,7 +176,7 @@ printf '%s' "$token"
 set -euo pipefail
 
 TOKEN=$("$(dirname "$0")/oidc-token.sh")
-MCP_URL="${PLATFORMUP2DATE_MCP_URL:-https://platformup2date.example.com/mcp/sse}"
+MCP_URL="${PLATFORMUP2DATE_MCP_URL:-https://platformup2date.example.com/api/mcp/sse}"
 
 exec npx -y mcp-remote "$MCP_URL" --header "Authorization: Bearer ${TOKEN}"
 ```

@@ -3,6 +3,13 @@ quarkus:
     server:
       server-info:
         name: platformup2date
+      # Relocate the MCP endpoint from the default /mcp to /api/mcp so the whole
+      # backend surface lives under one prefix. The cluster HTTPRoute forwards
+      # /api -> backend (unstripped) and / -> frontend; at the default /mcp the
+      # MCP endpoint falls through to the frontend and is unreachable. Applies to
+      # all profiles (prod included) on purpose. See docs/adr/0002.
+      http:
+        root-path: api/mcp
 
 # platform-config (the apps to monitor + scrape interval) is environment-specific.
 #

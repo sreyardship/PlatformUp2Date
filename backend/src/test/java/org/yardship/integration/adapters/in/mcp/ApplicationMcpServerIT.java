@@ -18,8 +18,10 @@ import static org.mockito.Mockito.when;
 
 /**
  * System test exercising the MCP SSE endpoint end-to-end through a real MCP client
- * ({@link McpAssured}). The extension auto-registers the SSE endpoint at /mcp/sse and
- * auto-discovers the {@code @Tool}-annotated beans; this test asserts the wiring works:
+ * ({@link McpAssured}). The endpoint is relocated to /api/mcp/sse via
+ * {@code quarkus.mcp.server.http.root-path} (see docs/adr/0002); McpAssured does not read
+ * that config, so the path is set explicitly below. The extension auto-discovers the
+ * {@code @Tool}-annotated beans; this test asserts the wiring works:
  *   - tools/list exposes both list_outdated_applications and get_application,
  *   - tools/call list_outdated_applications returns the outdated apps and omits current ones.
  *
@@ -53,7 +55,10 @@ public class ApplicationMcpServerIT {
     void toolsList_exposesBothApplicationTools() {
         stubMixedApplications();
 
-        McpSseTestClient client = McpAssured.newConnectedSseClient();
+        McpSseTestClient client = McpAssured.newSseClient()
+                .setSsePath("/api/mcp/sse")
+                .build()
+                .connect();
         client.when()
                 .toolsList(page -> {
                     assertNotNull(page.findByName("list_outdated_applications"),
@@ -68,7 +73,10 @@ public class ApplicationMcpServerIT {
     void toolsCall_listOutdatedApplications_returnsOutdatedAndOmitsCurrent() {
         stubMixedApplications();
 
-        McpSseTestClient client = McpAssured.newConnectedSseClient();
+        McpSseTestClient client = McpAssured.newSseClient()
+                .setSsePath("/api/mcp/sse")
+                .build()
+                .connect();
         client.when()
                 .toolsCall("list_outdated_applications", response -> {
                     assertFalse(response.isError(), "tool call must succeed");
