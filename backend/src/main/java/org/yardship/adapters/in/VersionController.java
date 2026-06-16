@@ -25,6 +25,9 @@ public class VersionController {
     public Map<String, ApplicationStatus> getVersion() {
         Map<String, ApplicationStatus> appStatusList = new HashMap<>();
 
+        // Fail closed: when the shared snapshot is unavailable (Valkey unreachable) the
+        // port throws ScrapeStateUnavailableException, mapped to 503 by
+        // ScrapeStateUnavailableExceptionMapper — never a 200 with stale or empty data.
         applicationVersionPort.getApplications()
                 .forEach(app -> {
                             var status = new ApplicationStatus(app.current().value(), app.latest().value());

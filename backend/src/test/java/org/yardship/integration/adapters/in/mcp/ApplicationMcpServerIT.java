@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.yardship.core.domain.primitives.Version;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.in.ApplicationVersionPort;
+import org.yardship.core.ports.in.ScrapeStatus;
 
 import java.util.List;
 
@@ -85,6 +86,64 @@ public class ApplicationMcpServerIT {
                             "outdated app must be present in payload: " + text);
                     assertFalse(text.contains("gitea"),
                             "current app must be omitted from payload: " + text);
+                })
+                .thenAssertResults();
+    }
+
+    @Test
+    void toolsList_exposesTriggerScrapeTool() {
+        McpSseTestClient client = McpAssured.newSseClient()
+                .setSsePath("/api/mcp/sse")
+                .build()
+                .connect();
+        client.when()
+                .toolsList(page -> assertNotNull(page.findByName("trigger_scrape"),
+                        "trigger_scrape tool must be registered"))
+                .thenAssertResults();
+    }
+
+    @Test
+    void toolsCall_triggerScrape_scraped_returnsOutcomeAndCounts() {
+        when(applicationVersionPort.triggerScrape())
+                .thenReturn(ScrapeStatus.scraped(3, 0, 9, 60));
+
+        McpSseTestClient client = McpAssured.newSseClient()
+                .setSsePath("/api/mcp/sse")
+                .build()
+                .connect();
+        client.when()
+                .toolsCall("trigger_scrape", response -> {
+                    assertFalse(response.isError(), "successful scrape must not be an error");
+                    String text = response.firstContent().asText().text();
+                    assertTrue(text.contains("SCRAPED"),
+                            "payload must carry the SCRAPED outcome: " + text);
+                    assertTrue(text.contains("\"appsAttempted\":3"),
+                            "payload must carry the attempted count: " + text);
+                    assertTrue(text.contains("\"triggersRemaining\":9"),
+                            "payload must carry the remaining-trigger budget: " + text);
+                })
+                .thenAssertResults();
+    }
+
+    @Test
+    void toolsCall_triggerScrape_rateLimited_isNotAnErrorAndCarriesRetryAfter() {
+        when(applicationVersionPort.triggerScrape())
+                .thenReturn(ScrapeStatus.rateLimited(42));
+
+        McpSseTestClient client = McpAssured.newSseClient()
+                .setSsePath("/api/mcp/sse")
+                .build()
+                .connect();
+        client.when()
+                .toolsCall("trigger_scrape", response -> {
+                    assertFalse(response.isError(),
+                            "rate-limited result must be conveyed via the outcome field, "
+                                    + "not as a protocol error");
+                    String text = response.firstContent().asText().text();
+                    assertTrue(text.contains("RATE_LIMITED"),
+                            "payload must carry the RATE_LIMITED outcome: " + text);
+                    assertTrue(text.contains("\"retryAfterSeconds\":42"),
+                            "payload must carry retryAfterSeconds=42: " + text);
                 })
                 .thenAssertResults();
     }

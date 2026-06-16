@@ -14,4 +14,5 @@ packages = [
   "kaniko",      # Kaniko image builder (executor binary)
   "yarn",        # Frontend package manager
   "nodejs",      # Node.js runtime for frontend builds
+  "valkey",      # Backing store for tests — run natively since CI has no Docker
 ]

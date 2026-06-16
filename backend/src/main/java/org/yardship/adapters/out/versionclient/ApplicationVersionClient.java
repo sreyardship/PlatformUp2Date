@@ -7,6 +7,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yardship.core.ports.out.ScrapeResult;
 import org.yardship.core.domain.primitives.Version;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.out.VersionRepository;
@@ -52,10 +53,13 @@ public class ApplicationVersionClient implements VersionRepository {
     }
 
     @Override
-    public List<VersionApplication> getAllVersionApplications() {
+    public ScrapeResult scrape() {
         List<VersionApplication> appList = new ArrayList<>();
+        int attempted = 0;
+        int failed = 0;
 
         for (AppClients app : appClients) {
+            attempted++;
             try {
                 String currentVersion = app.current().getCurrentVersion().version;
                 String latestRelease = app.latest().getLatestRelease().name;
@@ -65,11 +69,12 @@ public class ApplicationVersionClient implements VersionRepository {
                         new Version(currentVersion),
                         new Version(latestRelease)));
             } catch (Exception e) {
+                failed++;
                 logger.warn("Skipping app '{}' this scrape: {}", app.name(), e.getMessage());
             }
         }
 
-        return appList;
+        return new ScrapeResult(appList, attempted, failed);
     }
 
     private <T> T build(String baseUri, Class<T> clientType) {

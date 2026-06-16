@@ -8,10 +8,9 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.yardship.core.ports.out.ScrapeResult;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.out.VersionRepository;
-
-import java.util.List;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
@@ -25,7 +24,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * {@link WireMockTestProfile}: good-app and bad-app, both hitting WireMock on port 8089.
  *
  * The core regression these tests protect: one failing endpoint must NOT abort the whole
- * scrape. Each app is isolated, so a bad-app failure still yields the good-app result.
+ * scrape. Each app is isolated, so a bad-app failure still yields the good-app result — and
+ * the new {@link ScrapeResult} must report honest attempted/failed counts alongside the
+ * surviving applications.
  */
 @QuarkusTest
 @TestProfile(WireMockTestProfile.class)
@@ -53,7 +54,7 @@ class ApplicationVersionClientIT {
     VersionRepository sut;
 
     @Test
-    void getAllVersionApplications_isolatesFailures_oneBadAppDoesNotBlankTheRest() {
+    void scrape_isolatesFailures_oneBadAppDoesNotBlankTheRest() {
         // Arrange — good-app fully valid
         wireMockServer.stubFor(get(urlEqualTo("/good/current"))
                 .willReturn(jsonResponse(200, "{\"version\":\"1.0.0\"}")));
@@ -67,18 +68,20 @@ class ApplicationVersionClientIT {
                 .willReturn(jsonResponse(403, "{\"message\":\"API rate limit exceeded\"}")));
 
         // Act
-        List<VersionApplication> result = sut.getAllVersionApplications();
+        ScrapeResult result = sut.scrape();
 
-        // Assert — only the good app survives, with correct versions
-        assertEquals(1, result.size());
-        VersionApplication app = result.getFirst();
+        // Assert — both apps attempted, one failed, only the good app survives
+        assertEquals(2, result.attempted());
+        assertEquals(1, result.failed());
+        assertEquals(1, result.applications().size());
+        VersionApplication app = result.applications().getFirst();
         assertEquals("good-app", app.name());
         assertEquals("1.0.0", app.current().value());
         assertEquals("2.0.0", app.latest().value());
     }
 
     @Test
-    void getAllVersionApplications_returnsBothApps_whenAllEndpointsValid() {
+    void scrape_returnsBothApps_whenAllEndpointsValid() {
         // Arrange — both apps fully valid
         wireMockServer.stubFor(get(urlEqualTo("/good/current"))
                 .willReturn(jsonResponse(200, "{\"version\":\"1.0.0\"}")));
@@ -90,14 +93,16 @@ class ApplicationVersionClientIT {
                 .willReturn(jsonResponse(200, "{\"name\":\"v4.0.0\"}")));
 
         // Act
-        List<VersionApplication> result = sut.getAllVersionApplications();
+        ScrapeResult result = sut.scrape();
 
         // Assert
-        assertEquals(2, result.size());
+        assertEquals(2, result.attempted());
+        assertEquals(0, result.failed());
+        assertEquals(2, result.applications().size());
     }
 
     @Test
-    void getAllVersionApplications_skipsApp_whenEndpointReturnsHtmlLoginBody() {
+    void scrape_skipsApp_whenEndpointReturnsHtmlLoginBody() {
         // Arrange — good-app valid
         wireMockServer.stubFor(get(urlEqualTo("/good/current"))
                 .willReturn(jsonResponse(200, "{\"version\":\"1.0.0\"}")));
@@ -115,11 +120,13 @@ class ApplicationVersionClientIT {
                 .willReturn(jsonResponse(200, "{\"name\":\"v2.0.0\"}")));
 
         // Act
-        List<VersionApplication> result = sut.getAllVersionApplications();
+        ScrapeResult result = sut.scrape();
 
-        // Assert — bad-app excluded, good-app survives
-        assertEquals(1, result.size());
-        assertEquals("good-app", result.getFirst().name());
+        // Assert — bad-app excluded but counted as failed, good-app survives
+        assertEquals(2, result.attempted());
+        assertEquals(1, result.failed());
+        assertEquals(1, result.applications().size());
+        assertEquals("good-app", result.applications().getFirst().name());
     }
 
     private static com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder jsonResponse(int status, String body) {

@@ -12,6 +12,17 @@ export GRADLE_OPTS="-XX:MaxMetaspaceSize=384m -XX:+HeapDumpOnOutOfMemoryError -X
 
 NATIVE_BUILD_DIR="$PROJECT_ROOT/build-native"
 
+# `quarkusIntTest` launches the native binary, which needs Valkey to boot.
+# CI has no Docker, so Quarkus Dev Services can't start a throwaway container.
+# Run Valkey natively from the devshell instead and point the tests at it;
+# setting QUARKUS_REDIS_HOSTS also keeps Dev Services from reaching for Docker.
+valkey-server --port 6379 --daemonize yes --save '' --appendonly no
+export QUARKUS_REDIS_HOSTS=redis://localhost:6379
+for _ in $(seq 1 50); do
+  valkey-cli -p 6379 ping >/dev/null 2>&1 && break
+  sleep 0.2
+done
+
 echo "Building native executable (this may take several minutes)..."
 # `quarkusIntTest` runs the @QuarkusIntegrationTest suite against the freshly built
 # native binary. This is the only place native-image regressions (e.g. a REST-client

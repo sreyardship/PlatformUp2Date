@@ -22,8 +22,18 @@ quarkus:
 # The values below apply to local dev only (`gradle quarkusDev`). Tests supply
 # their own minimal config in src/test/resources/application.properties.
 "%dev":
+  quarkus:
+    # Local-dev Valkey. Override with QUARKUS_REDIS_HOSTS to point at a running
+    # instance; otherwise Dev Services starts a throwaway container.
+    redis:
+      hosts: redis://localhost:6379
   platform-config:
     scrape-interval: 1h
+    # Manual-scrape rolling-window budget (Refresh button / MCP trigger). Defaults are 10/1h;
+    # these dev values keep the same shape explicit.
+    scrape-trigger:
+      max-per-window: 10
+      window: 1h
     apps:
       - name: argo-cd
         current: https://deployments.sreyardship.com/api/version

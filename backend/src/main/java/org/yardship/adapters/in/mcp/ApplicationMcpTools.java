@@ -4,6 +4,7 @@ import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.ports.in.ScrapeStatus;
 import org.yardship.core.ports.in.ApplicationVersionPort;
 
 import java.util.List;
@@ -56,5 +57,22 @@ public class ApplicationMcpTools {
                 .findFirst()
                 .map(ApplicationView::from)
                 .orElse(null);
+    }
+
+    @Tool(
+            name = "trigger_scrape",
+            description = "Force an immediate refresh of every monitored application's version "
+                    + "data, bypassing the normal staleness check. This is RATE-LIMITED: a "
+                    + "rolling window caps how many manual scrapes may run. Read the returned "
+                    + "'outcome' field to learn what happened: SCRAPED means a fresh scrape ran "
+                    + "and the snapshot is now up to date; RATE_LIMITED means the budget was "
+                    + "exhausted and NO fresh scrape happened (see 'retryAfterSeconds' for when a "
+                    + "slot frees); IN_PROGRESS means another replica is already scraping, so no "
+                    + "new scrape was started. After calling this tool, read "
+                    + "'list_outdated_applications' or 'get_application' to see the refreshed "
+                    + "data — this tool returns scrape telemetry (counts and budget), not the "
+                    + "application versions themselves.")
+    public ScrapeStatus trigger_scrape() {
+        return applicationVersionPort.triggerScrape();
     }
 }

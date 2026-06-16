@@ -1,8 +1,9 @@
 import { Paper } from '@mui/material'
 import Title from './Title'
 import VersionList from './VersionList'
+import RefreshButton from './RefreshButton'
 
-const Display = ({ versions }) => {
+const Display = ({ versions, onRefreshed }) => {
   return (
     <Paper
       sx={{
@@ -15,6 +16,7 @@ const Display = ({ versions }) => {
       }}
     >
       <Title />
+      <RefreshButton onRefreshed={onRefreshed} />
       <VersionList versions={versions} />
     </Paper>
   )

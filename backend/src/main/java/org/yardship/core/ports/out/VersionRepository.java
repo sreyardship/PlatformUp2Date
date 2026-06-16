@@ -1,9 +1,13 @@
 package org.yardship.core.ports.out;
 
-import org.yardship.core.domain.primitives.VersionApplication;
-
-import java.util.List;
 
 public interface VersionRepository {
-    List<VersionApplication> getAllVersionApplications();
+
+    /**
+     * Scrape all configured applications. Per-app failures are isolated: a failing
+     * upstream does not abort the scrape, it is counted in {@link ScrapeResult#failed()}.
+     *
+     * @return the resolved applications plus honest attempted/failed counts.
+     */
+    ScrapeResult scrape();
 }

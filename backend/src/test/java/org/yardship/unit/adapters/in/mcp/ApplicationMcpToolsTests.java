@@ -9,6 +9,8 @@ import org.yardship.adapters.in.mcp.ApplicationView;
 import org.yardship.core.domain.primitives.Version;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.in.ApplicationVersionPort;
+import org.yardship.core.ports.in.Outcome;
+import org.yardship.core.ports.in.ScrapeStatus;
 
 import java.util.List;
 
@@ -16,6 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -115,5 +119,44 @@ public class ApplicationMcpToolsTests {
         ApplicationView view = sut.get_application("does-not-exist");
 
         assertNull(view, "unknown application name must yield a not-found (null) result");
+    }
+
+    // --- trigger_scrape: thin pass-through of the use case's ScrapeStatus ---
+
+    @Test
+    void triggerScrape_scraped_passesOutcomeAndCountsAndBudgetStraightThrough() {
+        ScrapeStatus scraped = ScrapeStatus.scraped(3, 0, 9, 60);
+        when(applicationVersionPort.triggerScrape()).thenReturn(scraped);
+
+        ScrapeStatus result = sut.trigger_scrape();
+
+        assertEquals(Outcome.SCRAPED, result.outcome());
+        assertEquals(3, result.appsAttempted());
+        assertEquals(3, result.appsSucceeded());
+        assertEquals(0, result.appsFailed());
+        assertEquals(9, result.triggersRemaining());
+        assertEquals(60, result.windowResetsInSeconds());
+        assertEquals(0, result.retryAfterSeconds());
+    }
+
+    @Test
+    void triggerScrape_rateLimited_passesThroughWithoutThrowing() {
+        ScrapeStatus rateLimited = ScrapeStatus.rateLimited(42);
+        when(applicationVersionPort.triggerScrape()).thenReturn(rateLimited);
+
+        ScrapeStatus result = sut.trigger_scrape();
+
+        assertEquals(Outcome.RATE_LIMITED, result.outcome(),
+                "rate-limited outcome must be conveyed via the field, not an exception");
+        assertEquals(42, result.retryAfterSeconds());
+    }
+
+    @Test
+    void triggerScrape_delegatesToPortExactlyOnce() {
+        when(applicationVersionPort.triggerScrape()).thenReturn(ScrapeStatus.scraped(1, 0));
+
+        sut.trigger_scrape();
+
+        verify(applicationVersionPort, times(1)).triggerScrape();
     }
 }

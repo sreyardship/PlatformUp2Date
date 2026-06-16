@@ -1,5 +1,5 @@
 import { Container } from '@mui/material'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 import versionClient from './api/versionClient'
 import Display from './Display'
@@ -7,13 +7,14 @@ import Display from './Display'
 const App = () => {
   const [versionData, setVersionData] = useState({})
 
-  useEffect(() => {
-    const fetchVersionData = async () => {
-      const response = await versionClient.getVersions()
-      setVersionData(response)
-    }
-    fetchVersionData()
+  const fetchVersionData = useCallback(async () => {
+    const response = await versionClient.getVersions()
+    setVersionData(response)
   }, [])
+
+  useEffect(() => {
+    fetchVersionData()
+  }, [fetchVersionData])
 
   return (
     <Container
@@ -24,7 +25,7 @@ const App = () => {
         height: '100vh',
       }}
     >
-      <Display versions={versionData} />
+      <Display versions={versionData} onRefreshed={fetchVersionData} />
     </Container>
   )
 }
