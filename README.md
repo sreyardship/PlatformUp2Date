@@ -96,7 +96,9 @@ without any custom integration. It is a third read surface over the same data as
 and `GET /api/v1/version` — any MCP-capable host (Claude Desktop, IDE agents, your own)
 can connect and discover the tools at runtime.
 
-Transport is **streamable HTTP / SSE**, served at `/api/mcp/sse` on the backend's HTTP port.
+Transport is **Streamable HTTP**, served at `/api/mcp` on the backend's HTTP port. It runs
+stateless (each request auto-initialises its own throwaway session), so the endpoint works
+behind multiple replicas with no session affinity.
 
 ### Tools
 
@@ -113,10 +115,10 @@ metrics gauge, so the agent never has to compare versions itself.
 
 ### Connecting a client
 
-Point any MCP client at the SSE endpoint. For Claude Code:
+Point any MCP client at the Streamable HTTP endpoint. For Claude Code:
 
 ```bash
-claude mcp add --transport sse platformup2date https://platformup2date.example.com/api/mcp/sse
+claude mcp add --transport http platformup2date https://platformup2date.example.com/api/mcp
 ```
 
 ### Security
@@ -127,7 +129,7 @@ untrusted network: it enumerates your infrastructure's version drift, which is u
 for an attacker.
 
 A common setup is [`oauth2-proxy`](https://oauth2-proxy.github.io/oauth2-proxy/) in front of
-`/api/mcp/sse`, configured to accept bearer JWTs from your OIDC issuer:
+`/api/mcp`, configured to accept bearer JWTs from your OIDC issuer:
 
 ```
 --skip-jwt-bearer-tokens=true
@@ -136,7 +138,7 @@ A common setup is [`oauth2-proxy`](https://oauth2-proxy.github.io/oauth2-proxy/)
 
 Most MCP clients can't perform an interactive OIDC login on their own, so a small wrapper
 fetches a token with [`oauth2c`](https://github.com/cloudentity/oauth2c) and bridges the
-client's stdio to the protected SSE endpoint via
+client's stdio to the protected Streamable HTTP endpoint via
 [`mcp-remote`](https://www.npmjs.com/package/mcp-remote).
 
 **1. Token helper — `oidc-token.sh`** (PKCE public-client flow, cached until the JWT expires):
@@ -169,14 +171,14 @@ fi
 printf '%s' "$token"
 ```
 
-**2. MCP wrapper — `platformup2date-mcp.sh`** (bridges the client to the protected SSE URL):
+**2. MCP wrapper — `platformup2date-mcp.sh`** (bridges the client to the protected MCP URL):
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 
 TOKEN=$("$(dirname "$0")/oidc-token.sh")
-MCP_URL="${PLATFORMUP2DATE_MCP_URL:-https://platformup2date.example.com/api/mcp/sse}"
+MCP_URL="${PLATFORMUP2DATE_MCP_URL:-https://platformup2date.example.com/api/mcp}"
 
 exec npx -y mcp-remote "$MCP_URL" --header "Authorization: Bearer ${TOKEN}"
 ```
@@ -191,6 +193,6 @@ The wrapper runs per session: it reuses the cached token, transparently re-runs 
 `oauth2c` login once the JWT expires, and oauth2-proxy validates the bearer token before
 the request reaches the backend. The application itself stays auth-agnostic.
 
-> If your client supports remote SSE servers with custom headers directly, you can skip
+> If your client supports remote Streamable HTTP servers with custom headers directly, you can skip
 > `mcp-remote` and pass `Authorization: Bearer $(./oidc-token.sh)` as a header — but a
 > wrapper keeps the token fresh across expiries without editing client config.

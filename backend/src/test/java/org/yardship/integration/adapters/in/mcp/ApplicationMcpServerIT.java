@@ -1,7 +1,7 @@
 package org.yardship.integration.adapters.in.mcp;
 
 import io.quarkiverse.mcp.server.test.McpAssured;
-import io.quarkiverse.mcp.server.test.McpAssured.McpSseTestClient;
+import io.quarkiverse.mcp.server.test.McpAssured.McpStreamableTestClient;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
@@ -18,18 +18,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 /**
- * System test exercising the MCP SSE endpoint end-to-end through a real MCP client
- * ({@link McpAssured}). The endpoint is relocated to /api/mcp/sse via
- * {@code quarkus.mcp.server.http.root-path} (see docs/adr/0002); McpAssured does not read
- * that config, so the path is set explicitly below. The extension auto-discovers the
- * {@code @Tool}-annotated beans; this test asserts the wiring works:
+ * System test exercising the MCP Streamable HTTP endpoint end-to-end through a real MCP client
+ * ({@link McpAssured}). The endpoint is served STATELESS at /api/mcp (a single endpoint, no
+ * /sse) via {@code quarkus.mcp.server.http.root-path} (see docs/adr/0004); McpAssured does not
+ * read that config, so the path is set explicitly below with {@code setMcpPath}. The extension
+ * auto-discovers the {@code @Tool}-annotated beans; this test asserts the wiring works:
  *   - tools/list exposes both list_outdated_applications and get_application,
  *   - tools/call list_outdated_applications returns the outdated apps and omits current ones.
  *
  * The inbound port is mocked so the result is deterministic and no real HTTP scrape runs.
  *
  * McpAssured 1.13.0 API (verified against the jar):
- *   McpAssured.newConnectedSseClient() -> McpSseTestClient
+ *   McpAssured.newStreamableClient() -> McpStreamableTestClient.Builder; setMcpPath(String)
  *   client.when().toolsList(Consumer<ToolsPage>)...
  *   client.when().toolsCall(name, Map args, Consumer<ToolResponse>)...
  *   ...thenAssertResults();
@@ -56,8 +56,8 @@ public class ApplicationMcpServerIT {
     void toolsList_exposesBothApplicationTools() {
         stubMixedApplications();
 
-        McpSseTestClient client = McpAssured.newSseClient()
-                .setSsePath("/api/mcp/sse")
+        McpStreamableTestClient client = McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
                 .build()
                 .connect();
         client.when()
@@ -74,8 +74,8 @@ public class ApplicationMcpServerIT {
     void toolsCall_listOutdatedApplications_returnsOutdatedAndOmitsCurrent() {
         stubMixedApplications();
 
-        McpSseTestClient client = McpAssured.newSseClient()
-                .setSsePath("/api/mcp/sse")
+        McpStreamableTestClient client = McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
                 .build()
                 .connect();
         client.when()
@@ -92,8 +92,8 @@ public class ApplicationMcpServerIT {
 
     @Test
     void toolsList_exposesTriggerScrapeTool() {
-        McpSseTestClient client = McpAssured.newSseClient()
-                .setSsePath("/api/mcp/sse")
+        McpStreamableTestClient client = McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
                 .build()
                 .connect();
         client.when()
@@ -107,8 +107,8 @@ public class ApplicationMcpServerIT {
         when(applicationVersionPort.triggerScrape())
                 .thenReturn(ScrapeStatus.scraped(3, 0, 9, 60));
 
-        McpSseTestClient client = McpAssured.newSseClient()
-                .setSsePath("/api/mcp/sse")
+        McpStreamableTestClient client = McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
                 .build()
                 .connect();
         client.when()
@@ -130,8 +130,8 @@ public class ApplicationMcpServerIT {
         when(applicationVersionPort.triggerScrape())
                 .thenReturn(ScrapeStatus.rateLimited(42));
 
-        McpSseTestClient client = McpAssured.newSseClient()
-                .setSsePath("/api/mcp/sse")
+        McpStreamableTestClient client = McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
                 .build()
                 .connect();
         client.when()

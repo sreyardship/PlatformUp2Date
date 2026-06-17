@@ -41,3 +41,10 @@ _Avoid_: Cache (the state is more than a cache)
 The result of requesting a manual scrape: SCRAPED (it ran), RATE_LIMITED (budget
 exhausted), or IN_PROGRESS (another replica is already scraping).
 _Avoid_: Status code, result
+
+**Surface**:
+A client-facing entry point that reads scrape state or requests a manual scrape —
+the REST API, the web UI's Refresh button, and the MCP tools. Every surface
+projects the same shared scrape state and holds none of its own, so any replica
+can serve any surface. See `docs/adr/0003` and `docs/adr/0004`.
+_Avoid_: Endpoint, channel, interface, transport
