@@ -36,12 +36,26 @@ public class ApplicationVersionClient implements VersionRepository {
 
     @PostConstruct
     void buildClients() {
+        GithubAuthFilter githubAuthFilter = githubAuthFilter();
+        logger.info("GitHub auth: {}", githubAuthFilter != null ? "enabled" : "disabled");
+
         appClients = configLoader.apps().stream()
                 .map(app -> new AppClients(
                         app.name(),
-                        build(app.current(), CurrentVersionClient.class),
-                        build(app.latest(), GithubReleaseClient.class)))
+                        buildCurrentClient(app.current()),
+                        buildLatestClient(app.latest(), githubAuthFilter)))
                 .toList();
+    }
+
+    /**
+     * Builds the GitHub auth filter when a non-blank token is configured, or {@code null} to
+     * leave the scrape unauthenticated. The token value is never logged.
+     */
+    private GithubAuthFilter githubAuthFilter() {
+        return configLoader.github().token()
+                .filter(token -> !token.isBlank())
+                .map(GithubAuthFilter::new)
+                .orElse(null);
     }
 
     @PreDestroy
@@ -77,11 +91,30 @@ public class ApplicationVersionClient implements VersionRepository {
         return new ScrapeResult(appList, attempted, failed);
     }
 
-    private <T> T build(String baseUri, Class<T> clientType) {
+    /**
+     * The {@code current} leg hits our own deployment endpoints, so it must never carry the
+     * GitHub token. It is built header-free regardless of whether auth is enabled.
+     */
+    private CurrentVersionClient buildCurrentClient(String baseUri) {
+        return baseBuilder(baseUri).build(CurrentVersionClient.class);
+    }
+
+    /**
+     * The {@code latest} leg hits GitHub. When auth is enabled the {@link GithubAuthFilter} is
+     * registered here — and only here — so the token is sent exclusively to the GitHub host.
+     */
+    private GithubReleaseClient buildLatestClient(String baseUri, GithubAuthFilter githubAuthFilter) {
+        QuarkusRestClientBuilder builder = baseBuilder(baseUri);
+        if (githubAuthFilter != null) {
+            builder.register(githubAuthFilter);
+        }
+        return builder.build(GithubReleaseClient.class);
+    }
+
+    private QuarkusRestClientBuilder baseBuilder(String baseUri) {
         return QuarkusRestClientBuilder.newBuilder()
                 .baseUri(URI.create(baseUri))
-                .register(VersionResponseExceptionMapper.class)
-                .build(clientType);
+                .register(VersionResponseExceptionMapper.class);
     }
 
     private void close(Object client) {

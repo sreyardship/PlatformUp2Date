@@ -12,8 +12,10 @@ import org.yardship.core.ports.out.ScrapeResult;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.out.VersionRepository;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.absent;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -99,6 +101,11 @@ class ApplicationVersionClientIT {
         assertEquals(2, result.attempted());
         assertEquals(0, result.failed());
         assertEquals(2, result.applications().size());
+
+        // No token is configured in this profile, so the unauthenticated fallback must hold:
+        // no request carries an Authorization header (including the GitHub latest leg).
+        wireMockServer.verify(getRequestedFor(urlEqualTo("/good/latest"))
+                .withHeader("Authorization", absent()));
     }
 
     @Test
