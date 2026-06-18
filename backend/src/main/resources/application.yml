@@ -50,11 +50,23 @@ quarkus:
       window: 1h
     apps:
       - name: argo-cd
-        current: https://deployments.sreyardship.com/api/version
-        latest: https://api.github.com/repos/argoproj/argo-cd/releases/latest
+        current:
+          type: http
+          url: https://deployments.sreyardship.com/api/version
+        latest:
+          type: github-release
+          url: https://api.github.com/repos/argoproj/argo-cd/releases/latest
       - name: git-tea
-        current: https://git.sreyardship.com/api/v1/version
-        latest: https://api.github.com/repos/go-gitea/gitea/releases/latest
+        current:
+          type: http
+          url: https://git.sreyardship.com/api/v1/version
+        latest:
+          type: github-release
+          url: https://api.github.com/repos/go-gitea/gitea/releases/latest
       - name: sharry
-        current: https://fileshare.sreyardship.com/api/v2/open/info/version
-        latest: https://api.github.com/repos/eikek/sharry/releases/latest
+        current:
+          type: http
+          url: https://fileshare.sreyardship.com/api/v2/open/info/version
+        latest:
+          type: github-release
+          url: https://api.github.com/repos/eikek/sharry/releases/latest

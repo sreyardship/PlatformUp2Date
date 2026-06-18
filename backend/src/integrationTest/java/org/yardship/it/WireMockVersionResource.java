@@ -34,8 +34,10 @@ public class WireMockVersionResource implements QuarkusTestResourceLifecycleMana
         return Map.of(
                 "platform-config.scrape-interval", "1s",
                 "platform-config.apps[0].name", "good-app",
-                "platform-config.apps[0].current", "http://localhost:" + PORT + "/good/current",
-                "platform-config.apps[0].latest", "http://localhost:" + PORT + "/good/latest");
+                "platform-config.apps[0].current.type", "http",
+                "platform-config.apps[0].current.url", "http://localhost:" + PORT + "/good/current",
+                "platform-config.apps[0].latest.type", "github-release",
+                "platform-config.apps[0].latest.url", "http://localhost:" + PORT + "/good/latest");
     }
 
     @Override

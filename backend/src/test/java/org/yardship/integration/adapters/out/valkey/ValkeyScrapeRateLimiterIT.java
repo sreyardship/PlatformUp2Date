@@ -106,8 +106,10 @@ class ValkeyScrapeRateLimiterIT {
                     // Keep the @ConfigMapping resolvable when the app boots.
                     Map.entry("platform-config.scrape-interval", "1h"),
                     Map.entry("platform-config.apps[0].name", "test-app"),
-                    Map.entry("platform-config.apps[0].current", "https://example.test/version"),
-                    Map.entry("platform-config.apps[0].latest", "https://example.test/latest")
+                    Map.entry("platform-config.apps[0].current.type", "http"),
+                    Map.entry("platform-config.apps[0].current.url", "https://example.test/version"),
+                    Map.entry("platform-config.apps[0].latest.type", "github-release"),
+                    Map.entry("platform-config.apps[0].latest.url", "https://example.test/latest")
             );
         }
     }

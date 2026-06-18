@@ -37,6 +37,20 @@ $ docker compose -f "compose.apicurio.yml" up -d
 
 then [open it up](http://localhost:8888) in your browser. The schemas does not persist, however, so make sure to download them before tearing down the containers.
 
+## Kubernetes authentication
+
+One of the `current` version sources, `k8s-image`, derives an app's running version
+from the container image tag on its workload's pod template (Deployment / StatefulSet
+/ DaemonSet), read via the Kubernetes API.
+
+The backend authenticates to the Kubernetes API using its in-cluster ServiceAccount
+token — the Fabric8 client auto-configures from that token, so there is no client
+configuration in the app itself. For this to work the backend's ServiceAccount needs a
+cluster-wide read-only `ClusterRole` (granting `get` on `deployments`, `statefulsets`
+and `daemonsets`) plus a matching `ClusterRoleBinding`. Those RBAC resources are
+provisioned in the GitOps repo (jumziCluster) — out of scope for this repo, but a
+prod-rollout dependency.
+
 ## Metrics & Alerting
 
 The backend exposes a Prometheus scrape endpoint at `/metrics`, hand-rendered in the

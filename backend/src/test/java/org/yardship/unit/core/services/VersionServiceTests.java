@@ -2,14 +2,16 @@ package org.yardship.unit.core.services;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.yardship.core.ports.out.ScrapeResult;
 import org.yardship.core.domain.primitives.ScrapeSnapshot;
 import org.yardship.core.domain.primitives.Version;
 import org.yardship.core.domain.primitives.VersionApplication;
+import org.yardship.core.ports.out.ApplicationSources;
+import org.yardship.core.ports.out.CurrentVersionSource;
+import org.yardship.core.ports.out.LatestVersionSource;
 import org.yardship.core.ports.out.ScrapeLock;
 import org.yardship.core.ports.out.ScrapeRateLimiter;
 import org.yardship.core.ports.out.ScrapeStateStore;
-import org.yardship.core.ports.out.VersionRepository;
+import org.yardship.core.ports.out.VersionSources;
 import org.yardship.core.services.ApplicationVersionService;
 
 import java.time.Clock;
@@ -23,31 +25,36 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
- * Unit tests for {@link ApplicationVersionService#getApplications()} against the new
- * Valkey-backed scrape-state model. The service holds NO in-memory cache: it reads a
- * {@link ScrapeSnapshot} from the {@link ScrapeStateStore} port, and when that snapshot is
- * stale (or absent) it scrapes the {@link VersionRepository} and writes a fresh snapshot.
+ * Unit tests for {@link ApplicationVersionService#getApplications()} against the Valkey-backed
+ * scrape-state model AND the pluggable-source scrape loop (Issue 02).
+ *
+ * <p>The service holds NO in-memory cache: it reads a {@link ScrapeSnapshot} from the
+ * {@link ScrapeStateStore} port, and when that snapshot is stale (or absent) it scrapes — running
+ * the per-app loop over {@link VersionSources#applicationSources()}, isolating per-app failures —
+ * and writes a fresh snapshot.
  *
  * <p>Staleness is evaluated against the snapshot's {@code lastAttemptAt}, the injected
  * {@link Clock}, and the configured scrape-interval:
  * {@code now - lastAttemptAt >= scrapeInterval} (or no snapshot at all).
  *
- * <p>The store is a hand-written {@link FakeScrapeStateStore} implementing the port; the
- * repository is a Mockito mock; the clock is the {@link MutableClock} seam.
+ * <p><b>Seam change from the old {@code VersionRepository} model:</b> the scrape loop now lives in
+ * the service, driven by a {@link VersionSources} port that exposes per-app
+ * {@link ApplicationSources} pairs. The store/lock/limiter/clock are the same hand-written fakes;
+ * the sources are hand-written {@link CurrentVersionSource}/{@link LatestVersionSource} doubles
+ * (returning a {@link Version} or throwing). A single source throwing is now ISOLATED inside the
+ * loop and counted in {@code failed} — it does not propagate. The old
+ * {@code lockWinner_releasesEvenWhenScrapeThrows} guarantee is therefore reframed: the
+ * lock-release-on-throw path now hinges on the SNAPSHOT WRITE throwing (kept below), plus an
+ * explicit isolation test proving a broken source is counted and the loop survives.
  */
 class VersionServiceTests {
 
     private static final Duration SCRAPE_INTERVAL = Duration.ofHours(1);
     private static final Instant START = Instant.parse("2026-06-08T00:00:00Z");
 
-    private VersionRepository versionRepository;
+    private FakeVersionSources sources;
     private FakeScrapeStateStore store;
     private FakeScrapeLock lock;
     private FakeScrapeRateLimiter rateLimiter;
@@ -56,12 +63,12 @@ class VersionServiceTests {
 
     @BeforeEach
     void setUp() {
-        versionRepository = mock(VersionRepository.class);
+        sources = new FakeVersionSources();
         store = new FakeScrapeStateStore();
         lock = new FakeScrapeLock();
         rateLimiter = new FakeScrapeRateLimiter();
         clock = new MutableClock(START);
-        sut = new ApplicationVersionService(versionRepository, store, lock, rateLimiter, SCRAPE_INTERVAL, clock);
+        sut = new ApplicationVersionService(sources, store, lock, rateLimiter, SCRAPE_INTERVAL, clock);
     }
 
     @Test
@@ -69,11 +76,12 @@ class VersionServiceTests {
         VersionApplication app = createOldApplication();
         // A snapshot attempted "just now" is fresh — no scrape, no write expected.
         store.seed(new ScrapeSnapshot(List.of(app), START));
+        sources.seed(appSources("Some-App", "1.1.1", "2.2.2"));
 
         List<VersionApplication> result = sut.getApplications();
 
         assertEquals(List.of(app), result);
-        verify(versionRepository, never()).scrape();
+        assertEquals(0, sources.readCount(), "a fresh snapshot must not read any source");
         assertEquals(0, store.writeCount, "fresh snapshot must not be re-written");
     }
 
@@ -81,51 +89,46 @@ class VersionServiceTests {
     void getApplications_servesFreshSnapshot_whenJustShyOfInterval() {
         VersionApplication app = createOldApplication();
         store.seed(new ScrapeSnapshot(List.of(app), START));
+        sources.seed(appSources("Some-App", "1.1.1", "2.2.2"));
         clock.advance(SCRAPE_INTERVAL.minusSeconds(1));
 
         sut.getApplications();
 
-        verify(versionRepository, never()).scrape();
+        assertEquals(0, sources.readCount());
         assertEquals(0, store.writeCount);
     }
 
     @Test
     void getApplications_scrapesAndWrites_whenNoSnapshotExists() {
-        VersionApplication scraped = createOldApplication();
-        when(versionRepository.scrape())
-                .thenReturn(new ScrapeResult(List.of(scraped), 1, 0));
+        sources.seed(appSources("Some-App", "1.1.1", "2.2.2"));
 
         List<VersionApplication> result = sut.getApplications();
 
-        assertEquals(List.of(scraped), result);
-        verify(versionRepository, times(1)).scrape();
+        assertEquals(List.of(createOldApplication()), result);
+        assertEquals(1, sources.readCount(), "an absent snapshot must trigger one scrape over the sources");
         assertEquals(1, store.writeCount, "an absent snapshot must trigger a write");
-        assertEquals(List.of(scraped), store.lastWrittenApps);
+        assertEquals(List.of(createOldApplication()), store.lastWrittenApps);
         assertEquals(START, store.lastWrittenAttemptAt, "write must record the attempt instant from the clock");
     }
 
     @Test
     void getApplications_scrapesAndWrites_whenSnapshotIsStale() {
-        VersionApplication stale = createUp2DateApplication();
-        store.seed(new ScrapeSnapshot(List.of(stale), START));
-
-        VersionApplication fresh = createOldApplication();
-        when(versionRepository.scrape())
-                .thenReturn(new ScrapeResult(List.of(fresh), 1, 0));
+        store.seed(new ScrapeSnapshot(List.of(createUp2DateApplication()), START));
+        sources.seed(appSources("Some-App", "1.1.1", "2.2.2"));
 
         clock.advance(SCRAPE_INTERVAL);
         List<VersionApplication> result = sut.getApplications();
 
-        assertEquals(List.of(fresh), result);
-        verify(versionRepository, times(1)).scrape();
+        assertEquals(List.of(createOldApplication()), result);
+        assertEquals(1, sources.readCount());
         assertEquals(1, store.writeCount);
         assertEquals(START.plus(SCRAPE_INTERVAL), store.lastWrittenAttemptAt);
     }
 
     @Test
     void getApplications_returnsScrapedApps_evenWhenEmpty() {
-        when(versionRepository.scrape())
-                .thenReturn(new ScrapeResult(List.of(), 0, 0));
+        // No configured apps → the scrape attempts nothing and the result is empty.
+        sources.seedEmpty();
 
         List<VersionApplication> result = sut.getApplications();
 
@@ -140,32 +143,69 @@ class VersionServiceTests {
 
         RuntimeException ex = assertThrows(RuntimeException.class, () -> sut.getApplications());
         assertEquals("valkey unreachable", ex.getMessage());
-        verify(versionRepository, never()).scrape();
+        assertEquals(0, sources.readCount());
     }
 
     @Test
     void getApplications_propagatesStoreWriteFailure_failClosed() {
         // No snapshot → scrape succeeds → write to Valkey fails → must propagate, not swallow.
-        when(versionRepository.scrape())
-                .thenReturn(new ScrapeResult(List.of(createOldApplication()), 1, 0));
+        sources.seed(appSources("Some-App", "1.1.1", "2.2.2"));
         store.failWriteWith(new RuntimeException("valkey write failed"));
 
         RuntimeException ex = assertThrows(RuntimeException.class, () -> sut.getApplications());
         assertEquals("valkey write failed", ex.getMessage());
     }
 
-    @Test
-    void getApplications_propagatesRepositoryFailure_failClosed() {
-        // Stale snapshot → scrape attempted → repository blows up → must propagate (no fallback).
-        store.seed(new ScrapeSnapshot(List.of(createUp2DateApplication()), START));
-        when(versionRepository.scrape()).thenThrow(new RuntimeException("scrape failed"));
-        clock.advance(SCRAPE_INTERVAL);
+    // --- Per-app failure isolation INSIDE the scrape loop (Issue 02) --------------------------
+    //
+    // The scrape loop moved into the service, so a single source throwing is caught and counted in
+    // ScrapeResult.failed — it does NOT propagate. This rehomes the old ApplicationVersionClientIT
+    // isolation coverage to the unit level.
 
-        RuntimeException ex = assertThrows(RuntimeException.class, () -> sut.getApplications());
-        assertEquals("scrape failed", ex.getMessage());
+    @Test
+    void getApplications_isolatesPerAppFailure_oneBrokenSourceDoesNotAbortTheScrape() {
+        // Three apps; the middle one's latest source throws. The loop completes, the broken app is
+        // counted in failed and excluded, the survivors are returned, and the lock is released.
+        sources.seed(
+                appSources("alpha", "1.0.0", "2.0.0"),
+                new ApplicationSources("beta", okCurrent("1.0.0"), throwingLatest("github down")),
+                appSources("gamma", "3.0.0", "4.0.0"));
+
+        List<VersionApplication> result = sut.getApplications();
+
+        assertEquals(2, result.size(), "only the survivors are returned");
+        assertEquals("alpha", result.get(0).name());
+        assertEquals("gamma", result.get(1).name());
+        assertEquals(1, store.writeCount, "the survivors are still persisted");
+        assertEquals(1, lock.releaseCount, "an isolated per-app failure must NOT leak the lock");
     }
 
-    // --- Distributed scrape lock (Issue 02) ---------------------------------------------------
+    @Test
+    void getApplications_brokenCurrentSource_isAlsoIsolatedAndCounted() {
+        sources.seed(
+                new ApplicationSources("alpha", throwingCurrent("endpoint 503"), okLatest("2.0.0")),
+                appSources("beta", "1.0.0", "2.0.0"));
+
+        List<VersionApplication> result = sut.getApplications();
+
+        assertEquals(1, result.size());
+        assertEquals("beta", result.get(0).name());
+    }
+
+    @Test
+    void getApplications_allSourcesBroken_writesEmptyAndReleasesLock() {
+        sources.seed(
+                new ApplicationSources("alpha", throwingCurrent("down"), okLatest("2.0.0")),
+                new ApplicationSources("beta", okCurrent("1.0.0"), throwingLatest("down")));
+
+        List<VersionApplication> result = sut.getApplications();
+
+        assertTrue(result.isEmpty());
+        assertEquals(1, store.writeCount, "an all-failed scrape still records an (empty) attempt");
+        assertEquals(1, lock.releaseCount);
+    }
+
+    // --- Distributed scrape lock --------------------------------------------------------------
     //
     // The lock guards the SCRAPE branch only. On a stale (or absent) snapshot a caller tries to
     // acquire the cluster-wide lock: the winner scrapes + writes + releases; the losers serve the
@@ -174,27 +214,27 @@ class VersionServiceTests {
     @Test
     void getApplications_freshSnapshot_neverTouchesTheLock() {
         store.seed(new ScrapeSnapshot(List.of(createOldApplication()), START));
+        sources.seed(appSources("Some-App", "1.1.1", "2.2.2"));
 
         sut.getApplications();
 
         assertEquals(0, lock.acquireCount, "a fresh snapshot must be served without acquiring the lock");
         assertEquals(0, lock.releaseCount);
-        verify(versionRepository, never()).scrape();
+        assertEquals(0, sources.readCount());
     }
 
     @Test
     void getApplications_staleSnapshot_lockWon_scrapesWritesAndReleases() {
         store.seed(new ScrapeSnapshot(List.of(createUp2DateApplication()), START));
-        VersionApplication fresh = createOldApplication();
-        when(versionRepository.scrape()).thenReturn(new ScrapeResult(List.of(fresh), 1, 0));
+        sources.seed(appSources("Some-App", "1.1.1", "2.2.2"));
         lock.willAcquire(true);
         clock.advance(SCRAPE_INTERVAL);
 
         List<VersionApplication> result = sut.getApplications();
 
-        assertEquals(List.of(fresh), result, "the lock winner returns the freshly scraped apps");
+        assertEquals(List.of(createOldApplication()), result, "the lock winner returns the freshly scraped apps");
         assertEquals(1, lock.acquireCount, "the winner must try to acquire exactly once");
-        verify(versionRepository, times(1)).scrape();
+        assertEquals(1, sources.readCount());
         assertEquals(1, store.writeCount, "the winner must write the new snapshot");
         assertEquals(1, lock.releaseCount, "the winner must release the lock");
     }
@@ -203,13 +243,14 @@ class VersionServiceTests {
     void getApplications_staleSnapshot_lockLost_servesSnapshotWithoutScraping() {
         VersionApplication shared = createUp2DateApplication();
         store.seed(new ScrapeSnapshot(List.of(shared), START));
+        sources.seed(appSources("Some-App", "1.1.1", "2.2.2"));
         lock.willAcquire(false);
         clock.advance(SCRAPE_INTERVAL);
 
         List<VersionApplication> result = sut.getApplications();
 
         assertEquals(List.of(shared), result, "a loser serves the current shared snapshot");
-        verify(versionRepository, never()).scrape();
+        assertEquals(0, sources.readCount());
         assertEquals(0, store.writeCount, "a loser must not write");
         assertEquals(0, lock.releaseCount, "a loser holds nothing, so it must not release");
     }
@@ -218,32 +259,23 @@ class VersionServiceTests {
     void getApplications_lockLost_withNoSnapshotYet_servesEmptyWithoutScraping() {
         // Edge case: stale (here: absent) snapshot, lock lost, and nothing has ever been written.
         // The loser must NOT scrape; it serves the last-known result, which is empty.
+        sources.seed(appSources("Some-App", "1.1.1", "2.2.2"));
         lock.willAcquire(false);
 
         List<VersionApplication> result = sut.getApplications();
 
         assertTrue(result.isEmpty(), "no snapshot + lost lock serves an empty last-known result");
-        verify(versionRepository, never()).scrape();
+        assertEquals(0, sources.readCount());
         assertEquals(0, store.writeCount);
     }
 
     @Test
-    void getApplications_lockWinner_releasesEvenWhenScrapeThrows() {
-        store.seed(new ScrapeSnapshot(List.of(createUp2DateApplication()), START));
-        lock.willAcquire(true);
-        when(versionRepository.scrape()).thenThrow(new RuntimeException("scrape failed"));
-        clock.advance(SCRAPE_INTERVAL);
-
-        assertThrows(RuntimeException.class, () -> sut.getApplications());
-
-        assertEquals(1, lock.releaseCount, "the lock must be released even when the scrape blows up");
-    }
-
-    @Test
     void getApplications_lockWinner_releasesEvenWhenWriteThrows() {
+        // Reframed lock-release-on-throw guarantee: per-app source failures are now isolated and do
+        // NOT propagate, so the only in-scrape throw that still escapes is the SNAPSHOT WRITE. The
+        // lock must still be released in that case.
         lock.willAcquire(true);
-        when(versionRepository.scrape())
-                .thenReturn(new ScrapeResult(List.of(createOldApplication()), 1, 0));
+        sources.seed(appSources("Some-App", "1.1.1", "2.2.2"));
         store.failWriteWith(new RuntimeException("valkey write failed"));
 
         assertThrows(RuntimeException.class, () -> sut.getApplications());
@@ -251,31 +283,28 @@ class VersionServiceTests {
         assertEquals(1, lock.releaseCount, "the lock must be released even when the snapshot write fails");
     }
 
-    // --- Scrape budget is manual-only (Issue 04) ----------------------------------------------
+    // --- Scrape budget is manual-only ---------------------------------------------------------
     //
     // The rolling-window budget caps MANUAL triggers (triggerScrape) only. The automatic staleness
-    // scrape on getApplications must NEVER consult the rate limiter — a stale snapshot always refreshes
-    // regardless of how many manual triggers were spent.
+    // scrape on getApplications must NEVER consult the rate limiter.
 
     @Test
     void getApplications_staleSnapshot_neverConsultsTheRateLimiter() {
         store.seed(new ScrapeSnapshot(List.of(createUp2DateApplication()), START));
-        when(versionRepository.scrape())
-                .thenReturn(new ScrapeResult(List.of(createOldApplication()), 1, 0));
+        sources.seed(appSources("Some-App", "1.1.1", "2.2.2"));
         lock.willAcquire(true);
         clock.advance(SCRAPE_INTERVAL);
 
         sut.getApplications();
 
-        verify(versionRepository, times(1)).scrape();
+        assertEquals(1, sources.readCount());
         assertEquals(0, rateLimiter.tryAcquireCount,
                 "the automatic staleness scrape must not spend a manual-budget slot");
     }
 
     @Test
     void getApplications_absentSnapshot_neverConsultsTheRateLimiter() {
-        when(versionRepository.scrape())
-                .thenReturn(new ScrapeResult(List.of(createOldApplication()), 1, 0));
+        sources.seed(appSources("Some-App", "1.1.1", "2.2.2"));
 
         sut.getApplications();
 
@@ -283,12 +312,70 @@ class VersionServiceTests {
                 "scraping an absent snapshot must not spend a manual-budget slot");
     }
 
+    // --- helpers ------------------------------------------------------------------------------
+
     private VersionApplication createOldApplication() {
         return new VersionApplication("Some-App", new Version("1.1.1"), new Version("2.2.2"));
     }
 
     private VersionApplication createUp2DateApplication() {
         return new VersionApplication("Another-app", new Version("2.2.2"), new Version("2.2.2"));
+    }
+
+    private ApplicationSources appSources(String name, String current, String latest) {
+        return new ApplicationSources(name, okCurrent(current), okLatest(latest));
+    }
+
+    private CurrentVersionSource okCurrent(String value) {
+        return () -> new Version(value);
+    }
+
+    private LatestVersionSource okLatest(String value) {
+        return () -> new Version(value);
+    }
+
+    private CurrentVersionSource throwingCurrent(String message) {
+        return () -> {
+            throw new RuntimeException(message);
+        };
+    }
+
+    private LatestVersionSource throwingLatest(String message) {
+        return () -> {
+            throw new RuntimeException(message);
+        };
+    }
+
+    /**
+     * Hand-written fake implementing the {@link VersionSources} port — the seam the scrape loop
+     * runs over. Tests seed it with {@link ApplicationSources} pairs whose sources are lambda
+     * doubles; {@link #readCount()} counts SCRAPE PASSES — it is incremented once per call to
+     * {@link #applicationSources()}, which the service invokes exactly once per scrape pass — so
+     * staleness/lock tests can assert whether the loop actually executed (and how many times)
+     * without resorting to a Mockito verify on a deleted port. Per-source lambdas do NOT touch the
+     * counter, so reading both legs (current AND latest) of every app still counts as one pass.
+     */
+    private static final class FakeVersionSources implements VersionSources {
+        private List<ApplicationSources> apps = List.of();
+        private int reads;
+
+        void seed(ApplicationSources... apps) {
+            this.apps = List.of(apps);
+        }
+
+        void seedEmpty() {
+            this.apps = List.of();
+        }
+
+        int readCount() {
+            return reads;
+        }
+
+        @Override
+        public List<ApplicationSources> applicationSources() {
+            reads++;
+            return apps;
+        }
     }
 
     /**

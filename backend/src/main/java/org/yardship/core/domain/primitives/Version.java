@@ -52,6 +52,22 @@ public class Version {
     }
 
     @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof Version that)) {
+            return false;
+        }
+        return semver.equals(that.semver);
+    }
+
+    @Override
+    public int hashCode() {
+        return semver.hashCode();
+    }
+
+    @Override
     public String toString() {
         return semver.toString();
     }

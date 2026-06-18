@@ -9,9 +9,10 @@ import jakarta.ws.rs.core.HttpHeaders;
  * {@code latest} leg authenticates against the GitHub Releases API (60 req/hr -> 5,000 req/hr).
  *
  * <p><b>Scoped to the {@code latest} (GithubReleaseClient) clients only.</b> It is registered
- * exclusively on the GitHub build branch in {@link ApplicationVersionClient#buildClients()} and
- * never on the {@code current} (CurrentVersionClient) clients. The {@code current} leg hits our
- * own deployment endpoints; sending a GitHub token there would be a secret-exfiltration bug.
+ * exclusively by {@link org.yardship.adapters.out.versionsource.GithubReleaseLatestSource} — the
+ * source that owns the GitHub auth concern — and never on the {@code current}
+ * ({@link CurrentVersionClient}) source. The {@code current} leg hits our own deployment endpoints;
+ * sending a GitHub token there would be a secret-exfiltration bug.
  *
  * <p><b>Residual assumption:</b> this trusts that {@code latest} always points at GitHub. If a
  * non-GitHub {@code latest} URL is ever configured, the token would be sent to that host. There
@@ -21,7 +22,7 @@ public class GithubAuthFilter implements ClientRequestFilter {
 
     private final String token;
 
-    GithubAuthFilter(String token) {
+    public GithubAuthFilter(String token) {
         this.token = token;
     }
 

@@ -3,6 +3,9 @@ package org.yardship.core.services;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.yardship.core.ports.out.ApplicationSources;
 import org.yardship.core.ports.out.ScrapeResult;
 import org.yardship.core.domain.primitives.ScrapeSnapshot;
 import org.yardship.core.domain.primitives.VersionApplication;
@@ -11,18 +14,21 @@ import org.yardship.core.ports.in.ScrapeStatus;
 import org.yardship.core.ports.out.ScrapeLock;
 import org.yardship.core.ports.out.ScrapeRateLimiter;
 import org.yardship.core.ports.out.ScrapeStateStore;
-import org.yardship.core.ports.out.VersionRepository;
+import org.yardship.core.ports.out.VersionSources;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 @ApplicationScoped
 public class ApplicationVersionService implements ApplicationVersionPort {
 
-    private final VersionRepository versionRepository;
+    private final Logger logger = LoggerFactory.getLogger(ApplicationVersionService.class);
+
+    private final VersionSources versionSources;
     private final ScrapeStateStore scrapeStateStore;
     private final ScrapeLock scrapeLock;
     private final ScrapeRateLimiter scrapeRateLimiter;
@@ -31,23 +37,23 @@ public class ApplicationVersionService implements ApplicationVersionPort {
 
     @Inject
     public ApplicationVersionService(
-            VersionRepository versionRepository,
+            VersionSources versionSources,
             ScrapeStateStore scrapeStateStore,
             ScrapeLock scrapeLock,
             ScrapeRateLimiter scrapeRateLimiter,
             @ConfigProperty(name = "platform-config.scrape-interval") Duration scrapeInterval) {
-        this(versionRepository, scrapeStateStore, scrapeLock, scrapeRateLimiter, scrapeInterval, Clock.systemUTC());
+        this(versionSources, scrapeStateStore, scrapeLock, scrapeRateLimiter, scrapeInterval, Clock.systemUTC());
     }
 
     // Visible for testing: lets tests drive the staleness clock deterministically.
     public ApplicationVersionService(
-            VersionRepository versionRepository,
+            VersionSources versionSources,
             ScrapeStateStore scrapeStateStore,
             ScrapeLock scrapeLock,
             ScrapeRateLimiter scrapeRateLimiter,
             Duration scrapeInterval,
             Clock clock) {
-        this.versionRepository = versionRepository;
+        this.versionSources = versionSources;
         this.scrapeStateStore = scrapeStateStore;
         this.scrapeLock = scrapeLock;
         this.scrapeRateLimiter = scrapeRateLimiter;
@@ -118,8 +124,35 @@ public class ApplicationVersionService implements ApplicationVersionPort {
 
     private ScrapeResult scrapeAndWrite() {
         Instant attemptAt = clock.instant();
-        ScrapeResult result = versionRepository.scrape();
+        ScrapeResult result = scrape();
         scrapeStateStore.write(result.applications(), attemptAt);
         return result;
+    }
+
+    /**
+     * The scrape loop: for each configured app read both sources, isolate per-app failures, and
+     * count {@code attempted}/{@code failed}. A single source throwing is caught and counted in
+     * {@code failed} — it does NOT abort the scrape or propagate. The invariant
+     * {@code applications.size() + failed == attempted} holds.
+     */
+    private ScrapeResult scrape() {
+        List<VersionApplication> resolved = new ArrayList<>();
+        int attempted = 0;
+        int failed = 0;
+
+        for (ApplicationSources app : versionSources.applicationSources()) {
+            attempted++;
+            try {
+                resolved.add(new VersionApplication(
+                        app.name(),
+                        app.current().version(),
+                        app.latest().version()));
+            } catch (Exception e) {
+                failed++;
+                logger.warn("Skipping app '{}' this scrape: {}", app.name(), e.getMessage());
+            }
+        }
+
+        return new ScrapeResult(resolved, attempted, failed);
     }
 }

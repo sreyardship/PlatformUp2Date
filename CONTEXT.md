@@ -13,8 +13,18 @@ _Avoid_: Service, app target, upgrade unit
 
 **Scrape**:
 A single pass that fetches every monitored Application's current and latest
-version from its upstream endpoints, producing one coherent snapshot.
+version from its version sources, producing one coherent snapshot.
 _Avoid_: Poll, fetch, sync, crawl
+
+**Version source**:
+Where a scrape reads a version from. An Application's *current* version comes
+from one of two kinds of source — an HTTP version endpoint exposed by the
+running app, or the deployed container image tag read from the Kubernetes API
+(a *k8s-image* source). The *latest* version comes from an upstream source
+(GitHub Releases, a Helm chart index). Exactly one current source per
+Application.
+_Avoid_: Upstream endpoint (a k8s-image source is the cluster's own state, not
+upstream), probe
 
 **Manual scrape** (a.k.a. **scrape trigger**):
 A scrape requested on demand by a human or agent, as opposed to the automatic

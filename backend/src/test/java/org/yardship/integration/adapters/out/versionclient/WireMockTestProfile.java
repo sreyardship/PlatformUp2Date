@@ -17,11 +17,15 @@ public class WireMockTestProfile implements QuarkusTestProfile {
                 Map.entry("platform-config.scrape-interval", "1h"),
                 Map.entry("quarkus.scheduler.enabled", "false"),
                 Map.entry("platform-config.apps[0].name", "good-app"),
-                Map.entry("platform-config.apps[0].current", "http://localhost:8089/good/current"),
-                Map.entry("platform-config.apps[0].latest", "http://localhost:8089/good/latest"),
+                Map.entry("platform-config.apps[0].current.type", "http"),
+                Map.entry("platform-config.apps[0].current.url", "http://localhost:8089/good/current"),
+                Map.entry("platform-config.apps[0].latest.type", "github-release"),
+                Map.entry("platform-config.apps[0].latest.url", "http://localhost:8089/good/latest"),
                 Map.entry("platform-config.apps[1].name", "bad-app"),
-                Map.entry("platform-config.apps[1].current", "http://localhost:8089/bad/current"),
-                Map.entry("platform-config.apps[1].latest", "http://localhost:8089/bad/latest")
+                Map.entry("platform-config.apps[1].current.type", "http"),
+                Map.entry("platform-config.apps[1].current.url", "http://localhost:8089/bad/current"),
+                Map.entry("platform-config.apps[1].latest.type", "github-release"),
+                Map.entry("platform-config.apps[1].latest.url", "http://localhost:8089/bad/latest")
         );
     }
 }

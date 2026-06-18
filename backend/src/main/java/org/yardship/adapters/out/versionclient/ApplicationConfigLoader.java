@@ -25,8 +25,22 @@ public interface ApplicationConfigLoader {
 
     interface AppConfig {
         String name();
-        String current();
-        String latest();
+        VersionSource current();
+        VersionSource latest();
+    }
+
+    /**
+     * Tagged version source: a {@code type} discriminator plus the union of type-specific fields.
+     * Today only the {@code url} of the {@code http} (current) and {@code github-release} (latest)
+     * types is read; the {@code namespace}/{@code workload}/{@code container} fields are reserved
+     * for the Kubernetes source added in a later slice and are absent for http/github apps.
+     */
+    interface VersionSource {
+        String type();
+        Optional<String> url();
+        Optional<String> namespace();
+        Optional<String> workload();
+        Optional<String> container();
     }
 
     interface ScrapeTrigger {
