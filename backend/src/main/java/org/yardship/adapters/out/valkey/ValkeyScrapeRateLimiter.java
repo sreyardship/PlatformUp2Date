@@ -2,13 +2,12 @@ package org.yardship.adapters.out.valkey;
 
 import io.quarkus.redis.datasource.RedisDataSource;
 import io.vertx.mutiny.redis.client.Response;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
-import org.yardship.adapters.out.versionclient.ApplicationConfigLoader;
 import org.yardship.core.ports.out.ScrapeRateLimiter;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /**
  * Valkey-backed {@link ScrapeRateLimiter}. Keeps a ZSET of manual-trigger timestamps at
@@ -23,11 +22,14 @@ import java.util.UUID;
  * A safety TTL ({@code window * 2}) is set on the key so an idle budget never lingers forever.
  *
  * <p>Fail-closed: a Valkey error surfaces as a {@link RuntimeException} rather than a silent allow.
+ *
+ * <p><b>Issue 03:</b> this class is now parameterised by {@code (key, maxPerWindow, window)} instead
+ * of hard-wiring {@code scrape:budget} / {@code platform-config.scrape-trigger} — the atomic Lua
+ * window logic is unchanged. Two qualified beans (full-scrape vs. targeted-scrape budgets) are
+ * expected to be produced over distinct keys/config by a CDI producer (not yet wired here — see
+ * {@code FullScrapeBudget}/{@code TargetedScrapeBudget} qualifiers in {@code core.ports.out}).
  */
-@ApplicationScoped
 public class ValkeyScrapeRateLimiter implements ScrapeRateLimiter {
-
-    static final String KEY = "scrape:budget";
 
     /**
      * Single atomic rolling-window decision.
@@ -66,26 +68,37 @@ public class ValkeyScrapeRateLimiter implements ScrapeRateLimiter {
             """;
 
     private final RedisDataSource redisDataSource;
-    private final ApplicationConfigLoader config;
+    private final String key;
+    private final Supplier<Integer> maxPerWindow;
+    private final Supplier<Duration> window;
 
-    @Inject
-    public ValkeyScrapeRateLimiter(RedisDataSource redisDataSource, ApplicationConfigLoader config) {
+    /**
+     * @param key          the Valkey ZSET key this budget's timestamps are recorded under (distinct
+     *                     per budget, e.g. {@code scrape:budget} vs. {@code scrape:targeted:budget}).
+     * @param maxPerWindow live-reloadable cap on triggers per window (a {@link Supplier} so config
+     *                     reloads are observed without re-creating the bean).
+     * @param window       live-reloadable rolling-window length.
+     */
+    public ValkeyScrapeRateLimiter(
+            RedisDataSource redisDataSource, String key, Supplier<Integer> maxPerWindow, Supplier<Duration> window) {
         this.redisDataSource = redisDataSource;
-        this.config = config;
+        this.key = key;
+        this.maxPerWindow = maxPerWindow;
+        this.window = window;
     }
 
     @Override
     public Decision tryAcquire(Instant now) {
         long nowMillis = now.toEpochMilli();
-        long windowMillis = config.scrapeTrigger().window().toMillis();
-        int max = config.scrapeTrigger().maxPerWindow();
+        long windowMillis = window.get().toMillis();
+        int max = maxPerWindow.get();
         String member = nowMillis + ":" + UUID.randomUUID();
 
         Response response = redisDataSource.execute(
                 "EVAL",
                 TRY_ACQUIRE_LUA,
                 "1",
-                KEY,
+                key,
                 Long.toString(nowMillis),
                 Long.toString(windowMillis),
                 Integer.toString(max),
@@ -101,14 +114,14 @@ public class ValkeyScrapeRateLimiter implements ScrapeRateLimiter {
     @Override
     public Budget peek(Instant now) {
         long nowMillis = now.toEpochMilli();
-        long windowMillis = config.scrapeTrigger().window().toMillis();
-        int max = config.scrapeTrigger().maxPerWindow();
+        long windowMillis = window.get().toMillis();
+        int max = maxPerWindow.get();
         long windowStart = nowMillis - windowMillis;
 
         Response oldest = redisDataSource.execute(
-                "ZRANGEBYSCORE", KEY, Long.toString(windowStart), "+inf", "WITHSCORES", "LIMIT", "0", "1");
+                "ZRANGEBYSCORE", key, Long.toString(windowStart), "+inf", "WITHSCORES", "LIMIT", "0", "1");
         int inWindow = Integer.parseInt(
-                redisDataSource.execute("ZCOUNT", KEY, Long.toString(windowStart), "+inf").toString());
+                redisDataSource.execute("ZCOUNT", key, Long.toString(windowStart), "+inf").toString());
 
         int remaining = Math.max(0, max - inWindow);
         long windowResetsIn = 0;

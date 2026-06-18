@@ -58,6 +58,7 @@ class VersionServiceTests {
     private FakeScrapeStateStore store;
     private FakeScrapeLock lock;
     private FakeScrapeRateLimiter rateLimiter;
+    private FakeScrapeRateLimiter targetedRateLimiter;
     private MutableClock clock;
     private ApplicationVersionService sut;
 
@@ -67,8 +68,10 @@ class VersionServiceTests {
         store = new FakeScrapeStateStore();
         lock = new FakeScrapeLock();
         rateLimiter = new FakeScrapeRateLimiter();
+        targetedRateLimiter = new FakeScrapeRateLimiter();
         clock = new MutableClock(START);
-        sut = new ApplicationVersionService(sources, store, lock, rateLimiter, SCRAPE_INTERVAL, clock);
+        sut = new ApplicationVersionService(
+                sources, store, lock, rateLimiter, targetedRateLimiter, SCRAPE_INTERVAL, clock);
     }
 
     @Test
@@ -300,6 +303,8 @@ class VersionServiceTests {
         assertEquals(1, sources.readCount());
         assertEquals(0, rateLimiter.tryAcquireCount,
                 "the automatic staleness scrape must not spend a manual-budget slot");
+        assertEquals(0, targetedRateLimiter.tryAcquireCount,
+                "the automatic staleness scrape must not spend a targeted-budget slot either");
     }
 
     @Test
@@ -310,6 +315,8 @@ class VersionServiceTests {
 
         assertEquals(0, rateLimiter.tryAcquireCount,
                 "scraping an absent snapshot must not spend a manual-budget slot");
+        assertEquals(0, targetedRateLimiter.tryAcquireCount,
+                "scraping an absent snapshot must not spend a targeted-budget slot either");
     }
 
     // --- helpers ------------------------------------------------------------------------------

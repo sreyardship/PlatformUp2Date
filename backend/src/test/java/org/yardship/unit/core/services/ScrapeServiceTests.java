@@ -4,6 +4,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.yardship.core.ports.in.Outcome;
 import org.yardship.core.domain.primitives.ScrapeSnapshot;
+import org.yardship.core.domain.primitives.Side;
+import org.yardship.core.domain.primitives.TargetResult;
 import org.yardship.core.ports.in.ScrapeStatus;
 import org.yardship.core.domain.primitives.Version;
 import org.yardship.core.domain.primitives.VersionApplication;
@@ -25,6 +27,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -57,6 +60,7 @@ class ScrapeServiceTests {
     private FakeScrapeStateStore store;
     private FakeScrapeLock lock;
     private FakeScrapeRateLimiter rateLimiter;
+    private FakeScrapeRateLimiter targetedRateLimiter;
     private MutableClock clock;
     private ApplicationVersionService sut;
 
@@ -66,8 +70,10 @@ class ScrapeServiceTests {
         store = new FakeScrapeStateStore();
         lock = new FakeScrapeLock();
         rateLimiter = new FakeScrapeRateLimiter();
+        targetedRateLimiter = new FakeScrapeRateLimiter();
         clock = new MutableClock(START);
-        sut = new ApplicationVersionService(sources, store, lock, rateLimiter, SCRAPE_INTERVAL, clock);
+        sut = new ApplicationVersionService(
+                sources, store, lock, rateLimiter, targetedRateLimiter, SCRAPE_INTERVAL, clock);
     }
 
     @Test
@@ -224,6 +230,90 @@ class ScrapeServiceTests {
         assertEquals(1, lock.releaseCount, "the lock must be released even when the snapshot write fails");
     }
 
+    // --- Per-app target results (issue 02) -----------------------------------------------------
+    //
+    // The full scrape now reports WHICH apps failed and why, reusing TargetResult from issue 01.
+    // The loop reads both sides of each app in one try, so every full-scrape TargetResult carries
+    // side == BOTH (app-level granularity; see docs/adr/0006). No behaviour change to the scrape
+    // loop itself — only the telemetry gains identity.
+
+    @Test
+    void triggerScrape_lockWon_targetResults_nameEachAppWithSucceededAndReason() {
+        sources.seed(
+                appSources("alpha", "1.0.0", "2.0.0"),
+                new ApplicationSources("beta", okCurrent("1.0.0"), throwingLatest("github down")),
+                appSources("gamma", "3.0.0", "4.0.0"));
+        lock.willAcquire(true);
+
+        ScrapeStatus status = sut.triggerScrape();
+
+        assertEquals(3, status.targetResults().size(), "one TargetResult per configured app");
+
+        TargetResult alpha = findResult(status, "alpha");
+        assertTrue(alpha.succeeded(), "alpha's sources did not throw");
+        assertEquals("", alpha.reason(), "reason is empty on success");
+
+        TargetResult beta = findResult(status, "beta");
+        assertFalse(beta.succeeded(), "beta's latest source threw");
+        assertFalse(beta.reason().isEmpty(), "a failed target must carry a non-empty reason");
+
+        TargetResult gamma = findResult(status, "gamma");
+        assertTrue(gamma.succeeded(), "gamma's sources did not throw");
+    }
+
+    @Test
+    void triggerScrape_targetResults_everyEntryReportsSideBoth() {
+        sources.seed(
+                appSources("alpha", "1.0.0", "2.0.0"),
+                new ApplicationSources("beta", okCurrent("1.0.0"), throwingLatest("down")));
+        lock.willAcquire(true);
+
+        ScrapeStatus status = sut.triggerScrape();
+
+        for (TargetResult result : status.targetResults()) {
+            assertEquals(Side.BOTH, result.side(),
+                    "a full scrape reads both sides of an app in one try: " + result.name());
+        }
+    }
+
+    @Test
+    void triggerScrape_targetResults_countsAgreeWithAppsAttemptedSucceededFailed() {
+        sources.seed(
+                appSources("a", "1.0.0", "2.0.0"),
+                new ApplicationSources("b", throwingCurrent("503"), okLatest("2.0.0")),
+                new ApplicationSources("c", okCurrent("1.0.0"), throwingLatest("down")),
+                appSources("d", "1.0.0", "2.0.0"));
+        lock.willAcquire(true);
+
+        ScrapeStatus status = sut.triggerScrape();
+
+        assertEquals(status.appsAttempted(), status.targetResults().size(),
+                "targetResults size must equal appsAttempted");
+        long succeededInList = status.targetResults().stream().filter(TargetResult::succeeded).count();
+        assertEquals(status.appsSucceeded(), succeededInList,
+                "succeeded entries in targetResults must equal appsSucceeded");
+        long failedInList = status.targetResults().stream().filter(r -> !r.succeeded()).count();
+        assertEquals(status.appsFailed(), failedInList,
+                "failed entries in targetResults must equal appsFailed");
+    }
+
+    @Test
+    void triggerScrape_noConfiguredApps_targetResultsIsEmpty() {
+        sources.seedEmpty();
+        lock.willAcquire(true);
+
+        ScrapeStatus status = sut.triggerScrape();
+
+        assertTrue(status.targetResults().isEmpty(), "no configured apps means no target results");
+    }
+
+    private TargetResult findResult(ScrapeStatus status, String name) {
+        return status.targetResults().stream()
+                .filter(r -> r.name().equals(name))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no TargetResult named '" + name + "' in " + status.targetResults()));
+    }
+
     // --- Scrape budget ------------------------------------------------------------------------
     //
     // LOCK-FIRST ordering, then budget: acquire the lock; if lost → IN_PROGRESS (limiter NEVER
@@ -253,6 +343,8 @@ class ScrapeServiceTests {
         assertEquals(1, sources.readCount(), "a manual trigger scrapes once");
         assertEquals(1, store.writeCount, "the winner must write a fresh snapshot");
         assertEquals(1, rateLimiter.tryAcquireCount, "a manual trigger spends exactly one budget slot");
+        assertEquals(0, targetedRateLimiter.tryAcquireCount,
+                "triggerScrape (full path) must never consult the targeted budget");
         assertEquals(1, lock.releaseCount, "the winner must release the lock");
     }
 
@@ -269,6 +361,8 @@ class ScrapeServiceTests {
         assertEquals(0, sources.readCount(), "a rate-limited trigger must not scrape");
         assertEquals(0, store.writeCount, "a rate-limited trigger must not write");
         assertEquals(1, rateLimiter.tryAcquireCount, "the budget must be consulted before scraping");
+        assertEquals(0, targetedRateLimiter.tryAcquireCount,
+                "triggerScrape (full path) must never consult the targeted budget");
         assertEquals(1, lock.releaseCount, "the lock acquired before the budget check must be released");
     }
 
@@ -282,6 +376,8 @@ class ScrapeServiceTests {
 
         assertEquals(Outcome.IN_PROGRESS, status.outcome());
         assertEquals(0, rateLimiter.tryAcquireCount, "a lost lock must not consume a budget slot");
+        assertEquals(0, targetedRateLimiter.tryAcquireCount,
+                "triggerScrape (full path) must never consult the targeted budget");
         assertEquals(0, sources.readCount());
         assertEquals(0, store.writeCount);
     }

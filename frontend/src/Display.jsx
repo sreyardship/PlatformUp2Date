@@ -17,7 +17,7 @@ const Display = ({ versions, onRefreshed }) => {
     >
       <Title />
       <RefreshButton onRefreshed={onRefreshed} />
-      <VersionList versions={versions} />
+      <VersionList versions={versions} onRefreshed={onRefreshed} />
     </Paper>
   )
 }

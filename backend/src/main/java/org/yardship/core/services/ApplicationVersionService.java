@@ -3,11 +3,17 @@ package org.yardship.core.services;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.yardship.core.ports.out.FullScrapeBudget;
+import org.yardship.core.ports.out.TargetedScrapeBudget;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yardship.core.ports.out.ApplicationSources;
 import org.yardship.core.ports.out.ScrapeResult;
 import org.yardship.core.domain.primitives.ScrapeSnapshot;
+import org.yardship.core.domain.primitives.ScrapeTarget;
+import org.yardship.core.domain.primitives.Side;
+import org.yardship.core.domain.primitives.TargetResult;
+import org.yardship.core.domain.primitives.Version;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.in.ApplicationVersionPort;
 import org.yardship.core.ports.in.ScrapeStatus;
@@ -20,7 +26,9 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @ApplicationScoped
@@ -31,7 +39,8 @@ public class ApplicationVersionService implements ApplicationVersionPort {
     private final VersionSources versionSources;
     private final ScrapeStateStore scrapeStateStore;
     private final ScrapeLock scrapeLock;
-    private final ScrapeRateLimiter scrapeRateLimiter;
+    private final ScrapeRateLimiter fullScrapeRateLimiter;
+    private final ScrapeRateLimiter targetedScrapeRateLimiter;
     private final Duration scrapeInterval;
     private final Clock clock;
 
@@ -40,23 +49,35 @@ public class ApplicationVersionService implements ApplicationVersionPort {
             VersionSources versionSources,
             ScrapeStateStore scrapeStateStore,
             ScrapeLock scrapeLock,
-            ScrapeRateLimiter scrapeRateLimiter,
+            @FullScrapeBudget ScrapeRateLimiter fullScrapeRateLimiter,
+            @TargetedScrapeBudget ScrapeRateLimiter targetedScrapeRateLimiter,
             @ConfigProperty(name = "platform-config.scrape-interval") Duration scrapeInterval) {
-        this(versionSources, scrapeStateStore, scrapeLock, scrapeRateLimiter, scrapeInterval, Clock.systemUTC());
+        this(
+                versionSources,
+                scrapeStateStore,
+                scrapeLock,
+                fullScrapeRateLimiter,
+                targetedScrapeRateLimiter,
+                scrapeInterval,
+                Clock.systemUTC());
     }
 
-    // Visible for testing: lets tests drive the staleness clock deterministically.
+    // Visible for testing: lets tests drive the staleness clock deterministically, and inject the
+    // full-scrape and targeted-scrape budgets explicitly (issue 03 — two distinct rolling-window
+    // budgets so agent-driven targeted scrapes cannot starve the UI's full-Refresh budget).
     public ApplicationVersionService(
             VersionSources versionSources,
             ScrapeStateStore scrapeStateStore,
             ScrapeLock scrapeLock,
-            ScrapeRateLimiter scrapeRateLimiter,
+            ScrapeRateLimiter fullScrapeRateLimiter,
+            ScrapeRateLimiter targetedScrapeRateLimiter,
             Duration scrapeInterval,
             Clock clock) {
         this.versionSources = versionSources;
         this.scrapeStateStore = scrapeStateStore;
         this.scrapeLock = scrapeLock;
-        this.scrapeRateLimiter = scrapeRateLimiter;
+        this.fullScrapeRateLimiter = fullScrapeRateLimiter;
+        this.targetedScrapeRateLimiter = targetedScrapeRateLimiter;
         this.scrapeInterval = scrapeInterval;
         this.clock = clock;
     }
@@ -81,17 +102,129 @@ public class ApplicationVersionService implements ApplicationVersionPort {
         if (!scrapeLock.tryAcquire()) {
             return ScrapeStatus.inProgress();
         }
-        ScrapeRateLimiter.Decision budget = spendBudgetOrReleaseLock();
+        ScrapeRateLimiter.Decision budget = spendBudgetOrReleaseLock(fullScrapeRateLimiter);
         if (!budget.allowed()) {
             return ScrapeStatus.rateLimited((int) budget.retryAfter());
         }
         ScrapeResult result = scrapeWriteAndRelease();
         return ScrapeStatus.scraped(
-                result.attempted(), result.failed(), budget.remaining(), (int) budget.windowResetsIn());
+                result.attempted(),
+                result.failed(),
+                budget.remaining(),
+                (int) budget.windowResetsIn(),
+                result.targetResults());
     }
 
-    private ScrapeRateLimiter.Decision spendBudgetOrReleaseLock() {
-        ScrapeRateLimiter.Decision budget = scrapeRateLimiter.tryAcquire(clock.instant());
+    @Override
+    public ScrapeStatus targetedScrape(List<ScrapeTarget> targets) {
+        // Same lock-first/budget-first ordering as triggerScrape: a lost lock spends no budget; a
+        // lock winner that loses the budget check releases the lock without merging or writing.
+        if (!scrapeLock.tryAcquire()) {
+            return ScrapeStatus.inProgress();
+        }
+        ScrapeRateLimiter.Decision budget = spendBudgetOrReleaseLock(targetedScrapeRateLimiter);
+        if (!budget.allowed()) {
+            return ScrapeStatus.rateLimited((int) budget.retryAfter());
+        }
+        List<TargetResult> results = mergeWriteAndRelease(targets);
+        return ScrapeStatus.scraped(results, budget.remaining(), (int) budget.windowResetsIn());
+    }
+
+    private List<TargetResult> mergeWriteAndRelease(List<ScrapeTarget> targets) {
+        try {
+            return mergeAndWrite(targets);
+        } finally {
+            scrapeLock.release();
+        }
+    }
+
+    /**
+     * Reads the current snapshot, resolves each target against the configured sources (isolating
+     * per-target failures), splices the results over the snapshot's applications, and writes the
+     * merged list back re-supplying the existing {@code lastAttemptAt} so the fleet-wide staleness
+     * clock is not advanced. An empty snapshot has no {@code lastAttemptAt} to preserve, so a
+     * definitely-stale one is written instead, keeping a subsequent plain read scraping the fleet.
+     */
+    private List<TargetResult> mergeAndWrite(List<ScrapeTarget> targets) {
+        Optional<ScrapeSnapshot> snapshot = scrapeStateStore.read();
+        Map<String, ApplicationSources> sourcesByName = indexSourcesByName();
+        List<VersionApplication> merged = new ArrayList<>(lastKnownApplications(snapshot));
+        List<TargetResult> results = new ArrayList<>();
+
+        for (ScrapeTarget target : targets) {
+            results.add(resolveTarget(target, sourcesByName, merged));
+        }
+
+        Instant attemptAt = snapshot.map(ScrapeSnapshot::lastAttemptAt).orElse(Instant.EPOCH);
+        scrapeStateStore.write(merged, attemptAt);
+        return results;
+    }
+
+    private Map<String, ApplicationSources> indexSourcesByName() {
+        Map<String, ApplicationSources> byName = new HashMap<>();
+        for (ApplicationSources app : versionSources.applicationSources()) {
+            byName.put(app.name(), app);
+        }
+        return byName;
+    }
+
+    private TargetResult resolveTarget(
+            ScrapeTarget target, Map<String, ApplicationSources> sourcesByName, List<VersionApplication> merged) {
+        ApplicationSources app = sourcesByName.get(target.name());
+        if (app == null) {
+            return TargetResult.failure(target.name(), target.side(), "not monitored");
+        }
+
+        try {
+            Optional<VersionApplication> existing = findByName(merged, target.name());
+            Side effectiveSide = effectiveSide(target.side(), existing.isPresent());
+            VersionApplication resolved = resolveVersionApplication(app, existing, effectiveSide);
+            spliceApplication(merged, resolved);
+            return TargetResult.success(target.name(), effectiveSide);
+        } catch (Exception e) {
+            logger.warn("Skipping target '{}' this targeted scrape: {}", target.name(), e.getMessage());
+            return TargetResult.failure(target.name(), target.side(), e.getMessage());
+        }
+    }
+
+    // A single-side target for an app not yet in the snapshot is upgraded to BOTH: half a
+    // VersionApplication cannot be persisted.
+    private Side effectiveSide(Side requested, boolean appExistsInSnapshot) {
+        if (!appExistsInSnapshot && requested != Side.BOTH) {
+            return Side.BOTH;
+        }
+        return requested;
+    }
+
+    private VersionApplication resolveVersionApplication(
+            ApplicationSources app, Optional<VersionApplication> existing, Side side) {
+        Version current = switch (side) {
+            case CURRENT, BOTH -> app.current().version();
+            case LATEST -> existing.orElseThrow().current();
+        };
+        Version latest = switch (side) {
+            case LATEST, BOTH -> app.latest().version();
+            case CURRENT -> existing.orElseThrow().latest();
+        };
+        return new VersionApplication(app.name(), current, latest);
+    }
+
+    private Optional<VersionApplication> findByName(List<VersionApplication> apps, String name) {
+        return apps.stream().filter(a -> a.name().equals(name)).findFirst();
+    }
+
+    private void spliceApplication(List<VersionApplication> apps, VersionApplication replacement) {
+        for (int i = 0; i < apps.size(); i++) {
+            if (apps.get(i).name().equals(replacement.name())) {
+                apps.set(i, replacement);
+                return;
+            }
+        }
+        apps.add(replacement);
+    }
+
+    private ScrapeRateLimiter.Decision spendBudgetOrReleaseLock(ScrapeRateLimiter rateLimiter) {
+        ScrapeRateLimiter.Decision budget = rateLimiter.tryAcquire(clock.instant());
         if (!budget.allowed()) {
             scrapeLock.release();
         }
@@ -137,6 +270,7 @@ public class ApplicationVersionService implements ApplicationVersionPort {
      */
     private ScrapeResult scrape() {
         List<VersionApplication> resolved = new ArrayList<>();
+        List<TargetResult> targetResults = new ArrayList<>();
         int attempted = 0;
         int failed = 0;
 
@@ -147,12 +281,22 @@ public class ApplicationVersionService implements ApplicationVersionPort {
                         app.name(),
                         app.current().version(),
                         app.latest().version()));
+                targetResults.add(TargetResult.success(app.name(), Side.BOTH));
             } catch (Exception e) {
                 failed++;
                 logger.warn("Skipping app '{}' this scrape: {}", app.name(), e.getMessage());
+                targetResults.add(TargetResult.failure(app.name(), Side.BOTH, failureReason(e)));
             }
         }
 
-        return new ScrapeResult(resolved, attempted, failed);
+        return new ScrapeResult(resolved, attempted, failed, targetResults);
+    }
+
+    private String failureReason(Exception e) {
+        String message = e.getMessage();
+        if (message != null && !message.isBlank()) {
+            return message;
+        }
+        return e.getClass().getSimpleName();
     }
 }

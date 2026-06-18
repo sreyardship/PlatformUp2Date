@@ -18,6 +18,13 @@ public interface ApplicationConfigLoader {
     ScrapeTrigger scrapeTrigger();
 
     /**
+     * Targeted-scrape rolling-window budget (issue 03) — separate from {@link #scrapeTrigger()} so
+     * agent-driven targeted-scrape work cannot starve the UI's full-Refresh budget. Defaults: at most
+     * 30 triggers per 1h sliding window (larger than the full-scrape default of 10/1h).
+     */
+    TargetedScrapeTrigger targetedScrapeTrigger();
+
+    /**
      * Optional GitHub authentication for the scrape's {@code latest} leg. Absent/unset leaves
      * the scrape unauthenticated (60 req/hr); present raises the limit to 5,000 req/hr.
      */
@@ -45,6 +52,20 @@ public interface ApplicationConfigLoader {
 
     interface ScrapeTrigger {
         @WithDefault("10")
+        int maxPerWindow();
+
+        @WithDefault("1h")
+        Duration window();
+    }
+
+    /**
+     * Same shape as {@link ScrapeTrigger} but with its OWN defaults (30/1h instead of 10/1h):
+     * {@code @WithDefault} is resolved per leaf-property, so a method merely returning
+     * {@code ScrapeTrigger} again would inherit its 10/1h defaults — a separate interface is needed
+     * to default to 30/1h for {@code targeted-scrape-trigger}.
+     */
+    interface TargetedScrapeTrigger {
+        @WithDefault("30")
         int maxPerWindow();
 
         @WithDefault("1h")

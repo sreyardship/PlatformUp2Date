@@ -48,6 +48,20 @@ class ApplicationConfigLoaderTests {
         assertEquals("https://example.test/latest", app.latest().url().get());
     }
 
+    // --- Issue 03: targeted-scrape budget config, separate and larger than scrape-trigger ------
+
+    @Test
+    void targetedScrapeTrigger_defaultsTo30PerWindow_largerThanTheFullScrapeDefaultOf10() {
+        assertEquals(30, configLoader.targetedScrapeTrigger().maxPerWindow(),
+                "targeted-scrape-trigger must default larger than scrape-trigger's 10/window "
+                        + "so agent-driven work cannot starve the UI's full-Refresh budget");
+    }
+
+    @Test
+    void targetedScrapeTrigger_defaultsWindowToOneHour() {
+        assertEquals(java.time.Duration.ofHours(1), configLoader.targetedScrapeTrigger().window());
+    }
+
     @Test
     void anticipatedKubernetesFields_areAbsentForHttpAndGithubSources() {
         AppConfig app = configLoader.apps().getFirst();

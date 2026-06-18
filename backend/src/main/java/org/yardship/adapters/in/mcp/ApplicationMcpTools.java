@@ -1,8 +1,11 @@
 package org.yardship.adapters.in.mcp;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.yardship.core.domain.primitives.ScrapeTarget;
+import org.yardship.core.domain.primitives.Side;
 import org.yardship.core.domain.primitives.Version;
 import org.yardship.core.ports.in.ScrapeStatus;
 import org.yardship.core.ports.in.ApplicationVersionPort;
@@ -74,5 +77,49 @@ public class ApplicationMcpTools {
                     + "application versions themselves.")
     public ScrapeStatus trigger_scrape() {
         return applicationVersionPort.triggerScrape();
+    }
+
+    @Tool(
+            name = "scrape_applications",
+            description = "Force an immediate refresh of one or more specific monitored "
+                    + "applications (and a chosen side of each: current, latest, or both), "
+                    + "without re-hitting every upstream in the fleet. Use this when you only "
+                    + "need fresh data for a handful of apps rather than a full-fleet scrape. "
+                    + "This is RATE-LIMITED by a targeted scrape budget that is SEPARATE and "
+                    + "distinct from trigger_scrape's fleet-wide budget. Read the returned "
+                    + "'outcome' field to learn what happened: SCRAPED means the requested "
+                    + "targets were refreshed and 'targetResults' holds a per-target "
+                    + "success/failure outcome; RATE_LIMITED means the targeted budget was "
+                    + "exhausted and NO scrape happened (see 'retryAfterSeconds' for when a "
+                    + "slot frees); IN_PROGRESS means another replica is already scraping, so "
+                    + "no new scrape was started. After calling this tool, read "
+                    + "'get_application' or 'list_outdated_applications' to see the refreshed "
+                    + "values — this tool returns scrape telemetry (counts, budget and "
+                    + "per-target results), not the application versions themselves.")
+    public ScrapeStatus scrape_applications(
+            @ToolArg(
+                    name = "targets",
+                    description = "The (name, side) pairs to refresh. side is one of "
+                            + "current, latest, or both.")
+            List<ScrapeTargetArg> targets) {
+        List<ScrapeTarget> scrapeTargets = targets.stream()
+                .map(target -> new ScrapeTarget(target.name(), target.side()))
+                .toList();
+        return applicationVersionPort.targetedScrape(scrapeTargets);
+    }
+
+    /**
+     * Wire-shape for one requested {@link ScrapeTarget} in the {@code scrape_applications} MCP
+     * tool call. {@code side} binds straight to the domain {@link Side} enum, so the legal values
+     * ({@code current}/{@code latest}/{@code both}) are part of the tool's argument contract and an
+     * unknown value fails deserialisation rather than being parsed by hand. The
+     * {@link JsonFormat.Feature#ACCEPT_CASE_INSENSITIVE_VALUES} keeps the lowercase input the tool
+     * documents working against the uppercase enum constants — case-insensitivity handled by
+     * Jackson, not by the adapter.
+     */
+    @io.quarkus.runtime.annotations.RegisterForReflection
+    public record ScrapeTargetArg(
+            String name,
+            @JsonFormat(with = JsonFormat.Feature.ACCEPT_CASE_INSENSITIVE_VALUES) Side side) {
     }
 }

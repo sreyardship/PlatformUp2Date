@@ -7,6 +7,7 @@ import io.quarkus.test.junit.TestProfile;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.yardship.core.ports.out.FullScrapeBudget;
 import org.yardship.core.ports.out.ScrapeRateLimiter;
 import org.yardship.core.ports.out.ScrapeRateLimiter.Decision;
 
@@ -40,6 +41,7 @@ class ValkeyScrapeRateLimiterIT {
     private static final Instant NOW = Instant.parse("2026-06-15T12:00:00Z");
 
     @Inject
+    @FullScrapeBudget
     ScrapeRateLimiter sut;
 
     @Inject

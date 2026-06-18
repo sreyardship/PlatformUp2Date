@@ -4,8 +4,12 @@ import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.valkey.ScrapeStateUnavailableException;
+import org.yardship.core.domain.primitives.Side;
+import org.yardship.core.domain.primitives.TargetResult;
 import org.yardship.core.ports.in.ApplicationVersionPort;
 import org.yardship.core.ports.in.ScrapeStatus;
+
+import java.util.List;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
@@ -44,6 +48,34 @@ class ScrapeControllerIT {
                 .body("appsFailed", equalTo(1))
                 .body("triggersRemaining", equalTo(7))
                 .body("windowResetsInSeconds", equalTo(1800));
+    }
+
+    @Test
+    void postScrape_scraped_bodyExposesPerAppTargetResults() {
+        // Reuses the full-scrape TargetResult factory added in issue 02: one entry per app, side
+        // BOTH, succeeded/reason naming which app failed and why — not just an aggregate count.
+        when(applicationVersionPort.triggerScrape()).thenReturn(
+                ScrapeStatus.scraped(
+                        2,
+                        1,
+                        7,
+                        1800,
+                        List.of(
+                                TargetResult.success("argo-cd", Side.BOTH),
+                                TargetResult.failure("grafana", Side.BOTH, "github down"))));
+
+        given()
+                .when()
+                .post("/api/v1/scrape")
+                .then()
+                .statusCode(200)
+                .body("targetResults.size()", equalTo(2))
+                .body("targetResults[0].name", equalTo("argo-cd"))
+                .body("targetResults[0].side", equalTo("BOTH"))
+                .body("targetResults[0].succeeded", equalTo(true))
+                .body("targetResults[1].name", equalTo("grafana"))
+                .body("targetResults[1].succeeded", equalTo(false))
+                .body("targetResults[1].reason", equalTo("github down"));
     }
 
     @Test

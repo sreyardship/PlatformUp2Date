@@ -1,6 +1,9 @@
-import { Paper, Typography } from '@mui/material'
+import { Box, Paper, Typography } from '@mui/material'
 
-const Version = ({ name, ver }) => {
+import UpdateButton from './UpdateButton'
+import versionClient from './api/versionClient'
+
+const Version = ({ name, ver, onRefreshed }) => {
   const color = ver.current === ver.latest ? 'success.main' : 'error.main'
 
   return (
@@ -25,6 +28,18 @@ const Version = ({ name, ver }) => {
         {ver.current}
       </Typography>
       <Typography variant='h4'>{ver.latest}</Typography>
+      <Box sx={{ display: 'flex', gap: '0.4rem' }}>
+        <UpdateButton
+          label='Update current'
+          onScrape={() => versionClient.scrapeApplication(name, 'current')}
+          onRefreshed={onRefreshed}
+        />
+        <UpdateButton
+          label='Update latest'
+          onScrape={() => versionClient.scrapeApplication(name, 'latest')}
+          onRefreshed={onRefreshed}
+        />
+      </Box>
     </Paper>
   )
 }

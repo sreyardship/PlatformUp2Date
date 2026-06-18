@@ -1,7 +1,7 @@
 import { Box } from '@mui/material'
 import Version from './Version'
 
-const VersionList = ({ versions }) => {
+const VersionList = ({ versions, onRefreshed }) => {
   return (
     <Box
       sx={{
@@ -18,6 +18,7 @@ const VersionList = ({ versions }) => {
             key={key}
             name={key}
             ver={val}
+            onRefreshed={onRefreshed}
           />
         ))}
     </Box>

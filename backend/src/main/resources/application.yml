@@ -48,6 +48,11 @@ quarkus:
     scrape-trigger:
       max-per-window: 10
       window: 1h
+    # Targeted-scrape rolling-window budget (agent-driven single-app/side updates, issue 03) — kept
+    # separate and larger than scrape-trigger so agent-driven work cannot starve the UI's Refresh budget.
+    targeted-scrape-trigger:
+      max-per-window: 30
+      window: 1h
     apps:
       - name: argo-cd
         current:
