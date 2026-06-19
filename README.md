@@ -58,10 +58,10 @@ Prometheus text exposition format (no Micrometer). The custom metric for version
 monitoring is a single gauge:
 
 ```
-# HELP platformup2date_version_drift_level How far the deployed version is behind latest (0=current, 1=patch, 2=minor, 3=major)
-# TYPE platformup2date_version_drift_level gauge
-platformup2date_version_drift_level{app="argo-cd"} 3
-platformup2date_version_drift_level{app="git-tea"} 0
+# HELP pu2d_version_drift_level How far the deployed version is behind latest (0=current, 1=patch, 2=minor, 3=major)
+# TYPE pu2d_version_drift_level gauge
+pu2d_version_drift_level{app="argo-cd"} 3
+pu2d_version_drift_level{app="git-tea"} 0
 ```
 
 One gauge answers both questions: whether an app is outdated, and how far behind it is.
@@ -83,7 +83,7 @@ groups:
   - name: platform-up-2-date
     rules:
       - alert: AppOutdated
-        expr: platformup2date_version_drift_level > 0
+        expr: pu2d_version_drift_level > 0
         for: 1h
         labels:
           severity: warning
@@ -91,7 +91,7 @@ groups:
           summary: "{{ $labels.app }} is behind its latest release"
 
       - alert: AppMajorVersionBehind
-        expr: platformup2date_version_drift_level >= 3
+        expr: pu2d_version_drift_level >= 3
         for: 1h
         labels:
           severity: critical
