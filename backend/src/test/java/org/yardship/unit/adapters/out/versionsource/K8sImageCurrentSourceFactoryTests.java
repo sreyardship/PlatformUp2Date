@@ -138,6 +138,16 @@ class K8sImageCurrentSourceFactoryTests {
             public Optional<String> container() {
                 return container;
             }
+
+            @Override
+            public Optional<String> versionKey() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<Boolean> stripPrerelease() {
+                return Optional.empty();
+            }
         };
     }
 }

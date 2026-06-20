@@ -48,6 +48,23 @@ public interface ApplicationConfigLoader {
         Optional<String> namespace();
         Optional<String> workload();
         Optional<String> container();
+
+        /**
+         * Optional JSON Pointer (RFC 6901) naming the key the {@code http} current source reads
+         * the version string from. Absent for non-{@code http} kinds and defaults to {@code /version}
+         * when absent for {@code http}, preserving the legacy {@code {"version":"…"}} contract.
+         */
+        Optional<String> versionKey();
+
+        /**
+         * Optional flag read only by the {@code http} current source: when {@code true}, the
+         * prerelease segment of the version read from the upstream endpoint is cleared (e.g.
+         * {@code 2.11.1-6b7ecba1} becomes {@code 2.11.1}) so a release carrying a build/commit
+         * suffix compares equal to its upstream release instead of ranking below it. Absent for
+         * non-{@code http} kinds and defaults to {@code false} when absent for {@code http},
+         * preserving today's behaviour (prerelease preserved) for every existing app.
+         */
+        Optional<Boolean> stripPrerelease();
     }
 
     interface ScrapeTrigger {

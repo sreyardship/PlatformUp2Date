@@ -1,5 +1,6 @@
 package org.yardship.adapters.out.versionclient;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 
@@ -7,5 +8,5 @@ import jakarta.ws.rs.Path;
 public interface CurrentVersionClient {
 
     @GET
-    CurrentVersionResponseDTO getCurrentVersion();
+    JsonNode getCurrentVersion();
 }

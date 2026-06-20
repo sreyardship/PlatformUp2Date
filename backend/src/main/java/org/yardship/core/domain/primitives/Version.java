@@ -22,6 +22,10 @@ public class Version {
         }
     }
 
+    private Version(Semver semver) {
+        this.semver = semver;
+    }
+
     public boolean isOlderThan(Version comparable) {
         return this.semver.isLowerThan(comparable.semver);
     }
@@ -42,13 +46,23 @@ public class Version {
         return switch (versionDiff) {
             case MAJOR -> Diff.MAJOR;
             case MINOR -> Diff.MINOR;
-            case PATCH, PRE_RELEASE, BUILD -> Diff.PATCH;
+            case PATCH, PRE_RELEASE -> Diff.PATCH;
+            case BUILD -> Diff.NONE;
             case NONE -> Diff.NONE;
         };
     }
 
     public String value() {
         return semver.getVersion();
+    }
+
+    /**
+     * Returns a new {@link Version} with the prerelease segment cleared, leaving build metadata
+     * and {@code this} untouched. A version with no prerelease segment is returned unchanged
+     * (as a new instance wrapping an equal {@link Semver}).
+     */
+    public Version withoutPreRelease() {
+        return new Version(semver.withClearedPreRelease());
     }
 
     @Override

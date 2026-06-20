@@ -180,6 +180,16 @@ class VersionSourceResolverTests {
             public Optional<String> container() {
                 return Optional.empty();
             }
+
+            @Override
+            public Optional<String> versionKey() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<Boolean> stripPrerelease() {
+                return Optional.empty();
+            }
         };
     }
 
