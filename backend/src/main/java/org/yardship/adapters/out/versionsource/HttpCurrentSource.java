@@ -2,7 +2,6 @@ package org.yardship.adapters.out.versionsource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.MissingNode;
-import io.quarkus.rest.client.reactive.QuarkusRestClientBuilder;
 import org.yardship.adapters.out.versionclient.CurrentVersionClient;
 import org.yardship.adapters.out.versionclient.VersionResponseExceptionMapper;
 import org.yardship.core.domain.primitives.Version;
@@ -10,40 +9,35 @@ import org.yardship.core.ports.out.CurrentVersionSource;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.net.URI;
 
 /**
  * The {@code http} {@link CurrentVersionSource}: reads an app's current (deployed) version from an
  * HTTP endpoint's JSON response, extracting it via a configurable JSON Pointer (RFC 6901) — defaulting
  * to {@code /version} so the legacy {@code {"version":"…"}} contract keeps working unconfigured.
  *
- * <p>A plain (non-CDI), per-app object wrapping a {@link CurrentVersionClient} REST client built
- * for this app's URL. It registers the {@link VersionResponseExceptionMapper} so a non-2xx upstream
- * surfaces as a thrown exception the scrape loop can isolate — and <b>never</b> registers the
- * GitHub auth filter: the current leg hits our own deployment endpoints, where a GitHub token would
- * be a secret-exfiltration bug.
- *
- * <p>The REST client is built lazily on first {@link #version()} so the source can be constructed (by
- * its factory) without a running Quarkus/Arc context.
+ * <p>A plain (non-CDI) POJO holding a ready {@link CurrentVersionClient}, built and injected by its
+ * factory via {@code CurrentVersionClientFactory}. This source only does extraction: the
+ * {@link VersionResponseExceptionMapper} registration (so a non-2xx upstream surfaces as a thrown
+ * exception the scrape loop can isolate) lives entirely with the client factory now — this slice
+ * wires no authentication onto that client.
  */
 public class HttpCurrentSource implements CurrentVersionSource, Closeable {
 
     private static final int MAX_BODY = 512;
 
-    private final String url;
+    private final CurrentVersionClient client;
     private final String versionKey;
     private final boolean stripPrerelease;
-    private CurrentVersionClient client;
 
-    public HttpCurrentSource(String url, String versionKey, boolean stripPrerelease) {
-        this.url = url;
+    public HttpCurrentSource(CurrentVersionClient client, String versionKey, boolean stripPrerelease) {
+        this.client = client;
         this.versionKey = versionKey;
         this.stripPrerelease = stripPrerelease;
     }
 
     @Override
     public Version version() {
-        JsonNode root = client().getCurrentVersion();
+        JsonNode root = client.getCurrentVersion();
         JsonNode node = root.at(versionKey);
         if (node instanceof MissingNode || !node.isTextual()) {
             // Include the (truncated) upstream body: a 2xx with the version-key absent — e.g. Harbor
@@ -63,16 +57,6 @@ public class HttpCurrentSource implements CurrentVersionSource, Closeable {
             return body;
         }
         return body.substring(0, MAX_BODY) + "…[truncated]";
-    }
-
-    private CurrentVersionClient client() {
-        if (client == null) {
-            client = QuarkusRestClientBuilder.newBuilder()
-                    .baseUri(URI.create(url))
-                    .register(VersionResponseExceptionMapper.class)
-                    .build(CurrentVersionClient.class);
-        }
-        return client;
     }
 
     @Override

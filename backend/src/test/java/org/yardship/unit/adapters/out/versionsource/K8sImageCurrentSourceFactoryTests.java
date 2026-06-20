@@ -148,6 +148,11 @@ class K8sImageCurrentSourceFactoryTests {
             public Optional<Boolean> stripPrerelease() {
                 return Optional.empty();
             }
+
+            @Override
+            public Optional<ApplicationConfigLoader.VersionSource.Auth> auth() {
+                return Optional.empty();
+            }
         };
     }
 }

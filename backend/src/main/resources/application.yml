@@ -75,3 +75,21 @@ quarkus:
         latest:
           type: github-release
           url: https://api.github.com/repos/eikek/sharry/releases/latest
+      - name: harbor
+        current:
+          type: http
+          url: https://container-registry.sreyardship.com/api/v2.0/systeminfo
+          version-key: /harbor_version
+          strip-prerelease: true
+          # Harbor 2.13+ only returns 'harbor_version' from /systeminfo to an authenticated
+          # caller — see docs/adr/0008. Resolved from the environment via SmallRye expansion;
+          # an unset HARBOR_USER/HARBOR_PASS resolves to "" (not absent), which the http
+          # current source's factory treats as a value problem (FailedCurrentSource), not a
+          # boot failure.
+          auth:
+            type: basic
+            username: ${HARBOR_USER:}
+            password: ${HARBOR_PASS:}
+        latest:
+          type: github-release
+          url: https://api.github.com/repos/goharbor/harbor/releases/latest

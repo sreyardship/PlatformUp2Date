@@ -24,9 +24,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * Integration test for the real {@link GithubReleaseLatestSource} adapter against a standalone
  * WireMock server on port 8089. {@code GithubReleaseLatestSource} wraps the existing
  * {@link org.yardship.adapters.out.versionclient.GithubReleaseClient} REST client and OWNS the
- * GitHub auth concern: when constructed with a token it registers the existing
- * {@link org.yardship.adapters.out.versionclient.GithubAuthFilter} so the latest leg carries
+ * GitHub auth concern: when constructed with a token it registers the shared, scheme-generic
+ * {@link org.yardship.adapters.out.versionclient.BearerAuthFilter} so the latest leg carries
  * {@code Authorization: Bearer <token>}; when constructed without one it sends no auth header.
+ * (Issue 03 generalized the former GitHub-specific {@code GithubAuthFilter} into this shared
+ * filter — see {@code BearerAuthFilterTests} for the filter's own unit coverage.)
  *
  * <p>This rehomes the {@code latest}-leg coverage of the deleted {@code ApplicationVersionClientIT}
  * / {@code GithubAuthIT}: it resolves the release {@code name} (with the {@code v}-prefix the

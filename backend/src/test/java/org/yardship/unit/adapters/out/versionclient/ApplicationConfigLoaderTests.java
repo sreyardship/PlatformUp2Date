@@ -5,6 +5,9 @@ import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionclient.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionclient.ApplicationConfigLoader.AppConfig;
+import org.yardship.adapters.out.versionclient.ApplicationConfigLoader.VersionSource.Auth;
+
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -73,5 +76,65 @@ class ApplicationConfigLoaderTests {
         assertFalse(app.latest().namespace().isPresent());
         assertFalse(app.latest().workload().isPresent());
         assertFalse(app.latest().container().isPresent());
+    }
+
+    // --- Issue 02: optional auth fragment on VersionSource (Harbor case study) ----------------
+
+    @Test
+    void auth_isAbsent_forAnAppConfiguredWithoutAnAuthBlock() {
+        AppConfig app = configLoader.apps().getFirst();
+
+        assertFalse(app.current().auth().isPresent(),
+                "test-app has no 'auth' block configured, so current.auth() must be empty");
+    }
+
+    // Note: "an 'auth:' block without 'type' fails to bind at boot" (acceptance criterion) is NOT
+    // separately tested here. 'type()' is declared without @WithDefault/Optional, which is exactly
+    // how every other REQUIRED leaf on this @ConfigMapping (e.g. VersionSource.type() itself,
+    // AppConfig.name()) already behaves — SmallRye throws a binding/conversion failure at startup
+    // when a required leaf under a populated parent group is missing. Asserting that boot-failure
+    // behaviour would require io.quarkus.test.QuarkusUnitTest (a separate classloader/test-engine
+    // harness), which is not on this module's test classpath (only quarkus-junit5 is); pulling it in
+    // for one test is out of scope for this slice. The implementer must declare 'Auth.type()' as a
+    // bare (non-Optional) String, matching VersionSource.type() — see HttpCurrentSourceFactoryTests
+    // and this class's own currentLeg_isTaggedHttpSourceWithUrl for the established required-leaf
+    // pattern this relies on.
+    @Test
+    void auth_exposesTypeUsernamePasswordAndToken_whenPresent() {
+        // Pins the shape of the new nested Auth interface via a hand-rolled fake, the same way
+        // HttpCurrentSourceFactoryTests fakes VersionSource — this is the interface CONTRACT, not a
+        // config-binding test (the binding-from-yaml path is covered by
+        // auth_isAbsent_forAnAppConfiguredWithoutAnAuthBlock plus the dev application.yml entry).
+        Auth auth = fakeAuth("basic", Optional.of("harbor-bot"), Optional.of("s3cr3t"), Optional.empty());
+
+        assertEquals("basic", auth.type());
+        assertEquals(Optional.of("harbor-bot"), auth.username());
+        assertEquals(Optional.of("s3cr3t"), auth.password());
+        assertEquals(Optional.empty(), auth.token());
+    }
+
+    private static Auth fakeAuth(
+            String type, Optional<String> username, Optional<String> password, Optional<String> token) {
+        return new Auth() {
+            @Override
+            public String type() {
+                return type;
+            }
+
+            @Override
+            public Optional<String> username() {
+                return username;
+            }
+
+            @Override
+            public Optional<String> password() {
+                return password;
+            }
+
+            @Override
+            public Optional<String> token() {
+                return token;
+            }
+        };
     }
 }

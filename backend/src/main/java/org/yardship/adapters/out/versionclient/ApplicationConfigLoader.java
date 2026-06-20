@@ -65,6 +65,34 @@ public interface ApplicationConfigLoader {
          * preserving today's behaviour (prerelease preserved) for every existing app.
          */
         Optional<Boolean> stripPrerelease();
+
+        /**
+         * Optional per-app authentication fragment for the {@code http} current source (Harbor case
+         * study, issue 02; see ADR-0008). Absent leaves the request unauthenticated, preserving
+         * today's behaviour for every existing app. Username/password/token are env-expandable
+         * (e.g. {@code ${HARBOR_USER:}}), so an unset variable resolves to an empty/blank value
+         * rather than failing to bind at boot; the factory that consumes this fragment is
+         * responsible for treating a missing/blank credential as a value-level misconfiguration. The
+         * {@code token} field is reserved for the bearer scheme added in a later slice.
+         */
+        Optional<Auth> auth();
+
+        /**
+         * Tagged auth fragment: a required {@code type} discriminator (e.g. {@code basic}) plus the
+         * union of scheme-specific credential fields. {@code type()} is intentionally a bare
+         * (non-Optional) leaf — like {@link VersionSource#type()} itself — so a configured
+         * {@code auth:} block missing {@code type} fails SmallRye binding at boot rather than
+         * surfacing as a confusing runtime value error.
+         */
+        interface Auth {
+            String type();
+
+            Optional<String> username();
+
+            Optional<String> password();
+
+            Optional<String> token();
+        }
     }
 
     interface ScrapeTrigger {
