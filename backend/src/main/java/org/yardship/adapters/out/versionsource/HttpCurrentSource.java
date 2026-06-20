@@ -28,6 +28,8 @@ import java.net.URI;
  */
 public class HttpCurrentSource implements CurrentVersionSource, Closeable {
 
+    private static final int MAX_BODY = 512;
+
     private final String url;
     private final String versionKey;
     private final boolean stripPrerelease;
@@ -44,12 +46,23 @@ public class HttpCurrentSource implements CurrentVersionSource, Closeable {
         JsonNode root = client().getCurrentVersion();
         JsonNode node = root.at(versionKey);
         if (node instanceof MissingNode || !node.isTextual()) {
+            // Include the (truncated) upstream body: a 2xx with the version-key absent — e.g. Harbor
+            // 2.13+ dropping 'harbor_version' from anonymous /systeminfo — never trips the non-2xx
+            // mapper, so the body is the only clue to what the endpoint actually returned.
             throw new IllegalStateException(
                     "The 'http' current source's version-key '" + versionKey
-                            + "' did not resolve to a text value in the upstream response.");
+                            + "' did not resolve to a text value in the upstream response. Body: "
+                            + truncate(root.toString()));
         }
         Version version = new Version(node.textValue());
         return stripPrerelease ? version.withoutPreRelease() : version;
+    }
+
+    private static String truncate(String body) {
+        if (body.length() <= MAX_BODY) {
+            return body;
+        }
+        return body.substring(0, MAX_BODY) + "…[truncated]";
     }
 
     private CurrentVersionClient client() {

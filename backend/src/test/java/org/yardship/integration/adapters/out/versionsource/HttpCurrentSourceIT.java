@@ -120,8 +120,9 @@ class HttpCurrentSourceIT {
 
     @Test
     void read_throws_whenPointerIsValidButDoesNotResolve() {
+        // Harbor 2.13+ shape: 2xx, but 'harbor_version' is gone and only auth_mode-style fields remain.
         wireMockServer.stubFor(get(urlEqualTo("/current"))
-                .willReturn(jsonResponse(200, "{\"version\":\"1.0.0\"}")));
+                .willReturn(jsonResponse(200, "{\"auth_mode\":\"oidc_auth\"}")));
 
         HttpCurrentSource source = new HttpCurrentSource("http://localhost:8089/current", "/missing", false);
 
@@ -130,6 +131,10 @@ class HttpCurrentSourceIT {
         RuntimeException ex = assertThrows(RuntimeException.class, source::version);
         org.junit.jupiter.api.Assertions.assertTrue(ex.getMessage().contains("/missing"),
                 "the failure message must name the unresolved pointer; was: " + ex.getMessage());
+        // The (truncated) upstream body must be in the message so a no-401 hardening like Harbor's
+        // is diagnosable straight from the scrape log.
+        org.junit.jupiter.api.Assertions.assertTrue(ex.getMessage().contains("auth_mode"),
+                "the failure message must include the upstream body; was: " + ex.getMessage());
     }
 
     @Test
