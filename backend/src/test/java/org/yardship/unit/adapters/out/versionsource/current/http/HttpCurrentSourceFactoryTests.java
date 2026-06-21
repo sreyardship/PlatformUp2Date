@@ -310,6 +310,11 @@ class HttpCurrentSourceFactoryTests {
             }
 
             @Override
+            public Optional<String> repo() {
+                return Optional.empty();
+            }
+
+            @Override
             public Optional<String> namespace() {
                 return Optional.empty();
             }

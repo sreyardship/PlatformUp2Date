@@ -253,6 +253,11 @@ class HttpCurrentSourceIT {
             }
 
             @Override
+            public Optional<String> repo() {
+                return Optional.empty();
+            }
+
+            @Override
             public Optional<String> namespace() {
                 return Optional.empty();
             }
@@ -320,6 +325,11 @@ class HttpCurrentSourceIT {
             @Override
             public Optional<String> url() {
                 return Optional.of("http://localhost:8089/systeminfo");
+            }
+
+            @Override
+            public Optional<String> repo() {
+                return Optional.empty();
             }
 
             @Override

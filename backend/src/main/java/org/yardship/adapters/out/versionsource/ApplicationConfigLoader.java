@@ -45,6 +45,13 @@ public interface ApplicationConfigLoader {
     interface VersionSource {
         String type();
         Optional<String> url();
+
+        /**
+         * Optional {@code owner/repo} slug read only by the {@code github-release} latest source.
+         * The factory builds the full GitHub API URL itself from this value.
+         */
+        Optional<String> repo();
+
         Optional<String> namespace();
         Optional<String> workload();
         Optional<String> container();
@@ -134,5 +141,13 @@ public interface ApplicationConfigLoader {
          * token rather than a startup failure.
          */
         Optional<String> token();
+
+        /**
+         * Optional override for the GitHub API host the {@code github-release} latest source
+         * builds its per-app URL against (see ADR-0011). Absent/unset defaults to the real
+         * {@code https://api.github.com}; tests override it to point at a local WireMock stub
+         * instead of patching the per-app {@code repo} field itself.
+         */
+        Optional<String> apiBaseUrl();
     }
 }

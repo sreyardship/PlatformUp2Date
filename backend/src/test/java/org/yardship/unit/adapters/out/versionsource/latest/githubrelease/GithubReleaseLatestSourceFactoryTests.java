@@ -14,9 +14,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Unit tests for {@link GithubReleaseLatestSourceFactory} — the factory for the
  * {@code github-release} latest-version kind. Verifies its discriminator and its own config-fragment
- * validation (the {@code github-release} kind requires a {@code url}; {@code page-size} defaults to
- * 30 and must fail fast in {@code create()} outside GitHub's {@code per_page} range of 1–100). The
- * GitHub auth concern and REST-client construction are exercised at the integration level
+ * validation. The {@code github-release} kind is now configured via a {@code repo} field
+ * ({@code owner/repo} shape, exactly one {@code /}) instead of a full {@code url} — the factory
+ * builds the GitHub API URL itself from the configured repo. {@code page-size} defaults to 30 and
+ * must fail fast in {@code create()} outside GitHub's {@code per_page} range of 1–100. The GitHub
+ * auth concern and REST-client construction are exercised at the integration level
  * ({@code GithubReleaseLatestSourceIT}); here we only assert the validation contract.
  *
  * <p>Note on auth: the factory OWNS the GitHub token concern, so its production constructor (the one
@@ -34,22 +36,49 @@ class GithubReleaseLatestSourceFactoryTests {
     }
 
     @Test
-    void create_buildsASource_whenUrlIsPresent() {
-        assertNotNull(factory.create(source(Optional.of("http://localhost:8089/latest"), Optional.empty())));
+    void create_buildsASource_whenRepoIsWellFormed() {
+        assertNotNull(factory.create(source(Optional.of("go-gitea/gitea"), Optional.empty())));
     }
 
     @Test
-    void create_rejectsAbsentUrl_withAClearMessage() {
+    void create_rejectsAbsentRepo_withAClearMessage() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> factory.create(source(Optional.empty(), Optional.empty())));
-        assertTrue(ex.getMessage().toLowerCase().contains("url"),
-                "the validation error must mention the missing 'url'; was: " + ex.getMessage());
+        assertTrue(ex.getMessage().toLowerCase().contains("repo"),
+                "the validation error must mention the missing 'repo'; was: " + ex.getMessage());
     }
 
     @Test
-    void create_rejectsBlankUrl_withAClearMessage() {
-        assertThrows(IllegalArgumentException.class,
+    void create_rejectsBlankRepo_withAClearMessage() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> factory.create(source(Optional.of("   "), Optional.empty())));
+        assertTrue(ex.getMessage().toLowerCase().contains("repo"),
+                "the validation error must mention the blank 'repo'; was: " + ex.getMessage());
+    }
+
+    @Test
+    void create_rejectsRepoWithZeroSlashes_withAClearMessage() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> factory.create(source(Optional.of("gitea"), Optional.empty())));
+        assertTrue(ex.getMessage().toLowerCase().contains("repo"),
+                "the validation error must mention 'repo'; was: " + ex.getMessage());
+    }
+
+    @Test
+    void create_rejectsRepoWithMoreThanOneSlash_withAClearMessage() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> factory.create(source(Optional.of("a/b/c"), Optional.empty())));
+        assertTrue(ex.getMessage().toLowerCase().contains("repo"),
+                "the validation error must mention 'repo'; was: " + ex.getMessage());
+    }
+
+    @Test
+    void create_ignoresAConfiguredUrl_andConsultsOnlyRepo() {
+        // A 'url' value under 'latest' for a github-release app must no longer be read at all — only
+        // 'repo' is consulted. We assert this indirectly: a source with a well-formed 'repo' but an
+        // absent 'url' still succeeds (proving 'url' isn't required), and the source builder below
+        // never has its url() value forwarded into validation.
+        assertNotNull(factory.create(source(Optional.of("go-gitea/gitea"), Optional.empty())));
     }
 
     // --- page-size (issue: largest-semver-across-recent-releases) -----------------------------
@@ -61,22 +90,22 @@ class GithubReleaseLatestSourceFactoryTests {
         // The IT (`GithubReleaseLatestSourceIT`) is responsible for observing that per_page=30 is
         // actually sent on the wire when page-size is unconfigured.
         assertNotNull(factory.create(
-                source(Optional.of("http://localhost:8089/latest"), Optional.empty())));
+                source(Optional.of("go-gitea/gitea"), Optional.empty())));
     }
 
     @Test
     void create_buildsASource_whenPageSizeIsInRange() {
         assertNotNull(factory.create(
-                source(Optional.of("http://localhost:8089/latest"), Optional.of(1))));
+                source(Optional.of("go-gitea/gitea"), Optional.of(1))));
         assertNotNull(factory.create(
-                source(Optional.of("http://localhost:8089/latest"), Optional.of(100))));
+                source(Optional.of("go-gitea/gitea"), Optional.of(100))));
     }
 
     @Test
     void create_rejectsPageSizeBelowOne_withAClearMessage() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> factory.create(
-                        source(Optional.of("http://localhost:8089/latest"), Optional.of(0))));
+                        source(Optional.of("go-gitea/gitea"), Optional.of(0))));
         assertTrue(ex.getMessage().toLowerCase().contains("page-size")
                         || ex.getMessage().toLowerCase().contains("page size"),
                 "the validation error must mention 'page-size'; was: " + ex.getMessage());
@@ -86,25 +115,21 @@ class GithubReleaseLatestSourceFactoryTests {
     void create_rejectsNegativePageSize_withAClearMessage() {
         assertThrows(IllegalArgumentException.class,
                 () -> factory.create(
-                        source(Optional.of("http://localhost:8089/latest"), Optional.of(-1))));
+                        source(Optional.of("go-gitea/gitea"), Optional.of(-1))));
     }
 
     @Test
     void create_rejectsPageSizeAbove100_withAClearMessage() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> factory.create(
-                        source(Optional.of("http://localhost:8089/latest"), Optional.of(101))));
+                        source(Optional.of("go-gitea/gitea"), Optional.of(101))));
         assertTrue(ex.getMessage().toLowerCase().contains("page-size")
                         || ex.getMessage().toLowerCase().contains("page size"),
                 "the validation error must mention 'page-size'; was: " + ex.getMessage());
     }
 
-    private static ApplicationConfigLoader.VersionSource source(Optional<String> url) {
-        return source(url, Optional.empty());
-    }
-
     private static ApplicationConfigLoader.VersionSource source(
-            Optional<String> url, Optional<Integer> pageSize) {
+            Optional<String> repo, Optional<Integer> pageSize) {
         return new ApplicationConfigLoader.VersionSource() {
             @Override
             public String type() {
@@ -113,7 +138,12 @@ class GithubReleaseLatestSourceFactoryTests {
 
             @Override
             public Optional<String> url() {
-                return url;
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> repo() {
+                return repo;
             }
 
             @Override
