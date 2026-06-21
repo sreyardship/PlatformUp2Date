@@ -30,7 +30,7 @@ public class VersionController {
         // ScrapeStateUnavailableExceptionMapper — never a 200 with stale or empty data.
         applicationVersionPort.getApplications()
                 .forEach(app -> {
-                            var status = new ApplicationStatus(app.current().value(), app.latest().value());
+                            var status = ApplicationStatus.from(app);
                             appStatusList.put(app.name(), status);
                         }
                 );

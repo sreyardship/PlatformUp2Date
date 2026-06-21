@@ -1,8 +1,7 @@
-import { Container } from '@mui/material'
 import { useState, useEffect, useCallback } from 'react'
 
 import versionClient from './api/versionClient'
-import Display from './Display'
+import Dashboard from './Dashboard'
 
 const App = () => {
   const [versionData, setVersionData] = useState({})
@@ -16,18 +15,7 @@ const App = () => {
     fetchVersionData()
   }, [fetchVersionData])
 
-  return (
-    <Container
-      sx={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-      }}
-    >
-      <Display versions={versionData} onRefreshed={fetchVersionData} />
-    </Container>
-  )
+  return <Dashboard versions={versionData} onRefreshed={fetchVersionData} />
 }
 
 export default App

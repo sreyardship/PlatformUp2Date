@@ -19,7 +19,8 @@ import static org.mockito.Mockito.when;
  * exercise the controller + JAX-RS mapping in isolation from Valkey:
  *
  * <ul>
- *   <li>the JSON shape (a map of name -> {current, latest}) is unchanged from today;</li>
+ *   <li>the JSON shape (a map of name -> {current, latest, outdated, drift}) mirrors the
+ *       MCP {@code ApplicationView} projection;</li>
  *   <li>fail-closed: when the snapshot source is unavailable (port throws), the endpoint
  *       returns 503 rather than a 200 with an empty/partial body.</li>
  * </ul>
@@ -31,7 +32,39 @@ class VersionControllerIT {
     ApplicationVersionPort applicationVersionPort;
 
     @Test
-    void getVersion_returnsSnapshotShape() {
+    void getVersion_returnsSnapshotShape_forUpToDateApp() {
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(
+                new VersionApplication("gitea", new Version("2.0.0"), new Version("2.0.0"))));
+
+        given()
+                .when()
+                .get("/api/v1/version")
+                .then()
+                .statusCode(200)
+                .body("'gitea'.current", equalTo("2.0.0"))
+                .body("'gitea'.latest", equalTo("2.0.0"))
+                .body("'gitea'.outdated", equalTo(false))
+                .body("'gitea'.drift", equalTo("NONE"));
+    }
+
+    @Test
+    void getVersion_returnsSnapshotShape_forPatchBehindApp() {
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(
+                new VersionApplication("grafana", new Version("2.2.0"), new Version("2.2.1"))));
+
+        given()
+                .when()
+                .get("/api/v1/version")
+                .then()
+                .statusCode(200)
+                .body("'grafana'.current", equalTo("2.2.0"))
+                .body("'grafana'.latest", equalTo("2.2.1"))
+                .body("'grafana'.outdated", equalTo(true))
+                .body("'grafana'.drift", equalTo("PATCH"));
+    }
+
+    @Test
+    void getVersion_returnsSnapshotShape_forMajorBehindApp() {
         when(applicationVersionPort.getApplications()).thenReturn(List.of(
                 new VersionApplication("argo-cd", new Version("1.0.0"), new Version("2.0.0"))));
 
@@ -41,7 +74,9 @@ class VersionControllerIT {
                 .then()
                 .statusCode(200)
                 .body("'argo-cd'.current", equalTo("1.0.0"))
-                .body("'argo-cd'.latest", equalTo("2.0.0"));
+                .body("'argo-cd'.latest", equalTo("2.0.0"))
+                .body("'argo-cd'.outdated", equalTo(true))
+                .body("'argo-cd'.drift", equalTo("MAJOR"));
     }
 
     @Test
