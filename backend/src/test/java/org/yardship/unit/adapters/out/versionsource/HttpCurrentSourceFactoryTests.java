@@ -338,6 +338,11 @@ class HttpCurrentSourceFactoryTests {
             public Optional<Auth> auth() {
                 return auth;
             }
+
+            @Override
+            public Optional<Integer> pageSize() {
+                return Optional.empty();
+            }
         };
     }
 

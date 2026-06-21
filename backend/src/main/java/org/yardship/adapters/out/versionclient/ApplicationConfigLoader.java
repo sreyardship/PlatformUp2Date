@@ -78,6 +78,16 @@ public interface ApplicationConfigLoader {
         Optional<Auth> auth();
 
         /**
+         * Optional page-size fragment read only by the {@code github-release} latest source
+         * (issue: largest-semver-across-recent-releases). Controls how many of the most-recently
+         * published releases are requested from {@code GET /releases} via the {@code per_page}
+         * query parameter. Absent for non-{@code github-release} kinds; the
+         * {@code GithubReleaseLatestSourceFactory} defaults it to 30 when absent and fails fast in
+         * {@code create()} for a value outside GitHub's {@code per_page} range of 1–100.
+         */
+        Optional<Integer> pageSize();
+
+        /**
          * Tagged auth fragment: a required {@code type} discriminator (e.g. {@code basic}) plus the
          * union of scheme-specific credential fields. {@code type()} is intentionally a bare
          * (non-Optional) leaf — like {@link VersionSource#type()} itself — so a configured

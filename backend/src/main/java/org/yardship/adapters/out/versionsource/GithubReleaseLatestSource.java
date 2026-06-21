@@ -3,18 +3,23 @@ package org.yardship.adapters.out.versionsource;
 import io.quarkus.rest.client.reactive.QuarkusRestClientBuilder;
 import org.yardship.adapters.out.versionclient.BearerAuthFilter;
 import org.yardship.adapters.out.versionclient.GithubReleaseClient;
+import org.yardship.adapters.out.versionclient.GithubReleaseResponseDTO;
 import org.yardship.adapters.out.versionclient.VersionResponseExceptionMapper;
+import org.yardship.core.domain.exceptions.InvalidVersionException;
 import org.yardship.core.domain.primitives.Version;
 import org.yardship.core.ports.out.LatestVersionSource;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
+import java.util.List;
 import java.util.Optional;
 
 /**
  * The {@code github-release} {@link LatestVersionSource}: reads an app's latest (upstream) version
- * from the GitHub Releases API, resolving the release {@code name} into a {@link Version}.
+ * from the GitHub Releases API. "Latest" is the LARGEST semver among the most recently published
+ * releases that are not a prerelease and not a draft, selected by each release's {@code tag_name}
+ * (not its time-ordered position and not its {@code name}) — see ADR-0010.
  *
  * <p>A plain (non-CDI), per-app object wrapping a {@link GithubReleaseClient} REST client built for
  * this app's URL. It <b>owns the GitHub auth concern</b>: when a non-blank token is supplied it
@@ -38,18 +43,58 @@ import java.util.Optional;
  */
 public class GithubReleaseLatestSource implements LatestVersionSource, Closeable {
 
+    /**
+     * Default {@code per_page} sent when this source is built via the 2-arg constructor (the
+     * production/CDI path without an explicit page-size), matching the factory's own default.
+     */
+    private static final int DEFAULT_PAGE_SIZE = 30;
+
     private final String url;
     private final Optional<String> token;
+    private final int pageSize;
     private GithubReleaseClient client;
 
     public GithubReleaseLatestSource(String url, Optional<String> token) {
+        this(url, token, DEFAULT_PAGE_SIZE);
+    }
+
+    public GithubReleaseLatestSource(String url, Optional<String> token, int pageSize) {
         this.url = url;
         this.token = token;
+        this.pageSize = pageSize;
+    }
+
+    // Visible for testing: lets unit tests inject a fake GithubReleaseClient directly, bypassing the
+    // lazy QuarkusRestClientBuilder path, so the selection logic (largest semver among
+    // non-prerelease/non-draft releases, by tag_name) can be unit-tested without HTTP/Quarkus. The
+    // fake ignores the perPage argument, so the exact value passed here is inconsequential.
+    public GithubReleaseLatestSource(GithubReleaseClient client) {
+        this.url = null;
+        this.token = Optional.empty();
+        this.pageSize = DEFAULT_PAGE_SIZE;
+        this.client = client;
     }
 
     @Override
     public Version version() {
-        return new Version(client().getLatestRelease().name);
+        List<GithubReleaseResponseDTO> releases = client().releases(pageSize);
+        return releases.stream()
+                .filter(release -> !release.prerelease && !release.draft)
+                .map(this::tryParseVersion)
+                .flatMap(Optional::stream)
+                .reduce((current, candidate) -> current.isOlderThan(candidate) ? candidate : current)
+                .orElseThrow(() -> new IllegalStateException(
+                        "No release with a parseable, non-prerelease, non-draft tag_name was found at "
+                                + url));
+    }
+
+    private Optional<Version> tryParseVersion(GithubReleaseResponseDTO release) {
+        try {
+            return Optional.of(new Version(release.tagName));
+        }
+        catch (InvalidVersionException ex) {
+            return Optional.empty();
+        }
     }
 
     private GithubReleaseClient client() {

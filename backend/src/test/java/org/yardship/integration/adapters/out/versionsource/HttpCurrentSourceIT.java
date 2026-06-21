@@ -301,6 +301,11 @@ class HttpCurrentSourceIT {
                     }
                 });
             }
+
+            @Override
+            public Optional<Integer> pageSize() {
+                return Optional.empty();
+            }
         };
     }
 
@@ -365,6 +370,11 @@ class HttpCurrentSourceIT {
                         return Optional.empty();
                     }
                 });
+            }
+
+            @Override
+            public Optional<Integer> pageSize() {
+                return Optional.empty();
             }
         };
     }

@@ -9,6 +9,7 @@ import java.util.Map;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 
 /**
@@ -28,8 +29,11 @@ public class WireMockVersionResource implements QuarkusTestResourceLifecycleMana
         wireMockServer.start();
         wireMockServer.stubFor(get(urlEqualTo("/good/current"))
                 .willReturn(json("{\"version\":\"1.0.0\"}")));
-        wireMockServer.stubFor(get(urlEqualTo("/good/latest"))
-                .willReturn(json("{\"name\":\"v2.0.0\"}")));
+        // The github-release source lists releases at <base>/releases and picks the largest
+        // semver tag, so the latest leg is served as a Releases array (query carries per_page).
+        wireMockServer.stubFor(get(urlPathEqualTo("/good/latest/releases"))
+                .willReturn(json("[{\"tag_name\":\"v2.0.0\",\"prerelease\":false,\"draft\":false},"
+                        + "{\"tag_name\":\"v1.5.0\",\"prerelease\":false,\"draft\":false}]")));
 
         return Map.of(
                 "platform-config.scrape-interval", "1s",

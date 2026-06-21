@@ -153,6 +153,11 @@ class K8sImageCurrentSourceFactoryTests {
             public Optional<ApplicationConfigLoader.VersionSource.Auth> auth() {
                 return Optional.empty();
             }
+
+            @Override
+            public Optional<Integer> pageSize() {
+                return Optional.empty();
+            }
         };
     }
 }

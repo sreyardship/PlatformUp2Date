@@ -60,21 +60,21 @@ quarkus:
           url: https://deployments.sreyardship.com/api/version
         latest:
           type: github-release
-          url: https://api.github.com/repos/argoproj/argo-cd/releases/latest
+          url: https://api.github.com/repos/argoproj/argo-cd
       - name: git-tea
         current:
           type: http
           url: https://git.sreyardship.com/api/v1/version
         latest:
           type: github-release
-          url: https://api.github.com/repos/go-gitea/gitea/releases/latest
+          url: https://api.github.com/repos/go-gitea/gitea
       - name: sharry
         current:
           type: http
           url: https://fileshare.sreyardship.com/api/v2/open/info/version
         latest:
           type: github-release
-          url: https://api.github.com/repos/eikek/sharry/releases/latest
+          url: https://api.github.com/repos/eikek/sharry
       - name: harbor
         current:
           type: http
@@ -92,4 +92,4 @@ quarkus:
             password: ${HARBOR_PASS:}
         latest:
           type: github-release
-          url: https://api.github.com/repos/goharbor/harbor/releases/latest
+          url: https://api.github.com/repos/goharbor/harbor

@@ -42,6 +42,12 @@ public class GithubReleaseLatestSourceFactory implements LatestVersionSourceFact
                 .filter(value -> !value.isBlank())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "The 'github-release' latest source requires a non-blank 'url'."));
-        return new GithubReleaseLatestSource(url, token);
+        int pageSize = cfg.pageSize().orElse(30);
+        if (pageSize < 1 || pageSize > 100) {
+            throw new IllegalArgumentException(
+                    "The 'github-release' latest source's 'page-size' must be between 1 and 100 "
+                            + "(GitHub's per_page cap); was: " + pageSize);
+        }
+        return new GithubReleaseLatestSource(url, token, pageSize);
     }
 }
