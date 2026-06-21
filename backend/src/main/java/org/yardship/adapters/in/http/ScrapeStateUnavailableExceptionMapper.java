@@ -3,7 +3,7 @@ package org.yardship.adapters.in.http;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
-import org.yardship.adapters.out.valkey.ScrapeStateUnavailableException;
+import org.yardship.adapters.out.scrapestate.ScrapeStateUnavailableException;
 
 /**
  * Maps a {@link ScrapeStateUnavailableException} (Valkey unreachable, surfaced by the

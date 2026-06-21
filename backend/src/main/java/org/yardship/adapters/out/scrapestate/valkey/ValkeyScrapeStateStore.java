@@ -1,4 +1,5 @@
-package org.yardship.adapters.out.valkey;
+package org.yardship.adapters.out.scrapestate.valkey;
+import org.yardship.adapters.out.scrapestate.ScrapeStateUnavailableException;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

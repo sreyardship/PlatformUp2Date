@@ -1,4 +1,4 @@
-package org.yardship.integration.adapters.out.valkey;
+package org.yardship.integration.adapters.out.scrapestate.valkey;
 
 import io.quarkus.redis.datasource.RedisDataSource;
 import io.quarkus.test.junit.QuarkusTest;

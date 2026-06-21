@@ -22,7 +22,7 @@ import java.util.List;
  *   <li>RATE_LIMITED → 429 with a {@code Retry-After} header (seconds) and the body, so a client knows
  *       when a budget slot frees;</li>
  *   <li>fail-closed: when Valkey is unreachable the port throws
- *       {@link org.yardship.adapters.out.valkey.ScrapeStateUnavailableException}, mapped to 503 by
+ *       {@link org.yardship.adapters.out.scrapestate.ScrapeStateUnavailableException}, mapped to 503 by
  *       {@link ScrapeStateUnavailableExceptionMapper} — do not catch it here.</li>
  * </ul>
  */

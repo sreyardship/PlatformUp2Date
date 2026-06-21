@@ -3,7 +3,7 @@ package org.yardship.integration.adapters.in.http;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.valkey.ScrapeStateUnavailableException;
+import org.yardship.adapters.out.scrapestate.ScrapeStateUnavailableException;
 import org.yardship.core.domain.primitives.Side;
 import org.yardship.core.domain.primitives.TargetResult;
 import org.yardship.core.ports.in.ApplicationVersionPort;

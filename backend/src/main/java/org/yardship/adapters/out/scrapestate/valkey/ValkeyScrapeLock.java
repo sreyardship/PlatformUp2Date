@@ -1,4 +1,4 @@
-package org.yardship.adapters.out.valkey;
+package org.yardship.adapters.out.scrapestate.valkey;
 
 import io.quarkus.redis.datasource.RedisDataSource;
 import io.quarkus.redis.datasource.keys.KeyCommands;

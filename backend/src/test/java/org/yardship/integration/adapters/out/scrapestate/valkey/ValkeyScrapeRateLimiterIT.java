@@ -1,4 +1,4 @@
-package org.yardship.integration.adapters.out.valkey;
+package org.yardship.integration.adapters.out.scrapestate.valkey;
 
 import io.quarkus.redis.datasource.RedisDataSource;
 import io.quarkus.test.junit.QuarkusTest;
@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Integration test for the real {@link org.yardship.adapters.out.valkey.ValkeyScrapeRateLimiter}
+ * Integration test for the real {@link org.yardship.adapters.out.scrapestate.valkey.ValkeyScrapeRateLimiter}
  * against a Valkey container started by Quarkus Dev Services. Pins the rolling-window contract end to
  * end, evaluated by the adapter's single atomic Lua script:
  *

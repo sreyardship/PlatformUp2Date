@@ -1,4 +1,4 @@
-package org.yardship.integration.adapters.out.valkey;
+package org.yardship.integration.adapters.out.scrapestate.valkey;
 
 import io.quarkus.redis.datasource.RedisDataSource;
 import io.quarkus.test.junit.QuarkusTest;
@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Integration test for the real {@link org.yardship.adapters.out.valkey.ValkeyScrapeStateStore}
+ * Integration test for the real {@link org.yardship.adapters.out.scrapestate.valkey.ValkeyScrapeStateStore}
  * adapter against a Valkey container started by Quarkus Dev Services (the {@code quarkus-redis-client}
  * extension auto-starts one for tests — no manual {@code quarkus.redis.hosts} needed).
  *

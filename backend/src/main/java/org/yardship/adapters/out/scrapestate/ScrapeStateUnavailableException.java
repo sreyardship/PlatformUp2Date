@@ -1,4 +1,4 @@
-package org.yardship.adapters.out.valkey;
+package org.yardship.adapters.out.scrapestate;
 
 /**
  * Thrown when the Valkey-backed scrape state cannot be read or written because the
