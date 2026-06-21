@@ -1,4 +1,6 @@
 package org.yardship.adapters.out.versionsource;
+import org.yardship.adapters.out.versionsource.latest.LatestVersionSourceFactory;
+import org.yardship.adapters.out.versionsource.current.CurrentVersionSourceFactory;
 
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -6,7 +8,7 @@ import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.yardship.adapters.out.versionclient.ApplicationConfigLoader;
+import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.core.ports.out.ApplicationSources;
 import org.yardship.core.ports.out.CurrentVersionSource;
 import org.yardship.core.ports.out.LatestVersionSource;

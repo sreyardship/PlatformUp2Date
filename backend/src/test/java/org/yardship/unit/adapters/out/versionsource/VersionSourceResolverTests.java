@@ -1,9 +1,9 @@
 package org.yardship.unit.adapters.out.versionsource;
 
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.versionclient.ApplicationConfigLoader;
-import org.yardship.adapters.out.versionsource.CurrentVersionSourceFactory;
-import org.yardship.adapters.out.versionsource.LatestVersionSourceFactory;
+import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
+import org.yardship.adapters.out.versionsource.current.CurrentVersionSourceFactory;
+import org.yardship.adapters.out.versionsource.latest.LatestVersionSourceFactory;
 import org.yardship.adapters.out.versionsource.VersionSourceResolver;
 import org.yardship.core.domain.primitives.Version;
 import org.yardship.core.ports.out.ApplicationSources;

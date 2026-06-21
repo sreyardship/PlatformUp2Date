@@ -4,7 +4,7 @@ import io.quarkus.redis.datasource.RedisDataSource;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
-import org.yardship.adapters.out.versionclient.ApplicationConfigLoader;
+import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.core.ports.out.FullScrapeBudget;
 import org.yardship.core.ports.out.ScrapeRateLimiter;
 import org.yardship.core.ports.out.TargetedScrapeBudget;
