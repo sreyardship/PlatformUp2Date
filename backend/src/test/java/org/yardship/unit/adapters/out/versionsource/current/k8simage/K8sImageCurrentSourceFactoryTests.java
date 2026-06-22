@@ -163,6 +163,11 @@ class K8sImageCurrentSourceFactoryTests {
             public Optional<Integer> pageSize() {
                 return Optional.empty();
             }
+
+            @Override
+            public Optional<String> caCert() {
+                return Optional.empty();
+            }
         };
     }
 }

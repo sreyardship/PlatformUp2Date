@@ -76,7 +76,7 @@ class HttpCurrentSourceIT {
                 .willReturn(jsonResponse(200, "{\"version\":\"1.0.0\"}")));
 
         HttpCurrentSource source = new HttpCurrentSource(
-                clientFactory.build("http://localhost:8089/current", Optional.empty()), "/version", false);
+                clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty()), "/version", false);
 
         Version result = source.version();
 
@@ -89,7 +89,7 @@ class HttpCurrentSourceIT {
                 .willReturn(jsonResponse(403, "{\"message\":\"forbidden\"}")));
 
         HttpCurrentSource source = new HttpCurrentSource(
-                clientFactory.build("http://localhost:8089/current", Optional.empty()), "/version", false);
+                clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty()), "/version", false);
 
         // A non-2xx is mapped to a thrown exception by the reused VersionResponseExceptionMapper,
         // so the service's per-app loop can count this app as failed.
@@ -115,7 +115,7 @@ class HttpCurrentSourceIT {
 
         HttpCurrentSource source = new HttpCurrentSource(
                 clientFactory.build("http://localhost:8089/systeminfo",
-                        Optional.of(new BasicAuthFilter("harbor-bot", "s3cr3t"))),
+                        Optional.of(new BasicAuthFilter("harbor-bot", "s3cr3t")), Optional.empty()),
                 "/harbor_version",
                 false);
 
@@ -140,7 +140,7 @@ class HttpCurrentSourceIT {
 
         HttpCurrentSource source = new HttpCurrentSource(
                 clientFactory.build("http://localhost:8089/systeminfo",
-                        Optional.of(new BasicAuthFilter("harbor-bot", "WRONG"))),
+                        Optional.of(new BasicAuthFilter("harbor-bot", "WRONG")), Optional.empty()),
                 "/harbor_version",
                 false);
 
@@ -198,7 +198,7 @@ class HttpCurrentSourceIT {
 
         HttpCurrentSource source = new HttpCurrentSource(
                 clientFactory.build("http://localhost:8089/current",
-                        Optional.of(new BearerAuthFilter("gh-token"))),
+                        Optional.of(new BearerAuthFilter("gh-token")), Optional.empty()),
                 "/version",
                 false);
 
@@ -304,11 +304,21 @@ class HttpCurrentSourceIT {
                     public Optional<String> token() {
                         return token;
                     }
+
+                    @Override
+                    public Optional<String> tokenFile() {
+                        return Optional.empty();
+                    }
                 });
             }
 
             @Override
             public Optional<Integer> pageSize() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> caCert() {
                 return Optional.empty();
             }
         };
@@ -379,11 +389,21 @@ class HttpCurrentSourceIT {
                     public Optional<String> token() {
                         return Optional.empty();
                     }
+
+                    @Override
+                    public Optional<String> tokenFile() {
+                        return Optional.empty();
+                    }
                 });
             }
 
             @Override
             public Optional<Integer> pageSize() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> caCert() {
                 return Optional.empty();
             }
         };

@@ -6,6 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.ws.rs.client.ClientRequestFilter;
 
 import java.net.URI;
+import java.security.KeyStore;
 import java.util.Optional;
 
 /**
@@ -19,15 +20,25 @@ import java.util.Optional;
  * <p>The {@code authFilter} parameter lets a source register authentication (a {@link BasicAuthFilter}
  * or {@link BearerAuthFilter}) onto the current-version client; callers pass {@link Optional#empty()}
  * for the unauthenticated case.
+ *
+ * <p>The {@code trustStore} parameter lets a source pin a custom certificate authority onto THIS
+ * client's TLS trust (a per-scraper {@code curl --cacert}: it REPLACES, not augments, the JVM default
+ * bundle for this client only — never a JVM-global truststore). When present it is registered via
+ * {@link QuarkusRestClientBuilder#trustStore}; callers pass {@link Optional#empty()} to keep the JVM
+ * default trust bundle. The {@code HttpCurrentSourceFactory} is responsible for building the
+ * {@link KeyStore} and mapping any value-level CA misconfiguration to a {@code FailedCurrentSource}
+ * before calling this thin boundary.
  */
 @ApplicationScoped
 public class HttpCurrentVersionClientFactory {
 
-    public HttpCurrentVersionClient build(String url, Optional<ClientRequestFilter> authFilter) {
+    public HttpCurrentVersionClient build(
+            String url, Optional<ClientRequestFilter> authFilter, Optional<KeyStore> trustStore) {
         QuarkusRestClientBuilder builder = QuarkusRestClientBuilder.newBuilder()
                 .baseUri(URI.create(url))
                 .register(VersionResponseExceptionMapper.class);
         authFilter.ifPresent(builder::register);
+        trustStore.ifPresent(builder::trustStore);
         return builder.build(HttpCurrentVersionClient.class);
     }
 }

@@ -180,6 +180,11 @@ class GithubReleaseLatestSourceFactoryTests {
             public Optional<Integer> pageSize() {
                 return pageSize;
             }
+
+            @Override
+            public Optional<String> caCert() {
+                return Optional.empty();
+            }
         };
     }
 }

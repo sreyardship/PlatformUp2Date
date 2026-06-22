@@ -8,13 +8,19 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.yardship.adapters.out.versionsource.auth.FileBearerAuthFilter;
 import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClient;
 import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClientFactory;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Optional;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.absent;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
@@ -63,7 +69,7 @@ class HttpCurrentVersionClientFactoryIT {
                 .willReturn(jsonResponse(200, "{\"version\":\"1.0.0\"}")));
 
         HttpCurrentVersionClient client =
-                clientFactory.build("http://localhost:8089/current", Optional.empty());
+                clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty());
         JsonNode body = client.getCurrentVersion();
 
         assertEquals("1.0.0", body.at("/version").textValue());
@@ -75,7 +81,7 @@ class HttpCurrentVersionClientFactoryIT {
                 .willReturn(jsonResponse(403, "{\"message\":\"forbidden\"}")));
 
         HttpCurrentVersionClient client =
-                clientFactory.build("http://localhost:8089/current", Optional.empty());
+                clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty());
 
         assertThrows(RuntimeException.class, client::getCurrentVersion);
     }
@@ -89,11 +95,26 @@ class HttpCurrentVersionClientFactoryIT {
         wireMockServer.stubFor(get(urlEqualTo("/current"))
                 .willReturn(jsonResponse(200, "{\"version\":\"1.0.0\"}")));
 
-        clientFactory.build("http://localhost:8089/current", Optional.empty())
+        clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty())
                 .getCurrentVersion();
 
         wireMockServer.verify(getRequestedFor(urlEqualTo("/current"))
                 .withHeader("Authorization", absent()));
+    }
+
+    @Test
+    void build_withAFileBearerAuthFilter_putsTheFilesTokenOnTheWire(@TempDir Path dir) throws IOException {
+        Path tokenFile = dir.resolve("token");
+        Files.writeString(tokenFile, "  file-tok\n");
+        wireMockServer.stubFor(get(urlEqualTo("/current"))
+                .willReturn(jsonResponse(200, "{\"version\":\"1.0.0\"}")));
+
+        clientFactory.build("http://localhost:8089/current",
+                        Optional.of(new FileBearerAuthFilter(tokenFile.toString())), Optional.empty())
+                .getCurrentVersion();
+
+        wireMockServer.verify(getRequestedFor(urlEqualTo("/current"))
+                .withHeader("Authorization", equalTo("Bearer file-tok")));
     }
 
     private static com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder jsonResponse(int status, String body) {

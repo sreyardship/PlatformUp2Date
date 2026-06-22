@@ -111,10 +111,32 @@ class ApplicationConfigLoaderTests {
         assertEquals(Optional.of("harbor-bot"), auth.username());
         assertEquals(Optional.of("s3cr3t"), auth.password());
         assertEquals(Optional.empty(), auth.token());
+        assertEquals(Optional.empty(), auth.tokenFile());
+    }
+
+    // --- Issue 01: token-file leaf on the bearer Auth fragment ---------------------------------
+
+    @Test
+    void auth_exposesTokenFile_whenPresent() {
+        // Pins the new optional token-file leaf on the Auth contract (bearer, file-backed token):
+        // an operator may supply the token from a file (e.g. a projected K8s serviceaccount token)
+        // instead of a literal/env 'token'.
+        Auth auth = fakeAuth("bearer", Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.of("/var/run/secrets/token"));
+
+        assertEquals("bearer", auth.type());
+        assertEquals(Optional.empty(), auth.token());
+        assertEquals(Optional.of("/var/run/secrets/token"), auth.tokenFile());
     }
 
     private static Auth fakeAuth(
             String type, Optional<String> username, Optional<String> password, Optional<String> token) {
+        return fakeAuth(type, username, password, token, Optional.empty());
+    }
+
+    private static Auth fakeAuth(
+            String type, Optional<String> username, Optional<String> password, Optional<String> token,
+            Optional<String> tokenFile) {
         return new Auth() {
             @Override
             public String type() {
@@ -134,6 +156,11 @@ class ApplicationConfigLoaderTests {
             @Override
             public Optional<String> token() {
                 return token;
+            }
+
+            @Override
+            public Optional<String> tokenFile() {
+                return tokenFile;
             }
         };
     }

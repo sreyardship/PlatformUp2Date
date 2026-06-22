@@ -93,3 +93,39 @@ quarkus:
         latest:
           type: github-release
           repo: goharbor/harbor
+      # --- k8s API server (current-only) example — DO NOT enable under %dev ---
+      #
+      # This block is intentionally commented out. It documents the shape an operator
+      # copies into the PRODUCTION ConfigMap (apps/service-spaces/platformup2date/app/
+      # in the jumziCluster repo) — NOT a live dev app. Local dev has no serviceaccount
+      # mount, so the ca-cert and token-file below would be absent and every scrape of
+      # this app would produce a FailedCurrentSource; keeping it commented protects
+      # `gradle quarkusDev` boot and the dev scrape loop. Enable it only in-cluster,
+      # where the serviceaccount files are mounted.
+      #
+      # Reproduces the canonical in-cluster probe:
+      #   curl --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+      #        -H "Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+      #        https://kubernetes.default.svc/version
+      #
+      # - token-file: the serviceaccount token rotates (the kubelet refreshes the file
+      #   in place), so the bearer credential is read from the file PER REQUEST rather
+      #   than captured once at boot — a long-lived process must never cache it.
+      # - ca-cert: the cluster API is served by a PRIVATE cluster CA the JVM does not
+      #   trust by default. The custom CA REPLACES (does not augment) the default
+      #   truststore and is scoped to THIS scraper only, so it cannot widen trust for
+      #   any other current source.
+      # - version-key: GET /version returns {"major":"1","minor":"29","gitVersion":"v1.29.x",...};
+      #   /gitVersion is the human-readable semver-shaped field.
+      #   NOTE: confirm the EXACT pointer against the real cluster API when rolling to
+      #   dev — orchestrator to record the verified pointer here after manual dev check.
+      #
+      # - name: kubernetes
+      #   current:
+      #     type: http
+      #     url: https://kubernetes.default.svc/version
+      #     version-key: /gitVersion
+      #     ca-cert: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      #     auth:
+      #       type: bearer
+      #       token-file: /var/run/secrets/kubernetes.io/serviceaccount/token

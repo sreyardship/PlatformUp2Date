@@ -47,6 +47,20 @@ public interface ApplicationConfigLoader {
         Optional<String> url();
 
         /**
+         * Optional path to a PEM file holding a custom certificate authority used to verify the TLS
+         * server certificate of the {@code http} current source's {@code url}. A transport concern
+         * (sibling of {@link #url()}), deliberately NOT under {@link #auth()}. Absent leaves the JVM
+         * default trust bundle in place for this app, preserving today's behaviour for every existing
+         * app. When present, the {@code HttpCurrentSourceFactory} reads the PEM once at boot, loads
+         * its X.509 certificate(s) into an in-memory truststore and pins it onto THIS app's REST
+         * client only ({@code curl --cacert} semantics: replace, not augment) — never a JVM-global
+         * truststore. A present-but-blank value, or a path that is missing/unreadable/not parseable as
+         * X.509/yields zero certs, is a value-level misconfiguration the factory maps to a
+         * {@code FailedCurrentSource}, never a boot crash.
+         */
+        Optional<String> caCert();
+
+        /**
          * Optional {@code owner/repo} slug read only by the {@code github-release} latest source.
          * The factory builds the full GitHub API URL itself from this value.
          */
@@ -109,6 +123,16 @@ public interface ApplicationConfigLoader {
             Optional<String> password();
 
             Optional<String> token();
+
+            /**
+             * Optional path to a file holding the bearer token, read by {@code FileBearerAuthFilter}
+             * on EVERY request (issue 01: token-file). The file is NOT read at boot — only the path
+             * string is validated as non-blank — so a projected Kubernetes serviceaccount token that
+             * rotates on disk is always re-read fresh rather than expiring into a 401 storm.
+             * Mutually exclusive with {@link #token()}: under {@code auth.type: bearer} exactly one of
+             * {@code token}/{@code token-file} may be set.
+             */
+            Optional<String> tokenFile();
         }
     }
 
