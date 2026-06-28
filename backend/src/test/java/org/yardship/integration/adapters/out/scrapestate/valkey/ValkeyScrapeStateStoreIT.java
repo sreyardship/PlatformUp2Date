@@ -5,7 +5,8 @@ import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 import org.yardship.core.domain.primitives.ScrapeSnapshot;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.out.ScrapeStateStore;
 
@@ -36,7 +37,7 @@ class ValkeyScrapeStateStoreIT {
     @Test
     void writeThenRead_roundTripsSnapshotShape() {
         VersionApplication app = new VersionApplication(
-                "argo-cd", new Version("1.0.0"), new Version("2.0.0"));
+                "argo-cd", new SemverVersion("1.0.0"), new SemverVersion("2.0.0"));
         Instant attemptAt = Instant.parse("2026-06-15T12:00:00Z");
 
         sut.write(List.of(app), attemptAt);
@@ -56,7 +57,7 @@ class ValkeyScrapeStateStoreIT {
     @Test
     void write_setsSafetyTtlOnTheKey() {
         sut.write(
-                List.of(new VersionApplication("argo-cd", new Version("1.0.0"), new Version("2.0.0"))),
+                List.of(new VersionApplication("argo-cd", new SemverVersion("1.0.0"), new SemverVersion("2.0.0"))),
                 Instant.parse("2026-06-15T12:00:00Z"));
 
         // A positive TTL proves the safety expiry is applied (no never-expiring snapshot).

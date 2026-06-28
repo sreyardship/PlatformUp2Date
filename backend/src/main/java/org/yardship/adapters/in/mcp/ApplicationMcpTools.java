@@ -6,7 +6,7 @@ import io.quarkiverse.mcp.server.ToolArg;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.yardship.core.domain.primitives.ScrapeTarget;
 import org.yardship.core.domain.primitives.Side;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.in.ScrapeStatus;
 import org.yardship.core.ports.in.ApplicationVersionPort;
 
@@ -39,8 +39,8 @@ public class ApplicationMcpTools {
                     description = "Minimum drift severity to include, one of PATCH, MINOR "
                             + "or MAJOR. Omit it to return every application with any drift "
                             + "(i.e. at least a PATCH behind).")
-            Version.Diff minSeverity) {
-        Version.Diff threshold = minSeverity == null ? Version.Diff.PATCH : minSeverity;
+            VersionValue.Diff minSeverity) {
+        VersionValue.Diff threshold = minSeverity == null ? VersionValue.Diff.PATCH : minSeverity;
         return applicationVersionPort.getApplications().stream()
                 .filter(app -> app.hasDriftAtLeast(threshold))
                 .map(ApplicationView::from)

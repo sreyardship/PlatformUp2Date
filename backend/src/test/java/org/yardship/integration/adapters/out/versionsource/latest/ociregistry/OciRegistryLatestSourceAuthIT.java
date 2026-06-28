@@ -1,5 +1,7 @@
 package org.yardship.integration.adapters.out.versionsource.latest.ociregistry;
 
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.matching.RequestPatternBuilder;
 import io.quarkus.test.junit.QuarkusTest;
@@ -9,7 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.latest.ociregistry.OciRegistryLatestSource;
 import org.yardship.adapters.out.versionsource.latest.ociregistry.TagSelection;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.VersionValue;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -47,6 +49,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 @QuarkusTest
 class OciRegistryLatestSourceAuthIT {
+    private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
+
 
     static final int PORT = 8091;
     static final String BASE_URL = "http://localhost:" + PORT;
@@ -87,9 +91,9 @@ class OciRegistryLatestSourceAuthIT {
         stubTagsListSuccess();
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
-                BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(), DEFAULT_SELECTION);
+                BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(), DEFAULT_SELECTION, SEMVER_PARSER);
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("1.25.3", result.value(),
                 "After the bearer dance the source must return the largest clean semver from tags/list");
@@ -102,7 +106,7 @@ class OciRegistryLatestSourceAuthIT {
         stubTagsListSuccess();
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
-                BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(), DEFAULT_SELECTION);
+                BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(), DEFAULT_SELECTION, SEMVER_PARSER);
         latestSource.version();
 
         // Token mint for anonymous: NO Authorization header must be sent to the realm
@@ -117,7 +121,7 @@ class OciRegistryLatestSourceAuthIT {
         stubTagsListSuccess();
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
-                BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(), DEFAULT_SELECTION);
+                BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(), DEFAULT_SELECTION, SEMVER_PARSER);
         latestSource.version();
 
         // The token request must echo the challenge's service and scope exactly
@@ -133,7 +137,7 @@ class OciRegistryLatestSourceAuthIT {
         stubTagsListSuccess();
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
-                BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(), DEFAULT_SELECTION);
+                BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(), DEFAULT_SELECTION, SEMVER_PARSER);
         latestSource.version();
 
         // The retry must carry Authorization: Bearer <minted-token>
@@ -150,9 +154,9 @@ class OciRegistryLatestSourceAuthIT {
         stubTagsListSuccess();
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
-                BASE_URL + "/v2/" + REPO, Optional.of("user"), Optional.of("s3cr3t"), DEFAULT_SELECTION);
+                BASE_URL + "/v2/" + REPO, Optional.of("user"), Optional.of("s3cr3t"), DEFAULT_SELECTION, SEMVER_PARSER);
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("1.25.3", result.value(),
                 "After the basic-into-realm dance the source must return the correct version");
@@ -165,7 +169,7 @@ class OciRegistryLatestSourceAuthIT {
         stubTagsListSuccess();
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
-                BASE_URL + "/v2/" + REPO, Optional.of("user"), Optional.of("s3cr3t"), DEFAULT_SELECTION);
+                BASE_URL + "/v2/" + REPO, Optional.of("user"), Optional.of("s3cr3t"), DEFAULT_SELECTION, SEMVER_PARSER);
         latestSource.version();
 
         String expectedBasic = "Basic " + Base64.getEncoder()
@@ -181,7 +185,7 @@ class OciRegistryLatestSourceAuthIT {
         stubTagsListSuccess();
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
-                BASE_URL + "/v2/" + REPO, Optional.of("user"), Optional.of("s3cr3t"), DEFAULT_SELECTION);
+                BASE_URL + "/v2/" + REPO, Optional.of("user"), Optional.of("s3cr3t"), DEFAULT_SELECTION, SEMVER_PARSER);
         latestSource.version();
 
         wireMockServer.verify(getRequestedFor(urlPathEqualTo(TOKEN_PATH))
@@ -196,7 +200,7 @@ class OciRegistryLatestSourceAuthIT {
         stubTagsListSuccess();
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
-                BASE_URL + "/v2/" + REPO, Optional.of("user"), Optional.of("s3cr3t"), DEFAULT_SELECTION);
+                BASE_URL + "/v2/" + REPO, Optional.of("user"), Optional.of("s3cr3t"), DEFAULT_SELECTION, SEMVER_PARSER);
         latestSource.version();
 
         // The retry on tags/list must carry the minted Bearer token, NOT the basic credentials
@@ -219,9 +223,9 @@ class OciRegistryLatestSourceAuthIT {
                 .willReturn(jsonResponse(200, tagsListBody("1.2.3"))));
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
-                BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(), DEFAULT_SELECTION);
+                BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(), DEFAULT_SELECTION, SEMVER_PARSER);
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("1.2.3", result.value(),
                 "access_token field must be accepted as a fallback when token is absent");
@@ -251,9 +255,9 @@ class OciRegistryLatestSourceAuthIT {
                 .willReturn(jsonResponse(200, tagsListBody("2.0.0"))));
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
-                BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(), DEFAULT_SELECTION);
+                BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(), DEFAULT_SELECTION, SEMVER_PARSER);
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("2.0.0", result.value(),
                 "Fallback scope must be used when the registry omits scope from the challenge");
@@ -271,9 +275,9 @@ class OciRegistryLatestSourceAuthIT {
 
         // Even with basic creds configured, no dance if no 401 challenge
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
-                BASE_URL + "/v2/" + REPO, Optional.of("user"), Optional.of("pass"), DEFAULT_SELECTION);
+                BASE_URL + "/v2/" + REPO, Optional.of("user"), Optional.of("pass"), DEFAULT_SELECTION, SEMVER_PARSER);
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("3.7.1", result.value(),
                 "Direct-200 path must still work unchanged after the bearer-dance feature is added");

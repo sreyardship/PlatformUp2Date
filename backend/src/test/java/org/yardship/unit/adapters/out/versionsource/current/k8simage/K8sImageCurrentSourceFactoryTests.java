@@ -1,5 +1,7 @@
 package org.yardship.unit.adapters.out.versionsource.current.k8simage;
 
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -28,6 +30,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
  * {@code K8sImageCurrentSourceIT}.
  */
 class K8sImageCurrentSourceFactoryTests {
+    private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
 
     private final KubernetesClient client = Mockito.mock(KubernetesClient.class);
     private final K8sImageCurrentSourceFactory factory = new K8sImageCurrentSourceFactory(client);
@@ -42,7 +45,7 @@ class K8sImageCurrentSourceFactoryTests {
         assertNotNull(factory.create(source(
                 Optional.of("argocd"),
                 Optional.of("deployment/argocd-server"),
-                Optional.of("argocd-server"))));
+                Optional.of("argocd-server")), SEMVER_PARSER));
     }
 
     @Test
@@ -51,7 +54,7 @@ class K8sImageCurrentSourceFactoryTests {
                 () -> factory.create(source(
                         Optional.empty(),
                         Optional.of("deployment/argocd-server"),
-                        Optional.of("argocd-server"))));
+                        Optional.of("argocd-server")), SEMVER_PARSER));
         assertTrue(ex.getMessage().toLowerCase().contains("namespace"),
                 "the validation error must name the missing 'namespace'; was: " + ex.getMessage());
         verifyNoInteractions(client);
@@ -63,7 +66,7 @@ class K8sImageCurrentSourceFactoryTests {
                 () -> factory.create(source(
                         Optional.of("   "),
                         Optional.of("deployment/argocd-server"),
-                        Optional.of("argocd-server"))));
+                        Optional.of("argocd-server")), SEMVER_PARSER));
         verifyNoInteractions(client);
     }
 
@@ -73,7 +76,7 @@ class K8sImageCurrentSourceFactoryTests {
                 () -> factory.create(source(
                         Optional.of("argocd"),
                         Optional.empty(),
-                        Optional.of("argocd-server"))));
+                        Optional.of("argocd-server")), SEMVER_PARSER));
         assertTrue(ex.getMessage().toLowerCase().contains("workload"),
                 "the validation error must name the missing 'workload'; was: " + ex.getMessage());
         verifyNoInteractions(client);
@@ -85,7 +88,7 @@ class K8sImageCurrentSourceFactoryTests {
                 () -> factory.create(source(
                         Optional.of("argocd"),
                         Optional.of("  "),
-                        Optional.of("argocd-server"))));
+                        Optional.of("argocd-server")), SEMVER_PARSER));
         verifyNoInteractions(client);
     }
 
@@ -95,7 +98,7 @@ class K8sImageCurrentSourceFactoryTests {
                 () -> factory.create(source(
                         Optional.of("argocd"),
                         Optional.of("deployment/argocd-server"),
-                        Optional.empty())));
+                        Optional.empty()), SEMVER_PARSER));
         assertTrue(ex.getMessage().toLowerCase().contains("container"),
                 "the validation error must name the missing 'container'; was: " + ex.getMessage());
         verifyNoInteractions(client);
@@ -107,7 +110,7 @@ class K8sImageCurrentSourceFactoryTests {
                 () -> factory.create(source(
                         Optional.of("argocd"),
                         Optional.of("deployment/argocd-server"),
-                        Optional.of(""))));
+                        Optional.of("")), SEMVER_PARSER));
         verifyNoInteractions(client);
     }
 
@@ -123,6 +126,35 @@ class K8sImageCurrentSourceFactoryTests {
             public Optional<String> url() {
                 return Optional.empty();
             }
+
+            @Override
+            public Optional<String> regex() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> host() { return Optional.empty(); }
+
+            @Override
+            public Optional<Integer> port() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> user() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> privateKey() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> privateKeyFile() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> hostKey() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> knownHosts() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> releaseField() { return Optional.empty(); }
 
             @Override
             public Optional<String> repo() {

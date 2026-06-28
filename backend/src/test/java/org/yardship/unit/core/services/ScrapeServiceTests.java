@@ -7,7 +7,8 @@ import org.yardship.core.domain.primitives.ScrapeSnapshot;
 import org.yardship.core.domain.primitives.Side;
 import org.yardship.core.domain.primitives.TargetResult;
 import org.yardship.core.ports.in.ScrapeStatus;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.out.ApplicationSources;
 import org.yardship.core.ports.out.CurrentVersionSource;
@@ -397,7 +398,7 @@ class ScrapeServiceTests {
     // --- helpers ------------------------------------------------------------------------------
 
     private VersionApplication createUp2DateApplication() {
-        return new VersionApplication("Another-app", new Version("2.2.2"), new Version("2.2.2"));
+        return new VersionApplication("Another-app", new SemverVersion("2.2.2"), new SemverVersion("2.2.2"));
     }
 
     private ApplicationSources appSources(String name, String current, String latest) {
@@ -405,11 +406,11 @@ class ScrapeServiceTests {
     }
 
     private CurrentVersionSource okCurrent(String value) {
-        return () -> new Version(value);
+        return () -> new SemverVersion(value);
     }
 
     private LatestVersionSource okLatest(String value) {
-        return () -> new Version(value);
+        return () -> new SemverVersion(value);
     }
 
     private CurrentVersionSource throwingCurrent(String message) {

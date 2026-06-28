@@ -5,6 +5,7 @@ import io.fabric8.kubernetes.client.KubernetesClient;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
+import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
 import java.util.Optional;
@@ -35,12 +36,12 @@ public class K8sImageCurrentSourceFactory implements CurrentVersionSourceFactory
     }
 
     @Override
-    public CurrentVersionSource create(ApplicationConfigLoader.VersionSource cfg) {
+    public CurrentVersionSource create(ApplicationConfigLoader.VersionSource cfg, VersionParser parser) {
         String namespace = required(cfg.namespace(), "namespace");
         String workload = required(cfg.workload(), "workload");
         String container = required(cfg.container(), "container");
         boolean stripPrerelease = cfg.stripPrerelease().orElse(false);
-        return new K8sImageCurrentSource(client, namespace, workload, container, stripPrerelease);
+        return new K8sImageCurrentSource(client, namespace, workload, container, stripPrerelease, parser);
     }
 
     private static String required(Optional<String> value, String field) {

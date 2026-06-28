@@ -129,3 +129,60 @@ quarkus:
       #     auth:
       #       type: bearer
       #       token-file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      #
+      # --- Whole-VM monitoring (calver + ssh-os-release + http-regex) — DO NOT enable under %dev ---
+      #
+      # These two blocks document the shape an operator copies into the PRODUCTION ConfigMap
+      # (apps/service-spaces/platformup2date/app/ in the jumziCluster repo) to monitor whole VMs.
+      # They are commented out for the same reason as the k8s example above: local dev has no SSH
+      # access to the boxes and no mounted key/host-key, so every scrape would yield a
+      # FailedCurrentSource and the SSH connect would time out. Enable only where the credentials
+      # are provisioned. See docs/adr/0015 (calver), 0016 (ssh-os-release), 0017 (http-regex).
+      #
+      # Production ConfigMap shape (host-key/key mounts):
+      # - private-key-file: mount the monitoring SSH private key as a file (e.g. from a Secret at
+      #   /etc/platformup2date/ssh/id_ed25519) and point private-key-file at it. It is read at
+      #   CONNECT time, so rotating the Secret is picked up without a redeploy. (Alternatively,
+      #   inline private-key: ${SSH_PRIVATE_KEY:} via env expansion — a file mount is preferred.)
+      # - host-key: pin the box's public host key inline as a single `ssh-rsa AAAA…`/`ssh-ed25519
+      #   AAAA…` line (from `ssh-keyscan <host>`, verified out-of-band). No trust-on-first-use: a
+      #   mismatch fails the source. For multiple hosts, mount a known-hosts file instead and use
+      #   known-hosts: /etc/platformup2date/ssh/known_hosts (exactly one of host-key/known-hosts).
+      # - the monitoring user needs only `cat /etc/os-release`; a restricted/forced-command key is
+      #   recommended on the box side.
+      #
+      # OpenWRT: VERSION_ID looks like 23.05.5 -> calver YY.0M.MICRO; latest from the releases
+      # directory listing (HTML), regex pulls the version out of each `href="23.05.5/"`.
+      # - name: openwrt-router
+      #   version-scheme: calver
+      #   calver-format: "YY.0M.MICRO"
+      #   current:
+      #     type: ssh-os-release
+      #     host: 192.168.1.1
+      #     port: 22
+      #     user: monitor
+      #     private-key-file: /etc/platformup2date/ssh/id_ed25519
+      #     host-key: "ssh-ed25519 AAAA…REPLACE_WITH_OPENWRT_HOST_KEY"
+      #     # release-field defaults to VERSION_ID
+      #   latest:
+      #     type: http-regex
+      #     url: https://downloads.openwrt.org/releases/
+      #     regex: 'href="(\d+\.\d+(?:\.\d+)?)/"'
+      #
+      # Ubuntu: VERSION_ID looks like 24.04 -> calver YY.0M; latest LTS from the meta-release-lts
+      # feed (plain text), regex pulls each `Version: 24.04`. An up-to-date LTS box compares equal
+      # to the latest LTS (no drift).
+      # - name: ubuntu-vm
+      #   version-scheme: calver
+      #   calver-format: "YY.0M"
+      #   current:
+      #     type: ssh-os-release
+      #     host: 10.0.0.10
+      #     port: 22
+      #     user: monitor
+      #     private-key-file: /etc/platformup2date/ssh/id_ed25519
+      #     host-key: "ssh-ed25519 AAAA…REPLACE_WITH_UBUNTU_HOST_KEY"
+      #   latest:
+      #     type: http-regex
+      #     url: https://changelogs.ubuntu.com/meta-release-lts
+      #     regex: 'Version: (\d+\.\d+)'

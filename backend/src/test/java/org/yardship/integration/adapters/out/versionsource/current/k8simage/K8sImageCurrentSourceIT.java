@@ -1,5 +1,7 @@
 package org.yardship.integration.adapters.out.versionsource.current.k8simage;
 
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.ContainerBuilder;
 import io.fabric8.kubernetes.api.model.LabelSelectorBuilder;
@@ -16,7 +18,8 @@ import io.quarkus.test.kubernetes.client.WithKubernetesTestServer;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.current.k8simage.K8sImageCurrentSource;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionValue;
 
 import java.util.List;
 import java.util.Map;
@@ -31,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *
  * <p><b>Construction seam:</b> {@code K8sImageCurrentSource} is a plain (non-CDI) per-app object,
  * constructed directly here:
- * <pre>{@code new K8sImageCurrentSource(KubernetesClient client, String namespace, String workload, String container)}</pre>
+ * <pre>{@code new K8sImageCurrentSource(KubernetesClient client, String namespace, String workload, String container, VersionParser parser)}</pre>
  * where {@code workload} is the {@code kind/name} string (e.g. {@code "deployment/argocd-server"}).
  * {@code version()} fetches that workload from the namespace, reads the named container's image off the
  * POD TEMPLATE ({@code spec.template.spec.containers[].image}), and parses the tag into a
@@ -44,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @QuarkusTest
 @WithKubernetesTestServer
 class K8sImageCurrentSourceIT {
+    private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
 
     private static final String NAMESPACE = "argocd";
 
@@ -57,9 +61,9 @@ class K8sImageCurrentSourceIT {
                 .create();
 
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "deployment/argocd-server", "argocd-server");
+                client, NAMESPACE, "deployment/argocd-server", "argocd-server", false, SEMVER_PARSER);
 
-        assertEquals(new Version("2.9.3"), source.version());
+        assertEquals(new SemverVersion("2.9.3"), source.version());
     }
 
     @Test
@@ -69,9 +73,9 @@ class K8sImageCurrentSourceIT {
                 .create();
 
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "statefulset/redis", "redis");
+                client, NAMESPACE, "statefulset/redis", "redis", false, SEMVER_PARSER);
 
-        assertEquals(new Version("7.2.4"), source.version());
+        assertEquals(new SemverVersion("7.2.4"), source.version());
     }
 
     @Test
@@ -81,9 +85,9 @@ class K8sImageCurrentSourceIT {
                 .create();
 
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "daemonset/node-exporter", "node-exporter");
+                client, NAMESPACE, "daemonset/node-exporter", "node-exporter", false, SEMVER_PARSER);
 
-        assertEquals(new Version("1.7.0"), source.version());
+        assertEquals(new SemverVersion("1.7.0"), source.version());
     }
 
     @Test
@@ -95,9 +99,9 @@ class K8sImageCurrentSourceIT {
                 .create();
 
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "deployment/multi", "app");
+                client, NAMESPACE, "deployment/multi", "app", false, SEMVER_PARSER);
 
-        assertEquals(new Version("2.10.1"), source.version());
+        assertEquals(new SemverVersion("2.10.1"), source.version());
     }
 
     @Test
@@ -109,9 +113,9 @@ class K8sImageCurrentSourceIT {
                 .create();
 
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "deployment/ported", "app");
+                client, NAMESPACE, "deployment/ported", "app", false, SEMVER_PARSER);
 
-        assertEquals(new Version("2.11.2"), source.version());
+        assertEquals(new SemverVersion("2.11.2"), source.version());
     }
 
     @Test
@@ -122,7 +126,7 @@ class K8sImageCurrentSourceIT {
                 .create();
 
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "deployment/digest-app", "app");
+                client, NAMESPACE, "deployment/digest-app", "app", false, SEMVER_PARSER);
 
         assertThrows(RuntimeException.class, source::version);
     }
@@ -134,7 +138,7 @@ class K8sImageCurrentSourceIT {
                 .create();
 
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "deployment/latest-app", "app");
+                client, NAMESPACE, "deployment/latest-app", "app", false, SEMVER_PARSER);
 
         assertThrows(RuntimeException.class, source::version);
     }
@@ -142,7 +146,7 @@ class K8sImageCurrentSourceIT {
     @Test
     void missingWorkload_throws() {
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "deployment/does-not-exist", "app");
+                client, NAMESPACE, "deployment/does-not-exist", "app", false, SEMVER_PARSER);
 
         assertThrows(RuntimeException.class, source::version);
     }
@@ -157,9 +161,9 @@ class K8sImageCurrentSourceIT {
                 .create();
 
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "deployment/strip-false", "app", false);
+                client, NAMESPACE, "deployment/strip-false", "app", false, SEMVER_PARSER);
 
-        assertEquals(new Version("1.23.0-alpine"), source.version(),
+        assertEquals(new SemverVersion("1.23.0-alpine"), source.version(),
                 "stripPrerelease=false must preserve the prerelease segment");
     }
 
@@ -172,9 +176,9 @@ class K8sImageCurrentSourceIT {
                 .create();
 
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "deployment/strip-true", "app", true);
+                client, NAMESPACE, "deployment/strip-true", "app", true, SEMVER_PARSER);
 
-        assertEquals(new Version("1.23.0"), source.version(),
+        assertEquals(new SemverVersion("1.23.0"), source.version(),
                 "stripPrerelease=true must strip the prerelease segment: 1.23.0-alpine → 1.23.0");
     }
 

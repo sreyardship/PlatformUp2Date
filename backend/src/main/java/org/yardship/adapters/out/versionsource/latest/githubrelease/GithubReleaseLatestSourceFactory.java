@@ -4,6 +4,7 @@ import org.yardship.adapters.out.versionsource.latest.LatestVersionSourceFactory
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
+import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.ports.out.LatestVersionSource;
 
 import java.util.Optional;
@@ -53,7 +54,7 @@ public class GithubReleaseLatestSourceFactory implements LatestVersionSourceFact
     }
 
     @Override
-    public LatestVersionSource create(ApplicationConfigLoader.VersionSource cfg) {
+    public LatestVersionSource create(ApplicationConfigLoader.VersionSource cfg, VersionParser parser) {
         String repo = cfg.repo()
                 .map(String::trim)
                 .filter(value -> !value.isBlank())
@@ -72,6 +73,6 @@ public class GithubReleaseLatestSourceFactory implements LatestVersionSourceFact
                     "The 'github-release' latest source's 'page-size' must be between 1 and 100 "
                             + "(GitHub's per_page cap); was: " + pageSize);
         }
-        return new GithubReleaseLatestSource(url, token, pageSize);
+        return new GithubReleaseLatestSource(url, token, pageSize, parser);
     }
 }

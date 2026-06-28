@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.latest.FailedLatestSource;
 import org.yardship.adapters.out.versionsource.latest.LatestVersionSourceFactory;
+import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.ports.out.LatestVersionSource;
 
 import java.util.Optional;
@@ -43,7 +44,7 @@ public class OciRegistryLatestSourceFactory implements LatestVersionSourceFactor
     }
 
     @Override
-    public LatestVersionSource create(ApplicationConfigLoader.VersionSource cfg) {
+    public LatestVersionSource create(ApplicationConfigLoader.VersionSource cfg, VersionParser parser) {
         String registry = cfg.registry()
                 .map(String::trim)
                 .filter(value -> !value.isBlank())
@@ -58,7 +59,7 @@ public class OciRegistryLatestSourceFactory implements LatestVersionSourceFactor
         TagSelection selection = tagSelectionFrom(cfg);
 
         if (cfg.auth().isEmpty()) {
-            return new OciRegistryLatestSource(baseUrl, Optional.empty(), Optional.empty(), selection);
+            return new OciRegistryLatestSource(baseUrl, Optional.empty(), Optional.empty(), selection, parser);
         }
 
         ApplicationConfigLoader.VersionSource.Auth auth = cfg.auth().get();
@@ -70,7 +71,8 @@ public class OciRegistryLatestSourceFactory implements LatestVersionSourceFactor
 
         String username = nonBlank(auth.username()).get();
         String password = nonBlank(auth.password()).get();
-        return new OciRegistryLatestSource(baseUrl, Optional.of(username), Optional.of(password), selection);
+        return new OciRegistryLatestSource(
+                baseUrl, Optional.of(username), Optional.of(password), selection, parser);
     }
 
     /**

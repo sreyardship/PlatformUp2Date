@@ -2,6 +2,7 @@ package org.yardship.adapters.out.versionsource;
 
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
+import org.yardship.core.domain.primitives.VersionScheme;
 
 import java.time.Duration;
 import java.util.List;
@@ -34,6 +35,24 @@ public interface ApplicationConfigLoader {
         String name();
         VersionSource current();
         VersionSource latest();
+
+        /**
+         * The version scheme this app's versions are parsed and compared under. Drives the single
+         * per-app {@link VersionParser} the resolver builds and threads into both legs. Defaults to
+         * {@code semver}, preserving today's behaviour for every existing app; SmallRye maps the
+         * enum name case-insensitively, so {@code semver} in YAML binds to {@link VersionScheme#SEMVER}.
+         */
+        @WithDefault("semver")
+        VersionScheme versionScheme();
+
+        /**
+         * The calendar-version format (calver.org grammar, e.g. {@code YY.0M.MICRO}) this app's
+         * versions are parsed against. Required when {@link #versionScheme()} is {@code calver};
+         * absent (and ignored) for {@code semver}. Optional at the SmallRye binding level — the
+         * requiredness for calver apps is enforced fail-fast when the per-app {@link VersionParser}
+         * is built in the resolver, not by config binding (a semver app simply has no calver-format).
+         */
+        Optional<String> calverFormat();
     }
 
     /**
@@ -74,6 +93,15 @@ public interface ApplicationConfigLoader {
          * factory to throw at construction time.
          */
         Optional<String> registry();
+
+        /**
+         * Optional regular expression read only by the {@code http-regex} latest source. The source
+         * fetches {@link #url()} as text and applies this pattern, taking <b>capture group 1</b> of
+         * every match as a candidate version string (parsed via the app's scheme; the largest wins).
+         * The {@code HttpRegexLatestSourceFactory} validates at boot that it is present, compiles, and
+         * has at least one capture group. Absent for non-{@code http-regex} kinds.
+         */
+        Optional<String> regex();
 
         Optional<String> namespace();
         Optional<String> workload();
@@ -122,6 +150,55 @@ public interface ApplicationConfigLoader {
          * {@code tags/list} page request (defaults to 100 when absent; ADR-0014).
          */
         Optional<Integer> pageSize();
+
+        // -----------------------------------------------------------------------
+        // SSH os-release source fields (ssh-os-release kind)
+        // -----------------------------------------------------------------------
+
+        /**
+         * SSH host read only by the {@code ssh-os-release} current source (required for that kind;
+         * a blank/absent value fails boot in its factory). Absent for non-ssh kinds. Declared as a
+         * plain abstract {@code Optional} getter — like every other field here — so SmallRye binds it
+         * from YAML and defaults an absent value to {@link Optional#empty()}. (A {@code default}-bodied
+         * method would NOT be bound by {@code @ConfigMapping}.)
+         */
+        Optional<String> host();
+
+        /** SSH port read only by {@code ssh-os-release} (the factory defaults to 22 when absent). */
+        Optional<Integer> port();
+
+        /** SSH user read only by {@code ssh-os-release} (required for that kind; blank/absent fails boot). */
+        Optional<String> user();
+
+        /**
+         * Inline OpenSSH private key PEM ({@code -----BEGIN OPENSSH PRIVATE KEY-----}) read only by
+         * {@code ssh-os-release}. Mutually exclusive with {@link #privateKeyFile()}.
+         */
+        Optional<String> privateKey();
+
+        /**
+         * Path to a file holding the OpenSSH private key PEM; read at connect time (not at source
+         * creation) by {@code ssh-os-release}. Mutually exclusive with {@link #privateKey()}.
+         */
+        Optional<String> privateKeyFile();
+
+        /**
+         * Pinned server public key, single line {@code ssh-rsa AAAA…} (no hostname, no comment), read
+         * only by {@code ssh-os-release}. Mutually exclusive with {@link #knownHosts()}.
+         */
+        Optional<String> hostKey();
+
+        /**
+         * Path to an OpenSSH {@code known_hosts} file used for host-key verification by
+         * {@code ssh-os-release}. Mutually exclusive with {@link #hostKey()}.
+         */
+        Optional<String> knownHosts();
+
+        /**
+         * The field to read from {@code /etc/os-release} (the {@code ssh-os-release} source defaults to
+         * {@code VERSION_ID} when absent).
+         */
+        Optional<String> releaseField();
 
         /**
          * Optional safety cap on the total number of tags the {@code oci-registry} latest source

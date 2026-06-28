@@ -3,7 +3,8 @@ package org.yardship.unit.core.services;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.yardship.core.domain.primitives.ScrapeSnapshot;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.out.ApplicationSources;
 import org.yardship.core.ports.out.CurrentVersionSource;
@@ -322,11 +323,11 @@ class VersionServiceTests {
     // --- helpers ------------------------------------------------------------------------------
 
     private VersionApplication createOldApplication() {
-        return new VersionApplication("Some-App", new Version("1.1.1"), new Version("2.2.2"));
+        return new VersionApplication("Some-App", new SemverVersion("1.1.1"), new SemverVersion("2.2.2"));
     }
 
     private VersionApplication createUp2DateApplication() {
-        return new VersionApplication("Another-app", new Version("2.2.2"), new Version("2.2.2"));
+        return new VersionApplication("Another-app", new SemverVersion("2.2.2"), new SemverVersion("2.2.2"));
     }
 
     private ApplicationSources appSources(String name, String current, String latest) {
@@ -334,11 +335,11 @@ class VersionServiceTests {
     }
 
     private CurrentVersionSource okCurrent(String value) {
-        return () -> new Version(value);
+        return () -> new SemverVersion(value);
     }
 
     private LatestVersionSource okLatest(String value) {
-        return () -> new Version(value);
+        return () -> new SemverVersion(value);
     }
 
     private CurrentVersionSource throwingCurrent(String message) {

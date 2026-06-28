@@ -1,5 +1,7 @@
 package org.yardship.integration.adapters.out.versionsource.latest.ociregistry;
 
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.AfterAll;
@@ -8,7 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.latest.ociregistry.OciRegistryLatestSource;
 import org.yardship.adapters.out.versionsource.latest.ociregistry.TagSelection;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.VersionValue;
 
 import java.util.Optional;
 
@@ -49,6 +51,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 @QuarkusTest
 class OciRegistryLatestSourcePrereleaseFilterIT {
+    private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
+
 
     static final int PORT = 8093;
     static final String BASE_URL = "http://localhost:" + PORT;
@@ -87,9 +91,9 @@ class OciRegistryLatestSourcePrereleaseFilterIT {
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
                 BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
-                new TagSelection(100, 1000, Optional.of("alpine"), false));
+                new TagSelection(100, 1000, Optional.of("alpine"), false), SEMVER_PARSER);
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("1.22.0-alpine", result.value(),
                 "filter=alpine must report the largest -alpine tag as its full value");
@@ -105,9 +109,9 @@ class OciRegistryLatestSourcePrereleaseFilterIT {
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
                 BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
-                new TagSelection(100, 1000, Optional.of("alpine"), false));
+                new TagSelection(100, 1000, Optional.of("alpine"), false), SEMVER_PARSER);
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("1.20.0-alpine", result.value(),
                 "filter=alpine must not match 1.22.0-alpine3.16 (exact, not prefix)");
@@ -122,9 +126,9 @@ class OciRegistryLatestSourcePrereleaseFilterIT {
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
                 BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
-                new TagSelection(100, 1000, Optional.of("alpine3.16"), false));
+                new TagSelection(100, 1000, Optional.of("alpine3.16"), false), SEMVER_PARSER);
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("1.22.0-alpine3.16", result.value(),
                 "filter=alpine3.16 selects the largest -alpine3.16 tag");
@@ -140,9 +144,9 @@ class OciRegistryLatestSourcePrereleaseFilterIT {
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
                 BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
-                new TagSelection(100, 1000, Optional.of("alpine"), false));
+                new TagSelection(100, 1000, Optional.of("alpine"), false), SEMVER_PARSER);
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("1.22.0-alpine", result.value(),
                 "filter=alpine: clean 2.0.0 is ignored even though numerically larger");
@@ -159,7 +163,7 @@ class OciRegistryLatestSourcePrereleaseFilterIT {
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
                 BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
-                new TagSelection(100, 1000, Optional.of("alpine"), false));
+                new TagSelection(100, 1000, Optional.of("alpine"), false), SEMVER_PARSER);
 
         assertThrows(RuntimeException.class, latestSource::version,
                 "no tag matches filter=alpine → must throw as a per-app scrape failure");
@@ -177,9 +181,9 @@ class OciRegistryLatestSourcePrereleaseFilterIT {
 
         // Use the backward-compat 1-arg constructor (no filter).
         OciRegistryLatestSource latestSource =
-                new OciRegistryLatestSource(BASE_URL + "/v2/" + REPO);
+                anonymousSource(BASE_URL + "/v2/" + REPO);
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("1.25.3", result.value(),
                 "Without filter: clean 1.25.3 must win; 1.25.3-alpine and non-semver tags are skipped");
@@ -200,9 +204,9 @@ class OciRegistryLatestSourcePrereleaseFilterIT {
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
                 BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
-                new TagSelection(100, 1000, Optional.of("alpine"), true));
+                new TagSelection(100, 1000, Optional.of("alpine"), true), SEMVER_PARSER);
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("1.22.0", result.value(),
                 "filter=alpine strip=true: selection picks 1.22.0-alpine, stripped to 1.22.0");
@@ -218,9 +222,9 @@ class OciRegistryLatestSourcePrereleaseFilterIT {
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
                 BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
-                new TagSelection(100, 1000, Optional.of("alpine"), true));
+                new TagSelection(100, 1000, Optional.of("alpine"), true), SEMVER_PARSER);
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("1.24.0", result.value(),
                 "filter=alpine strip=true: 1.24.0-alpine is the largest, reported stripped as 1.24.0");
@@ -241,5 +245,10 @@ class OciRegistryLatestSourcePrereleaseFilterIT {
                 .withStatus(status)
                 .withHeader("Content-Type", "application/json")
                 .withBody(body);
+    }
+
+    private static OciRegistryLatestSource anonymousSource(String baseUrl) {
+        return new OciRegistryLatestSource(baseUrl, Optional.empty(), Optional.empty(),
+                new TagSelection(100, 1000, Optional.empty(), false), SEMVER_PARSER);
     }
 }

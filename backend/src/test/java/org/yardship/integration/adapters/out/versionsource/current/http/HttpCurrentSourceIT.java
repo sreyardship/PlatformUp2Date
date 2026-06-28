@@ -1,5 +1,7 @@
 package org.yardship.integration.adapters.out.versionsource.current.http;
 
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
@@ -14,7 +16,8 @@ import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionCl
 import org.yardship.adapters.out.versionsource.current.FailedCurrentSource;
 import org.yardship.adapters.out.versionsource.current.http.HttpCurrentSource;
 import org.yardship.adapters.out.versionsource.current.http.HttpCurrentSourceFactory;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
 import java.util.Optional;
@@ -48,6 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @QuarkusTest
 class HttpCurrentSourceIT {
+    private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
 
     static WireMockServer wireMockServer;
 
@@ -76,9 +80,9 @@ class HttpCurrentSourceIT {
                 .willReturn(jsonResponse(200, "{\"version\":\"1.0.0\"}")));
 
         HttpCurrentSource source = new HttpCurrentSource(
-                clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty()), "/version", false);
+                clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty()), "/version", false, SEMVER_PARSER);
 
-        Version result = source.version();
+        VersionValue result = source.version();
 
         assertEquals("1.0.0", result.value());
     }
@@ -89,7 +93,7 @@ class HttpCurrentSourceIT {
                 .willReturn(jsonResponse(403, "{\"message\":\"forbidden\"}")));
 
         HttpCurrentSource source = new HttpCurrentSource(
-                clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty()), "/version", false);
+                clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty()), "/version", false, SEMVER_PARSER);
 
         // A non-2xx is mapped to a thrown exception by the reused VersionResponseExceptionMapper,
         // so the service's per-app loop can count this app as failed.
@@ -117,9 +121,9 @@ class HttpCurrentSourceIT {
                 clientFactory.build("http://localhost:8089/systeminfo",
                         Optional.of(new BasicAuthFilter("harbor-bot", "s3cr3t")), Optional.empty()),
                 "/harbor_version",
-                false);
+                false, SEMVER_PARSER);
 
-        Version result = source.version();
+        VersionValue result = source.version();
 
         // The 'v' prefix is trimmed by the Version primitive (see Version.trimInput).
         assertEquals("2.13.0", result.value());
@@ -142,7 +146,7 @@ class HttpCurrentSourceIT {
                 clientFactory.build("http://localhost:8089/systeminfo",
                         Optional.of(new BasicAuthFilter("harbor-bot", "WRONG")), Optional.empty()),
                 "/harbor_version",
-                false);
+                false, SEMVER_PARSER);
 
         assertThrows(RuntimeException.class, source::version);
     }
@@ -161,7 +165,7 @@ class HttpCurrentSourceIT {
 
         HttpCurrentSourceFactory httpFactory = new HttpCurrentSourceFactory(clientFactory);
         CurrentVersionSource result = httpFactory.create(harborConfig(
-                Optional.of("harbor-bot"), Optional.of("s3cr3t")));
+                Optional.of("harbor-bot"), Optional.of("s3cr3t")), SEMVER_PARSER);
 
         assertInstanceOf(HttpCurrentSource.class, result);
         // The 'v' prefix is trimmed by the Version primitive (see Version.trimInput).
@@ -176,7 +180,7 @@ class HttpCurrentSourceIT {
         // unauthenticated 2xx-without-harbor_version response would otherwise produce.
         HttpCurrentSourceFactory httpFactory = new HttpCurrentSourceFactory(clientFactory);
         CurrentVersionSource result = httpFactory.create(harborConfig(
-                Optional.of("harbor-bot"), Optional.of("")));
+                Optional.of("harbor-bot"), Optional.of("")), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
         IllegalStateException ex = assertThrows(IllegalStateException.class, result::version);
@@ -200,9 +204,9 @@ class HttpCurrentSourceIT {
                 clientFactory.build("http://localhost:8089/current",
                         Optional.of(new BearerAuthFilter("gh-token")), Optional.empty()),
                 "/version",
-                false);
+                false, SEMVER_PARSER);
 
-        Version result = source.version();
+        VersionValue result = source.version();
 
         // The 'v' prefix is trimmed by the Version primitive (see Version.trimInput).
         assertEquals("3.1.0", result.value());
@@ -220,7 +224,7 @@ class HttpCurrentSourceIT {
                 .willReturn(jsonResponse(200, "{\"version\":\"v3.1.0\"}")));
 
         HttpCurrentSourceFactory httpFactory = new HttpCurrentSourceFactory(clientFactory);
-        CurrentVersionSource result = httpFactory.create(bearerConfig(Optional.of("gh-token")));
+        CurrentVersionSource result = httpFactory.create(bearerConfig(Optional.of("gh-token")), SEMVER_PARSER);
 
         assertInstanceOf(HttpCurrentSource.class, result);
         assertEquals("3.1.0", result.version().value());
@@ -232,7 +236,7 @@ class HttpCurrentSourceIT {
         // "" via SmallRye expansion) must surface as a FailedCurrentSource with an auth-specific
         // message — NEVER the misleading "version-key did not resolve" error.
         HttpCurrentSourceFactory httpFactory = new HttpCurrentSourceFactory(clientFactory);
-        CurrentVersionSource result = httpFactory.create(bearerConfig(Optional.of("")));
+        CurrentVersionSource result = httpFactory.create(bearerConfig(Optional.of("")), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
         IllegalStateException ex = assertThrows(IllegalStateException.class, result::version);
@@ -251,6 +255,35 @@ class HttpCurrentSourceIT {
             public Optional<String> url() {
                 return Optional.of("http://localhost:8089/current");
             }
+
+            @Override
+            public Optional<String> regex() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> host() { return Optional.empty(); }
+
+            @Override
+            public Optional<Integer> port() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> user() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> privateKey() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> privateKeyFile() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> hostKey() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> knownHosts() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> releaseField() { return Optional.empty(); }
 
             @Override
             public Optional<String> repo() {
@@ -351,6 +384,35 @@ class HttpCurrentSourceIT {
             public Optional<String> url() {
                 return Optional.of("http://localhost:8089/systeminfo");
             }
+
+            @Override
+            public Optional<String> regex() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> host() { return Optional.empty(); }
+
+            @Override
+            public Optional<Integer> port() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> user() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> privateKey() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> privateKeyFile() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> hostKey() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> knownHosts() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> releaseField() { return Optional.empty(); }
 
             @Override
             public Optional<String> repo() {

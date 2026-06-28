@@ -1,8 +1,8 @@
 package org.yardship.adapters.in.metrics;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import org.yardship.core.domain.primitives.Version;
 import org.yardship.core.domain.primitives.VersionApplication;
+import org.yardship.core.domain.primitives.VersionValue;
 
 import java.util.List;
 
@@ -28,7 +28,7 @@ public class PrometheusDriftRenderer {
         return builder.toString();
     }
 
-    private static int gaugeValue(Version.Diff drift) {
+    private static int gaugeValue(VersionValue.Diff drift) {
         return switch (drift) {
             case MAJOR -> 3;
             case MINOR -> 2;

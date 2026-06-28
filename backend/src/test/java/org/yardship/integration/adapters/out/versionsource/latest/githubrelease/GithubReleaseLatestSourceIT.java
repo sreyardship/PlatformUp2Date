@@ -1,5 +1,7 @@
 package org.yardship.integration.adapters.out.versionsource.latest.githubrelease;
 
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.AfterAll;
@@ -7,7 +9,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleaseLatestSource;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionValue;
 
 import java.util.Optional;
 
@@ -52,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 @QuarkusTest
 class GithubReleaseLatestSourceIT {
+    private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
 
     static WireMockServer wireMockServer;
 
@@ -83,9 +87,9 @@ class GithubReleaseLatestSourceIT {
                         """)));
 
         GithubReleaseLatestSource source =
-                new GithubReleaseLatestSource("http://localhost:8089", Optional.empty());
+                new GithubReleaseLatestSource("http://localhost:8089", Optional.empty(), SEMVER_PARSER);
 
-        Version result = source.version();
+        VersionValue result = source.version();
 
         assertEquals("2.0.0", result.value(),
                 "the 'v' prefix is trimmed by the Version primitive; selection is by tag_name, not name");
@@ -103,9 +107,9 @@ class GithubReleaseLatestSourceIT {
                         """)));
 
         GithubReleaseLatestSource source =
-                new GithubReleaseLatestSource("http://localhost:8089", Optional.empty());
+                new GithubReleaseLatestSource("http://localhost:8089", Optional.empty(), SEMVER_PARSER);
 
-        Version result = source.version();
+        VersionValue result = source.version();
 
         assertEquals("1.0.0", result.value());
     }
@@ -118,7 +122,7 @@ class GithubReleaseLatestSourceIT {
                         """)));
 
         GithubReleaseLatestSource source =
-                new GithubReleaseLatestSource("http://localhost:8089", Optional.empty());
+                new GithubReleaseLatestSource("http://localhost:8089", Optional.empty(), SEMVER_PARSER);
 
         source.version();
 
@@ -134,7 +138,7 @@ class GithubReleaseLatestSourceIT {
                         """)));
 
         GithubReleaseLatestSource source =
-                new GithubReleaseLatestSource("http://localhost:8089", Optional.of("test-token"));
+                new GithubReleaseLatestSource("http://localhost:8089", Optional.of("test-token"), SEMVER_PARSER);
 
         source.version();
 
@@ -150,7 +154,7 @@ class GithubReleaseLatestSourceIT {
                         """)));
 
         GithubReleaseLatestSource source =
-                new GithubReleaseLatestSource("http://localhost:8089", Optional.empty());
+                new GithubReleaseLatestSource("http://localhost:8089", Optional.empty(), SEMVER_PARSER);
 
         source.version();
 
@@ -167,7 +171,7 @@ class GithubReleaseLatestSourceIT {
                         """)));
 
         GithubReleaseLatestSource source =
-                new GithubReleaseLatestSource("http://localhost:8089", Optional.of("   "));
+                new GithubReleaseLatestSource("http://localhost:8089", Optional.of("   "), SEMVER_PARSER);
 
         source.version();
 

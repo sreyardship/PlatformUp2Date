@@ -6,7 +6,8 @@ import org.yardship.core.domain.primitives.ScrapeSnapshot;
 import org.yardship.core.domain.primitives.ScrapeTarget;
 import org.yardship.core.domain.primitives.Side;
 import org.yardship.core.domain.primitives.TargetResult;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.in.Outcome;
 import org.yardship.core.ports.in.ScrapeStatus;
@@ -65,8 +66,8 @@ class TargetedScrapeServiceTests {
     @Test
     void targetedScrape_validTargets_returnsScrapedWithOneTargetResultPerTarget() {
         store.seed(snapshotOf(
-                new VersionApplication("argo-cd", new Version("1.0.0"), new Version("1.0.0")),
-                new VersionApplication("grafana", new Version("2.0.0"), new Version("2.0.0"))));
+                new VersionApplication("argo-cd", new SemverVersion("1.0.0"), new SemverVersion("1.0.0")),
+                new VersionApplication("grafana", new SemverVersion("2.0.0"), new SemverVersion("2.0.0"))));
         sources.seed(
                 appSources("argo-cd", "1.1.0", "1.1.0"),
                 appSources("grafana", "2.0.0", "2.1.0"));
@@ -84,7 +85,7 @@ class TargetedScrapeServiceTests {
     @Test
     void targetedScrape_currentOnlyTarget_updatesCurrent_leavesLatestUnchanged() {
         store.seed(snapshotOf(
-                new VersionApplication("argo-cd", new Version("1.0.0"), new Version("9.9.9"))));
+                new VersionApplication("argo-cd", new SemverVersion("1.0.0"), new SemverVersion("9.9.9"))));
         sources.seed(appSources("argo-cd", "1.5.0", "9.9.9"));
         lock.willAcquire(true);
 
@@ -98,7 +99,7 @@ class TargetedScrapeServiceTests {
     @Test
     void targetedScrape_latestOnlyTarget_updatesLatest_leavesCurrentUnchanged() {
         store.seed(snapshotOf(
-                new VersionApplication("argo-cd", new Version("1.0.0"), new Version("1.0.0"))));
+                new VersionApplication("argo-cd", new SemverVersion("1.0.0"), new SemverVersion("1.0.0"))));
         sources.seed(appSources("argo-cd", "1.0.0", "2.0.0"));
         lock.willAcquire(true);
 
@@ -112,7 +113,7 @@ class TargetedScrapeServiceTests {
     @Test
     void targetedScrape_bothTarget_updatesBothSides() {
         store.seed(snapshotOf(
-                new VersionApplication("argo-cd", new Version("1.0.0"), new Version("1.0.0"))));
+                new VersionApplication("argo-cd", new SemverVersion("1.0.0"), new SemverVersion("1.0.0"))));
         sources.seed(appSources("argo-cd", "1.5.0", "2.0.0"));
         lock.willAcquire(true);
 
@@ -126,7 +127,7 @@ class TargetedScrapeServiceTests {
     @Test
     void targetedScrape_overExistingSnapshot_doesNotAdvanceLastAttemptAt() {
         store.seed(new ScrapeSnapshot(
-                List.of(new VersionApplication("argo-cd", new Version("1.0.0"), new Version("1.0.0"))),
+                List.of(new VersionApplication("argo-cd", new SemverVersion("1.0.0"), new SemverVersion("1.0.0"))),
                 START.minus(Duration.ofMinutes(10))));
         sources.seed(appSources("argo-cd", "1.1.0", "1.0.0"));
         lock.willAcquire(true);
@@ -142,7 +143,7 @@ class TargetedScrapeServiceTests {
     @Test
     void targetedScrape_singleSideTarget_appAbsentFromSnapshot_readsBothSides_reportsSideBoth() {
         store.seed(snapshotOf(
-                new VersionApplication("grafana", new Version("2.0.0"), new Version("2.0.0"))));
+                new VersionApplication("grafana", new SemverVersion("2.0.0"), new SemverVersion("2.0.0"))));
         sources.seed(
                 appSources("grafana", "2.0.0", "2.0.0"),
                 appSources("argo-cd", "1.0.0", "1.2.0")); // cold-start: not yet in the snapshot
@@ -286,11 +287,11 @@ class TargetedScrapeServiceTests {
     }
 
     private CurrentVersionSource okCurrent(String value) {
-        return () -> new Version(value);
+        return () -> new SemverVersion(value);
     }
 
     private LatestVersionSource okLatest(String value) {
-        return () -> new Version(value);
+        return () -> new SemverVersion(value);
     }
 
     private CurrentVersionSource throwingCurrent(String message) {

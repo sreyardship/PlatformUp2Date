@@ -9,6 +9,8 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.ports.out.ApplicationSources;
 import org.yardship.core.ports.out.CurrentVersionSource;
 import org.yardship.core.ports.out.LatestVersionSource;
@@ -86,8 +88,17 @@ public class VersionSourceResolver implements VersionSources {
             ApplicationConfigLoader.AppConfig app,
             Map<String, CurrentVersionSourceFactory> currentByType,
             Map<String, LatestVersionSourceFactory> latestByType) {
-        CurrentVersionSource current = factoryFor(currentByType, app.current().type()).create(app.current());
-        LatestVersionSource latest = factoryFor(latestByType, app.latest().type()).create(app.latest());
+        // One parser per app, shared by both legs, so current and latest are always commensurable by
+        // construction — a cross-scheme comparison cannot occur. Built fail-fast here at startup: a
+        // calver app with a missing/invalid calver-format throws from the parser constructor.
+        VersionParser parser = switch (app.versionScheme()) {
+            case SEMVER -> new VersionParser(VersionScheme.SEMVER);
+            case CALVER -> new VersionParser(VersionScheme.CALVER, app.calverFormat().orElse(null));
+        };
+        CurrentVersionSource current =
+                factoryFor(currentByType, app.current().type()).create(app.current(), parser);
+        LatestVersionSource latest =
+                factoryFor(latestByType, app.latest().type()).create(app.latest(), parser);
         return new ApplicationSources(app.name(), current, latest);
     }
 

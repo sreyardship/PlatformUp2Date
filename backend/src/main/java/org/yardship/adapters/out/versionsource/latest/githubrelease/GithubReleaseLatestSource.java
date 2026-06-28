@@ -6,7 +6,9 @@ import org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleas
 import org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleaseResponseDTO;
 import org.yardship.adapters.out.versionsource.VersionResponseExceptionMapper;
 import org.yardship.core.domain.exceptions.InvalidVersionException;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
+import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.LatestVersionSource;
 
 import java.io.Closeable;
@@ -52,31 +54,35 @@ public class GithubReleaseLatestSource implements LatestVersionSource, Closeable
     private final String url;
     private final Optional<String> token;
     private final int pageSize;
+    private final VersionParser parser;
     private GithubReleaseClient client;
 
-    public GithubReleaseLatestSource(String url, Optional<String> token) {
-        this(url, token, DEFAULT_PAGE_SIZE);
+    public GithubReleaseLatestSource(String url, Optional<String> token, VersionParser parser) {
+        this(url, token, DEFAULT_PAGE_SIZE, parser);
     }
 
-    public GithubReleaseLatestSource(String url, Optional<String> token, int pageSize) {
+    public GithubReleaseLatestSource(String url, Optional<String> token, int pageSize, VersionParser parser) {
         this.url = url;
         this.token = token;
         this.pageSize = pageSize;
+        this.parser = parser;
     }
 
     // Visible for testing: lets unit tests inject a fake GithubReleaseClient directly, bypassing the
-    // lazy QuarkusRestClientBuilder path, so the selection logic (largest semver among
+    // lazy QuarkusRestClientBuilder path, so the selection logic (largest version among
     // non-prerelease/non-draft releases, by tag_name) can be unit-tested without HTTP/Quarkus. The
-    // fake ignores the perPage argument, so the exact value passed here is inconsequential.
+    // fake ignores the perPage argument, so the exact value passed here is inconsequential. Defaults
+    // to a SEMVER parser, matching every GitHub-released app today.
     public GithubReleaseLatestSource(GithubReleaseClient client) {
         this.url = null;
         this.token = Optional.empty();
         this.pageSize = DEFAULT_PAGE_SIZE;
+        this.parser = new VersionParser(VersionScheme.SEMVER);
         this.client = client;
     }
 
     @Override
-    public Version version() {
+    public VersionValue version() {
         List<GithubReleaseResponseDTO> releases = client().releases(pageSize);
         return releases.stream()
                 .filter(release -> !release.prerelease && !release.draft)
@@ -88,9 +94,9 @@ public class GithubReleaseLatestSource implements LatestVersionSource, Closeable
                                 + url));
     }
 
-    private Optional<Version> tryParseVersion(GithubReleaseResponseDTO release) {
+    private Optional<VersionValue> tryParseVersion(GithubReleaseResponseDTO release) {
         try {
-            return Optional.of(new Version(release.tagName));
+            return Optional.of(parser.parse(release.tagName));
         }
         catch (InvalidVersionException ex) {
             return Optional.empty();

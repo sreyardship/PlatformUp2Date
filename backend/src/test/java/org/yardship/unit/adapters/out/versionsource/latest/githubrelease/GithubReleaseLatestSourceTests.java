@@ -4,7 +4,8 @@ import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleaseClient;
 import org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleaseResponseDTO;
 import org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleaseLatestSource;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionValue;
 
 import java.util.List;
 
@@ -54,7 +55,7 @@ class GithubReleaseLatestSourceTests {
                 release("v1.10.0", "release-named-anything-2", false, false),
                 release("v1.3.0", "release-named-anything-3", false, false));
 
-        Version result = source.version();
+        VersionValue result = source.version();
 
         assertEquals("1.10.0", result.value(), "must select by tag_name's semver value, not by name");
     }
@@ -65,7 +66,7 @@ class GithubReleaseLatestSourceTests {
                 release("v2.0.0", "n", false, false),
                 release("v3.0.0-rc.1", "n", true, false));
 
-        Version result = source.version();
+        VersionValue result = source.version();
 
         assertEquals("2.0.0", result.value(), "a prerelease=true release must never win, even if numerically larger");
     }
@@ -76,7 +77,7 @@ class GithubReleaseLatestSourceTests {
                 release("v2.0.0", "n", false, false),
                 release("v9.9.9", "n", false, true));
 
-        Version result = source.version();
+        VersionValue result = source.version();
 
         assertEquals("2.0.0", result.value(), "a draft=true release must never win, even if numerically larger");
     }
@@ -93,7 +94,7 @@ class GithubReleaseLatestSourceTests {
                 release("v2.5.0", "older-list-position", false, false),
                 release("v1.9.9", "newer-list-position-but-lower-version", false, false));
 
-        Version result = source.version();
+        VersionValue result = source.version();
 
         assertEquals("2.5.0", result.value(),
                 "the largest semver must win regardless of publish recency / list position");
@@ -105,7 +106,7 @@ class GithubReleaseLatestSourceTests {
                 release("not-a-semver", "n", false, false),
                 release("v1.4.0", "n", false, false));
 
-        Version result = source.version();
+        VersionValue result = source.version();
 
         assertEquals("1.4.0", result.value(), "an unparseable tag_name must be skipped, not crash the read");
     }
@@ -146,7 +147,7 @@ class GithubReleaseLatestSourceTests {
                 release("v1.0.0", "n", false, false),
                 release("v0.9.0", "n", false, false));
 
-        Version result = source.version();
+        VersionValue result = source.version();
 
         assertEquals("1.0.0", result.value());
     }

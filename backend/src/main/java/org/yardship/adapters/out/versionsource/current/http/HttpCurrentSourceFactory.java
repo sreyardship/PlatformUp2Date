@@ -14,6 +14,7 @@ import org.yardship.adapters.out.versionsource.auth.BearerAuthFilter;
 import org.yardship.adapters.out.versionsource.auth.FileBearerAuthFilter;
 import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClient;
 import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClientFactory;
+import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
 import java.io.InputStream;
@@ -60,7 +61,7 @@ public class HttpCurrentSourceFactory implements CurrentVersionSourceFactory {
     }
 
     @Override
-    public CurrentVersionSource create(ApplicationConfigLoader.VersionSource cfg) {
+    public CurrentVersionSource create(ApplicationConfigLoader.VersionSource cfg, VersionParser parser) {
         String url = cfg.url()
                 .filter(value -> !value.isBlank())
                 .orElseThrow(() -> new IllegalArgumentException(
@@ -78,7 +79,7 @@ public class HttpCurrentSourceFactory implements CurrentVersionSourceFactory {
 
         if (cfg.auth().isEmpty()) {
             HttpCurrentVersionClient client = clientFactory.build(url, Optional.empty(), trustStore);
-            return new HttpCurrentSource(client, versionKey, stripPrerelease);
+            return new HttpCurrentSource(client, versionKey, stripPrerelease, parser);
         }
 
         ApplicationConfigLoader.VersionSource.Auth auth = cfg.auth().get();
@@ -90,7 +91,7 @@ public class HttpCurrentSourceFactory implements CurrentVersionSourceFactory {
 
         ClientRequestFilter authFilter = buildAuthFilter(auth);
         HttpCurrentVersionClient client = clientFactory.build(url, Optional.of(authFilter), trustStore);
-        return new HttpCurrentSource(client, versionKey, stripPrerelease);
+        return new HttpCurrentSource(client, versionKey, stripPrerelease, parser);
     }
 
     /**

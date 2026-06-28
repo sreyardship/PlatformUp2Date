@@ -54,6 +54,15 @@ _Avoid_: Upstream endpoint (a k8s-image source is the cluster's own state, not
 upstream), probe; "image" alone (a k8s-image current source reads the *deployed*
 tag, an oci-registry latest source reads *published* tags — different sides)
 
+**Version scheme**:
+How an Application's version strings are interpreted and compared — `semver`
+(the default) or `calver`. Declared once per Application and shared by its
+current and latest sources, so the two are always commensurable. It governs both
+ordering ("is it behind?") and how Drift severity is assigned. Comparing across
+schemes — or across two different calver formats — is a configuration error,
+never a silent guess.
+_Avoid_: Version format, versioning style, version type, coercion
+
 **Manual scrape** (a.k.a. **scrape trigger**):
 A scrape requested on demand by a human or agent, as opposed to the automatic
 scrape that happens lazily when the snapshot is stale.
@@ -61,7 +70,10 @@ _Avoid_: Force refresh, rescan
 
 **Drift**:
 How far an Application's current version is behind its latest upstream release,
-graded by severity: PATCH, MINOR, or MAJOR.
+graded by severity: PATCH, MINOR, or MAJOR. Severity is defined under both
+Version schemes — by changed component for semver, and by the category of the
+changed calver token for calver (year → MAJOR, month/week/day → MINOR,
+micro/modifier → PATCH).
 _Avoid_: Lag, delta, staleness (staleness refers to the snapshot, not a version)
 
 **Scrape budget**:

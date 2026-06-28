@@ -5,7 +5,8 @@ import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.in.metrics.MetricsController;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.in.ApplicationVersionPort;
 
@@ -26,9 +27,9 @@ public class MetricsControllerTests {
     @Test
     void getMetrics_delegatesPortApplicationsToRenderer() {
         VersionApplication majorBehind = new VersionApplication("argo-cd",
-                new Version("1.1.1"), new Version("2.2.2"));
+                new SemverVersion("1.1.1"), new SemverVersion("2.2.2"));
         VersionApplication current = new VersionApplication("grafana",
-                new Version("2.0.0"), new Version("2.0.0"));
+                new SemverVersion("2.0.0"), new SemverVersion("2.0.0"));
         when(applicationVersionPort.getApplications())
                 .thenReturn(List.of(majorBehind, current));
 

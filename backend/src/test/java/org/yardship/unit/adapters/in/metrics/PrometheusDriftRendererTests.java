@@ -2,7 +2,8 @@ package org.yardship.unit.adapters.in.metrics;
 
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.in.metrics.PrometheusDriftRenderer;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.domain.primitives.VersionApplication;
 
 import java.util.List;
@@ -23,13 +24,13 @@ class PrometheusDriftRendererTests {
     @Test
     void render_emitsHeaderOnce_andOneSampleLinePerApp() {
         VersionApplication major = new VersionApplication("major-app",
-                new Version("1.1.1"), new Version("2.2.2"));
+                new SemverVersion("1.1.1"), new SemverVersion("2.2.2"));
         VersionApplication minor = new VersionApplication("minor-app",
-                new Version("2.1.0"), new Version("2.2.0"));
+                new SemverVersion("2.1.0"), new SemverVersion("2.2.0"));
         VersionApplication patch = new VersionApplication("patch-app",
-                new Version("2.2.1"), new Version("2.2.2"));
+                new SemverVersion("2.2.1"), new SemverVersion("2.2.2"));
         VersionApplication current = new VersionApplication("current-app",
-                new Version("2.0.0"), new Version("2.0.0"));
+                new SemverVersion("2.0.0"), new SemverVersion("2.0.0"));
 
         String output = sut.render(List.of(major, minor, patch, current));
 
@@ -57,7 +58,7 @@ class PrometheusDriftRendererTests {
     @Test
     void render_escapesLabelValue_perExpositionSpec() {
         VersionApplication weird = new VersionApplication("we\"ird\\name",
-                new Version("1.1.1"), new Version("2.2.2"));
+                new SemverVersion("1.1.1"), new SemverVersion("2.2.2"));
 
         String output = sut.render(List.of(weird));
 
@@ -68,7 +69,7 @@ class PrometheusDriftRendererTests {
     @Test
     void render_escapesNewlineInLabelValue_asLiteralBackslashN() {
         VersionApplication multiline = new VersionApplication("line1\nline2",
-                new Version("1.1.1"), new Version("2.2.2"));
+                new SemverVersion("1.1.1"), new SemverVersion("2.2.2"));
 
         String output = sut.render(List.of(multiline));
 
@@ -81,7 +82,7 @@ class PrometheusDriftRendererTests {
     @Test
     void render_everyLineNonEmpty_andEndsWithNewline() {
         VersionApplication app = new VersionApplication("some-app",
-                new Version("1.1.1"), new Version("2.2.2"));
+                new SemverVersion("1.1.1"), new SemverVersion("2.2.2"));
 
         String output = sut.render(List.of(app));
 

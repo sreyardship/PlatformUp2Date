@@ -11,7 +11,8 @@ import org.yardship.adapters.out.versionsource.VersionResponseExceptionMapper;
 import org.yardship.adapters.out.versionsource.auth.BasicAuthFilter;
 import org.yardship.adapters.out.versionsource.auth.BearerAuthFilter;
 import org.yardship.core.domain.exceptions.InvalidVersionException;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.LatestVersionSource;
 
 import java.io.Closeable;
@@ -69,6 +70,7 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
     private final Optional<String> username;
     private final Optional<String> password;
     private final TagSelection selection;
+    private final VersionParser parser;
 
     /** Internal pagination result for one page: the tag names plus the cursor for the next page. */
     private record TagsPage(List<String> tags, Optional<String> nextLastToken) {}
@@ -88,32 +90,23 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
     }
 
     /**
-     * Convenience constructor for anonymous access. Delegates to the primary constructor with
-     * empty credentials and a default {@link TagSelection} (pageSize=100, maxTags=1000, no filter,
-     * no strip). Preserves the backward-compat call sites in slice-01/02/04 ITs.
-     */
-    public OciRegistryLatestSource(String baseUrl) {
-        this(baseUrl, Optional.empty(), Optional.empty(),
-                new TagSelection(100, 1000, Optional.empty(), false));
-    }
-
-    /**
-     * Primary production constructor. All tag-selection knobs are collected in {@code selection}.
+     * Primary (and only) constructor. All tag-selection knobs are collected in {@code selection}.
      *
      * <p><b>Exfiltration boundary (ADR-0013):</b> {@code username} and {@code password} are sent
      * only to the registry's advertised {@code realm}, discovered at runtime from the bearer
      * challenge.
      */
     public OciRegistryLatestSource(String baseUrl, Optional<String> username, Optional<String> password,
-                                   TagSelection selection) {
+                                   TagSelection selection, VersionParser parser) {
         this.baseUrl = baseUrl;
         this.username = username;
         this.password = password;
         this.selection = selection;
+        this.parser = parser;
     }
 
     @Override
-    public Version version() {
+    public VersionValue version() {
         return fetchVersionWithDance();
     }
 
@@ -131,7 +124,7 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
      * all pages (including page one) are fetched with the single authenticated client, which is
      * closed after all pages are accumulated.
      */
-    private Version fetchVersionWithDance() {
+    private VersionValue fetchVersionWithDance() {
         Response rawFirstResponse = fetchTagsListRawResponse();
         int status = rawFirstResponse.getStatus();
 
@@ -231,7 +224,7 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
      * {@code lastToken} starts as {@code null} (no cursor) and is threaded from each page's
      * extracted {@code last=} value to the next call.
      */
-    private Version paginateAndSelectVersion(PagedTagsFetcher pageFetcher) {
+    private VersionValue paginateAndSelectVersion(PagedTagsFetcher pageFetcher) {
         List<String> allTags = new ArrayList<>();
         String lastToken = null;
 
@@ -400,7 +393,7 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
      * flavour back in (ADR-0014). When absent, selects the largest CLEAN semver (no prerelease
      * segment) — the original slice-01 behaviour.
      */
-    private Version selectVersion(List<String> tags) {
+    private VersionValue selectVersion(List<String> tags) {
         if (selection.prereleaseFilter().isPresent()) {
             return selectVersionWithPrereleaseFilter(tags, selection.prereleaseFilter().get());
         }
@@ -424,8 +417,8 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
      *   <li>Throws when zero tags survive the filter — per-app scrape failure.</li>
      * </ol>
      */
-    private Version selectVersionWithPrereleaseFilter(List<String> tags, String filter) {
-        Version selected = tags.stream()
+    private VersionValue selectVersionWithPrereleaseFilter(List<String> tags, String filter) {
+        VersionValue selected = tags.stream()
                 .map(this::tryParseVersion)
                 .flatMap(Optional::stream)
                 .filter(v -> v.preReleaseSegment().filter(filter::equals).isPresent())
@@ -436,9 +429,9 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
         return selection.stripPrerelease() ? selected.withoutPreRelease() : selected;
     }
 
-    private Optional<Version> tryParseVersion(String tag) {
+    private Optional<VersionValue> tryParseVersion(String tag) {
         try {
-            return Optional.of(new Version(tag));
+            return Optional.of(parser.parse(tag));
         } catch (InvalidVersionException ex) {
             return Optional.empty();
         }
@@ -448,7 +441,7 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
      * Selects the largest clean semver from an accumulated tag list.
      * "Clean" means no prerelease segment (e.g. {@code 1.22.0-alpine} is skipped).
      */
-    private Version selectLargestCleanVersion(List<String> tags) {
+    private VersionValue selectLargestCleanVersion(List<String> tags) {
         return tags.stream()
                 .map(this::tryParseCleanVersion)
                 .flatMap(Optional::stream)
@@ -457,7 +450,7 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
                         "No clean semver tag found in OCI registry tag list for: " + baseUrl));
     }
 
-    private Optional<Version> tryParseCleanVersion(String tag) {
+    private Optional<VersionValue> tryParseCleanVersion(String tag) {
         return tryParseVersion(tag)
                 .filter(v -> v.preReleaseSegment().isEmpty());
     }

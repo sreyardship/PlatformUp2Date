@@ -4,7 +4,8 @@ import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.scrapestate.ScrapeStateUnavailableException;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.in.ApplicationVersionPort;
 
@@ -34,7 +35,7 @@ class VersionControllerIT {
     @Test
     void getVersion_returnsSnapshotShape_forUpToDateApp() {
         when(applicationVersionPort.getApplications()).thenReturn(List.of(
-                new VersionApplication("gitea", new Version("2.0.0"), new Version("2.0.0"))));
+                new VersionApplication("gitea", new SemverVersion("2.0.0"), new SemverVersion("2.0.0"))));
 
         given()
                 .when()
@@ -50,7 +51,7 @@ class VersionControllerIT {
     @Test
     void getVersion_returnsSnapshotShape_forPatchBehindApp() {
         when(applicationVersionPort.getApplications()).thenReturn(List.of(
-                new VersionApplication("grafana", new Version("2.2.0"), new Version("2.2.1"))));
+                new VersionApplication("grafana", new SemverVersion("2.2.0"), new SemverVersion("2.2.1"))));
 
         given()
                 .when()
@@ -66,7 +67,7 @@ class VersionControllerIT {
     @Test
     void getVersion_returnsSnapshotShape_forMajorBehindApp() {
         when(applicationVersionPort.getApplications()).thenReturn(List.of(
-                new VersionApplication("argo-cd", new Version("1.0.0"), new Version("2.0.0"))));
+                new VersionApplication("argo-cd", new SemverVersion("1.0.0"), new SemverVersion("2.0.0"))));
 
         given()
                 .when()

@@ -1,5 +1,7 @@
 package org.yardship.unit.adapters.out.versionsource.latest.githubrelease;
 
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleaseLatestSourceFactory;
@@ -27,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the validation contract is unit-testable without a token.
  */
 class GithubReleaseLatestSourceFactoryTests {
+    private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
 
     private final GithubReleaseLatestSourceFactory factory = new GithubReleaseLatestSourceFactory(Optional.empty());
 
@@ -37,13 +40,13 @@ class GithubReleaseLatestSourceFactoryTests {
 
     @Test
     void create_buildsASource_whenRepoIsWellFormed() {
-        assertNotNull(factory.create(source(Optional.of("go-gitea/gitea"), Optional.empty())));
+        assertNotNull(factory.create(source(Optional.of("go-gitea/gitea"), Optional.empty()), SEMVER_PARSER));
     }
 
     @Test
     void create_rejectsAbsentRepo_withAClearMessage() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> factory.create(source(Optional.empty(), Optional.empty())));
+                () -> factory.create(source(Optional.empty(), Optional.empty()), SEMVER_PARSER));
         assertTrue(ex.getMessage().toLowerCase().contains("repo"),
                 "the validation error must mention the missing 'repo'; was: " + ex.getMessage());
     }
@@ -51,7 +54,7 @@ class GithubReleaseLatestSourceFactoryTests {
     @Test
     void create_rejectsBlankRepo_withAClearMessage() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> factory.create(source(Optional.of("   "), Optional.empty())));
+                () -> factory.create(source(Optional.of("   "), Optional.empty()), SEMVER_PARSER));
         assertTrue(ex.getMessage().toLowerCase().contains("repo"),
                 "the validation error must mention the blank 'repo'; was: " + ex.getMessage());
     }
@@ -59,7 +62,7 @@ class GithubReleaseLatestSourceFactoryTests {
     @Test
     void create_rejectsRepoWithZeroSlashes_withAClearMessage() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> factory.create(source(Optional.of("gitea"), Optional.empty())));
+                () -> factory.create(source(Optional.of("gitea"), Optional.empty()), SEMVER_PARSER));
         assertTrue(ex.getMessage().toLowerCase().contains("repo"),
                 "the validation error must mention 'repo'; was: " + ex.getMessage());
     }
@@ -67,7 +70,7 @@ class GithubReleaseLatestSourceFactoryTests {
     @Test
     void create_rejectsRepoWithMoreThanOneSlash_withAClearMessage() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> factory.create(source(Optional.of("a/b/c"), Optional.empty())));
+                () -> factory.create(source(Optional.of("a/b/c"), Optional.empty()), SEMVER_PARSER));
         assertTrue(ex.getMessage().toLowerCase().contains("repo"),
                 "the validation error must mention 'repo'; was: " + ex.getMessage());
     }
@@ -78,7 +81,7 @@ class GithubReleaseLatestSourceFactoryTests {
         // 'repo' is consulted. We assert this indirectly: a source with a well-formed 'repo' but an
         // absent 'url' still succeeds (proving 'url' isn't required), and the source builder below
         // never has its url() value forwarded into validation.
-        assertNotNull(factory.create(source(Optional.of("go-gitea/gitea"), Optional.empty())));
+        assertNotNull(factory.create(source(Optional.of("go-gitea/gitea"), Optional.empty()), SEMVER_PARSER));
     }
 
     // --- page-size (issue: largest-semver-across-recent-releases) -----------------------------
@@ -90,22 +93,22 @@ class GithubReleaseLatestSourceFactoryTests {
         // The IT (`GithubReleaseLatestSourceIT`) is responsible for observing that per_page=30 is
         // actually sent on the wire when page-size is unconfigured.
         assertNotNull(factory.create(
-                source(Optional.of("go-gitea/gitea"), Optional.empty())));
+                source(Optional.of("go-gitea/gitea"), Optional.empty()), SEMVER_PARSER));
     }
 
     @Test
     void create_buildsASource_whenPageSizeIsInRange() {
         assertNotNull(factory.create(
-                source(Optional.of("go-gitea/gitea"), Optional.of(1))));
+                source(Optional.of("go-gitea/gitea"), Optional.of(1)), SEMVER_PARSER));
         assertNotNull(factory.create(
-                source(Optional.of("go-gitea/gitea"), Optional.of(100))));
+                source(Optional.of("go-gitea/gitea"), Optional.of(100)), SEMVER_PARSER));
     }
 
     @Test
     void create_rejectsPageSizeBelowOne_withAClearMessage() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> factory.create(
-                        source(Optional.of("go-gitea/gitea"), Optional.of(0))));
+                        source(Optional.of("go-gitea/gitea"), Optional.of(0)), SEMVER_PARSER));
         assertTrue(ex.getMessage().toLowerCase().contains("page-size")
                         || ex.getMessage().toLowerCase().contains("page size"),
                 "the validation error must mention 'page-size'; was: " + ex.getMessage());
@@ -115,14 +118,14 @@ class GithubReleaseLatestSourceFactoryTests {
     void create_rejectsNegativePageSize_withAClearMessage() {
         assertThrows(IllegalArgumentException.class,
                 () -> factory.create(
-                        source(Optional.of("go-gitea/gitea"), Optional.of(-1))));
+                        source(Optional.of("go-gitea/gitea"), Optional.of(-1)), SEMVER_PARSER));
     }
 
     @Test
     void create_rejectsPageSizeAbove100_withAClearMessage() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> factory.create(
-                        source(Optional.of("go-gitea/gitea"), Optional.of(101))));
+                        source(Optional.of("go-gitea/gitea"), Optional.of(101)), SEMVER_PARSER));
         assertTrue(ex.getMessage().toLowerCase().contains("page-size")
                         || ex.getMessage().toLowerCase().contains("page size"),
                 "the validation error must mention 'page-size'; was: " + ex.getMessage());
@@ -140,6 +143,35 @@ class GithubReleaseLatestSourceFactoryTests {
             public Optional<String> url() {
                 return Optional.empty();
             }
+
+            @Override
+            public Optional<String> regex() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> host() { return Optional.empty(); }
+
+            @Override
+            public Optional<Integer> port() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> user() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> privateKey() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> privateKeyFile() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> hostKey() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> knownHosts() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> releaseField() { return Optional.empty(); }
 
             @Override
             public Optional<String> repo() {

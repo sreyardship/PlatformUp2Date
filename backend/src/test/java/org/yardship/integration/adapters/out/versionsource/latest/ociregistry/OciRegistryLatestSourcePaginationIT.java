@@ -1,5 +1,7 @@
 package org.yardship.integration.adapters.out.versionsource.latest.ociregistry;
 
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.AfterAll;
@@ -8,7 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.latest.ociregistry.OciRegistryLatestSource;
 import org.yardship.adapters.out.versionsource.latest.ociregistry.TagSelection;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.VersionValue;
 
 import java.util.Optional;
 
@@ -47,6 +49,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 @QuarkusTest
 class OciRegistryLatestSourcePaginationIT {
+    private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
+
 
     static final int PORT = 8092;
     static final String BASE_URL = "http://localhost:" + PORT;
@@ -98,9 +102,9 @@ class OciRegistryLatestSourcePaginationIT {
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
                 BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
-                new TagSelection(2, 100, Optional.empty(), false));
+                new TagSelection(2, 100, Optional.empty(), false), SEMVER_PARSER);
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("2.0.0", result.value(),
                 "Must traverse all pages and select the global largest semver (on page 2)");
@@ -138,9 +142,9 @@ class OciRegistryLatestSourcePaginationIT {
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
                 BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
-                new TagSelection(1, 100, Optional.empty(), false));
+                new TagSelection(1, 100, Optional.empty(), false), SEMVER_PARSER);
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("3.0.0", result.value(),
                 "Must traverse all three pages and select 3.0.0 as the global largest");
@@ -160,7 +164,7 @@ class OciRegistryLatestSourcePaginationIT {
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
                 BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
-                new TagSelection(5, 100, Optional.empty(), false));
+                new TagSelection(5, 100, Optional.empty(), false), SEMVER_PARSER);
         latestSource.version();
 
         wireMockServer.verify(getRequestedFor(urlPathEqualTo(TAGS_PATH))
@@ -177,9 +181,8 @@ class OciRegistryLatestSourcePaginationIT {
                         .withHeader("Content-Type", "application/json")
                         .withBody(tagsListBody("1.0.0"))));
 
-        // Uses backward-compat constructor (no pageSize)
-        OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
-                BASE_URL + "/v2/" + REPO);
+        // Uses the default selection (no explicit pageSize)
+        OciRegistryLatestSource latestSource = anonymousSource(BASE_URL + "/v2/" + REPO);
         latestSource.version();
 
         wireMockServer.verify(getRequestedFor(urlPathEqualTo(TAGS_PATH))
@@ -212,7 +215,7 @@ class OciRegistryLatestSourcePaginationIT {
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
                 BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
-                new TagSelection(2, 100, Optional.empty(), false));
+                new TagSelection(2, 100, Optional.empty(), false), SEMVER_PARSER);
         latestSource.version();
 
         // The second request must carry last=1.1.0
@@ -253,9 +256,9 @@ class OciRegistryLatestSourcePaginationIT {
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
                 BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
-                new TagSelection(2, 4, Optional.empty(), false));
+                new TagSelection(2, 4, Optional.empty(), false), SEMVER_PARSER);
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("2.1.0", result.value(),
                 "Cap-exceeded: must return the largest semver from pages 1 and 2 (not throw, not fetch page 3)");
@@ -280,10 +283,10 @@ class OciRegistryLatestSourcePaginationIT {
         // No stub for page 2 — source must stop at cap, never requesting it
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
                 BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
-                new TagSelection(2, 2, Optional.empty(), false));
+                new TagSelection(2, 2, Optional.empty(), false), SEMVER_PARSER);
 
         // Must not throw — cap-exceeded is a warning, not an error
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("1.1.0", result.value(),
                 "Cap-exceeded with max-tags=page-size=2: returns largest from the only page fetched");
@@ -314,9 +317,9 @@ class OciRegistryLatestSourcePaginationIT {
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
                 BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
-                new TagSelection(2, 100, Optional.empty(), false));
+                new TagSelection(2, 100, Optional.empty(), false), SEMVER_PARSER);
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("1.3.0", result.value(),
                 "No-cap-exceeded path: all pages fetched, global largest (on page 2) returned");
@@ -344,7 +347,7 @@ class OciRegistryLatestSourcePaginationIT {
 
         OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
                 BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
-                new TagSelection(2, 100, Optional.empty(), false));
+                new TagSelection(2, 100, Optional.empty(), false), SEMVER_PARSER);
         latestSource.version();
 
         // Exactly two requests total (page 1 + page 2); nothing after
@@ -358,5 +361,10 @@ class OciRegistryLatestSourcePaginationIT {
         return """
                 {"name": "%s", "tags": ["%s"]}
                 """.formatted(REPO, joined);
+    }
+
+    private static OciRegistryLatestSource anonymousSource(String baseUrl) {
+        return new OciRegistryLatestSource(baseUrl, Optional.empty(), Optional.empty(),
+                new TagSelection(100, 1000, Optional.empty(), false), SEMVER_PARSER);
     }
 }

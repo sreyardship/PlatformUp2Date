@@ -13,8 +13,8 @@ import org.yardship.core.domain.primitives.ScrapeSnapshot;
 import org.yardship.core.domain.primitives.ScrapeTarget;
 import org.yardship.core.domain.primitives.Side;
 import org.yardship.core.domain.primitives.TargetResult;
-import org.yardship.core.domain.primitives.Version;
 import org.yardship.core.domain.primitives.VersionApplication;
+import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.in.ApplicationVersionPort;
 import org.yardship.core.ports.in.ScrapeStatus;
 import org.yardship.core.ports.out.ScrapeLock;
@@ -198,11 +198,11 @@ public class ApplicationVersionService implements ApplicationVersionPort {
 
     private VersionApplication resolveVersionApplication(
             ApplicationSources app, Optional<VersionApplication> existing, Side side) {
-        Version current = switch (side) {
+        VersionValue current = switch (side) {
             case CURRENT, BOTH -> app.current().version();
             case LATEST -> existing.orElseThrow().current();
         };
-        Version latest = switch (side) {
+        VersionValue latest = switch (side) {
             case LATEST, BOTH -> app.latest().version();
             case CURRENT -> existing.orElseThrow().latest();
         };

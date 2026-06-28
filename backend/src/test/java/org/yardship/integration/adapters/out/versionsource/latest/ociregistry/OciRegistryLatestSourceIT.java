@@ -1,5 +1,9 @@
 package org.yardship.integration.adapters.out.versionsource.latest.ociregistry;
 
+import org.yardship.adapters.out.versionsource.latest.ociregistry.TagSelection;
+import java.util.Optional;
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.AfterAll;
@@ -7,7 +11,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.latest.ociregistry.OciRegistryLatestSource;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.VersionValue;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
@@ -34,6 +38,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 @QuarkusTest
 class OciRegistryLatestSourceIT {
+    private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
+
 
     static WireMockServer wireMockServer;
 
@@ -64,9 +70,9 @@ class OciRegistryLatestSourceIT {
                         """)));
 
         OciRegistryLatestSource latestSource =
-                new OciRegistryLatestSource("http://localhost:8090/v2/library/nginx");
+                anonymousSource("http://localhost:8090/v2/library/nginx");
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("1.25.3", result.value(),
                 "1.25.3 is the largest clean semver; 1.25.3-alpine (prerelease), latest and stable (non-semver) are skipped");
@@ -83,9 +89,9 @@ class OciRegistryLatestSourceIT {
                         """)));
 
         OciRegistryLatestSource latestSource =
-                new OciRegistryLatestSource("http://localhost:8090/v2/library/redis");
+                anonymousSource("http://localhost:8090/v2/library/redis");
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("7.2.0", result.value(),
                 "7.2.0 is the largest clean semver; variant and non-semver tags are skipped");
@@ -102,7 +108,7 @@ class OciRegistryLatestSourceIT {
                         """)));
 
         OciRegistryLatestSource latestSource =
-                new OciRegistryLatestSource("http://localhost:8090/v2/library/scratch");
+                anonymousSource("http://localhost:8090/v2/library/scratch");
 
         assertThrows(RuntimeException.class, latestSource::version,
                 "an all-skipped tag set must surface as a per-app scrape failure, not a silent return");
@@ -119,7 +125,7 @@ class OciRegistryLatestSourceIT {
                         """)));
 
         OciRegistryLatestSource latestSource =
-                new OciRegistryLatestSource("http://localhost:8090/v2/library/nginx");
+                anonymousSource("http://localhost:8090/v2/library/nginx");
         latestSource.version();
 
         wireMockServer.verify(getRequestedFor(urlPathEqualTo("/v2/library/nginx/tags/list")));
@@ -136,9 +142,9 @@ class OciRegistryLatestSourceIT {
                         """)));
 
         OciRegistryLatestSource latestSource =
-                new OciRegistryLatestSource("http://localhost:8090/v2/library/alpine");
+                anonymousSource("http://localhost:8090/v2/library/alpine");
 
-        Version result = latestSource.version();
+        VersionValue result = latestSource.version();
 
         assertEquals("3.18.0", result.value());
     }
@@ -149,5 +155,10 @@ class OciRegistryLatestSourceIT {
                 .withStatus(status)
                 .withHeader("Content-Type", "application/json")
                 .withBody(body);
+    }
+
+    private static OciRegistryLatestSource anonymousSource(String baseUrl) {
+        return new OciRegistryLatestSource(baseUrl, Optional.empty(), Optional.empty(),
+                new TagSelection(100, 1000, Optional.empty(), false), SEMVER_PARSER);
     }
 }

@@ -1,5 +1,7 @@
 package org.yardship.unit.adapters.out.versionsource.current.http;
 
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import jakarta.ws.rs.client.ClientRequestFilter;
@@ -46,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
  * level ({@code HttpCurrentVersionClientFactoryIT}).
  */
 class HttpCurrentSourceFactoryTests {
+    private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
 
     private final FakeHttpCurrentVersionClientFactory clientFactory = new FakeHttpCurrentVersionClientFactory();
     private final HttpCurrentSourceFactory factory = new HttpCurrentSourceFactory(clientFactory);
@@ -57,12 +60,12 @@ class HttpCurrentSourceFactoryTests {
 
     @Test
     void create_buildsASource_whenUrlIsPresent() {
-        assertNotNull(factory.create(source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.empty())));
+        assertNotNull(factory.create(source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.empty()), SEMVER_PARSER));
     }
 
     @Test
     void create_buildsTheClientEagerly_viaTheCollaborator_withTheResolvedUrl() {
-        factory.create(source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.empty()));
+        factory.create(source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.empty()), SEMVER_PARSER);
 
         assertEquals(1, clientFactory.buildCalls.size(),
                 "the client must be built eagerly during create(cfg), not lazily on first version()");
@@ -72,7 +75,7 @@ class HttpCurrentSourceFactoryTests {
     @Test
     void create_rejectsAbsentUrl_withAClearMessage() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> factory.create(source(Optional.empty(), Optional.empty(), Optional.empty())));
+                () -> factory.create(source(Optional.empty(), Optional.empty(), Optional.empty()), SEMVER_PARSER));
         assertTrue(ex.getMessage().toLowerCase().contains("url"),
                 "the validation error must mention the missing 'url'; was: " + ex.getMessage());
     }
@@ -80,7 +83,7 @@ class HttpCurrentSourceFactoryTests {
     @Test
     void create_rejectsAbsentUrl_withoutInvokingTheCollaborator() {
         assertThrows(IllegalArgumentException.class,
-                () -> factory.create(source(Optional.empty(), Optional.empty(), Optional.empty())));
+                () -> factory.create(source(Optional.empty(), Optional.empty(), Optional.empty()), SEMVER_PARSER));
 
         assertTrue(clientFactory.buildCalls.isEmpty(),
                 "validation must fail before any client is built");
@@ -89,7 +92,7 @@ class HttpCurrentSourceFactoryTests {
     @Test
     void create_rejectsBlankUrl_withAClearMessage() {
         assertThrows(IllegalArgumentException.class,
-                () -> factory.create(source(Optional.of("   "), Optional.empty(), Optional.empty())));
+                () -> factory.create(source(Optional.of("   "), Optional.empty(), Optional.empty()), SEMVER_PARSER));
     }
 
     @Test
@@ -97,20 +100,20 @@ class HttpCurrentSourceFactoryTests {
         // No 'version-key' configured: the factory must still construct a source successfully,
         // defaulting the pointer to '/version' so existing {"version":"…"} endpoints keep working.
         assertNotNull(factory.create(
-                source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.empty())));
+                source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.empty()), SEMVER_PARSER));
     }
 
     @Test
     void create_acceptsAConfiguredVersionKey() {
         assertNotNull(factory.create(
-                source(Optional.of("http://localhost:8089/current"), Optional.of("/harbor_version"), Optional.empty())));
+                source(Optional.of("http://localhost:8089/current"), Optional.of("/harbor_version"), Optional.empty()), SEMVER_PARSER));
     }
 
     @Test
     void create_rejectsASyntacticallyInvalidVersionKey_withAClearMessage() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> factory.create(
-                        source(Optional.of("http://localhost:8089/current"), Optional.of("harbor_version"), Optional.empty())));
+                        source(Optional.of("http://localhost:8089/current"), Optional.of("harbor_version"), Optional.empty()), SEMVER_PARSER));
         assertTrue(ex.getMessage().contains("harbor_version"),
                 "the validation error must name the bad pointer; was: " + ex.getMessage());
     }
@@ -119,7 +122,7 @@ class HttpCurrentSourceFactoryTests {
     void create_rejectsASyntacticallyInvalidVersionKey_withoutInvokingTheCollaborator() {
         assertThrows(IllegalArgumentException.class,
                 () -> factory.create(
-                        source(Optional.of("http://localhost:8089/current"), Optional.of("harbor_version"), Optional.empty())));
+                        source(Optional.of("http://localhost:8089/current"), Optional.of("harbor_version"), Optional.empty()), SEMVER_PARSER));
 
         assertTrue(clientFactory.buildCalls.isEmpty(),
                 "version-key validation must fail before any client is built");
@@ -130,19 +133,19 @@ class HttpCurrentSourceFactoryTests {
         // No 'strip-prerelease' configured: the factory must still construct a source successfully,
         // defaulting to false so prerelease segments are preserved for every existing app.
         assertNotNull(factory.create(
-                source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.empty())));
+                source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.empty()), SEMVER_PARSER));
     }
 
     @Test
     void create_buildsASource_whenStripPrereleaseIsExplicitlyTrue() {
         assertNotNull(factory.create(
-                source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.of(true))));
+                source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.of(true)), SEMVER_PARSER));
     }
 
     @Test
     void create_buildsASource_whenStripPrereleaseIsExplicitlyFalse() {
         assertNotNull(factory.create(
-                source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.of(false))));
+                source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.of(false)), SEMVER_PARSER));
     }
 
     // --- Issue 02: auth resolution (Harbor case study) ----------------------------------------
@@ -151,7 +154,7 @@ class HttpCurrentSourceFactoryTests {
     void create_withNoAuth_stillBuildsAnHttpCurrentSource_withNoFilter() {
         // Existing (slice 01) behaviour must be preserved unchanged when 'auth' is absent.
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.empty()));
+                sourceWithAuth("http://localhost:8089/current", Optional.empty()), SEMVER_PARSER);
 
         assertInstanceOf(HttpCurrentSource.class, result);
         assertEquals(1, clientFactory.buildCalls.size());
@@ -163,7 +166,7 @@ class HttpCurrentSourceFactoryTests {
         Auth basic = auth("basic", Optional.of("harbor-bot"), Optional.of("s3cr3t"), Optional.empty());
 
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(basic)));
+                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(basic)), SEMVER_PARSER);
 
         assertInstanceOf(HttpCurrentSource.class, result,
                 "valid basic auth must still produce a real HttpCurrentSource, not a FailedCurrentSource");
@@ -178,7 +181,7 @@ class HttpCurrentSourceFactoryTests {
         Auth unknown = auth("oauth2", Optional.of("user"), Optional.of("pass"), Optional.empty());
 
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(unknown)));
+                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(unknown)), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
         assertTrue(clientFactory.buildCalls.isEmpty(),
@@ -190,7 +193,7 @@ class HttpCurrentSourceFactoryTests {
         Auth missingUsername = auth("basic", Optional.empty(), Optional.of("s3cr3t"), Optional.empty());
 
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(missingUsername)));
+                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(missingUsername)), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
         assertTrue(clientFactory.buildCalls.isEmpty());
@@ -201,7 +204,7 @@ class HttpCurrentSourceFactoryTests {
         Auth missingPassword = auth("basic", Optional.of("harbor-bot"), Optional.empty(), Optional.empty());
 
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(missingPassword)));
+                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(missingPassword)), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
         assertTrue(clientFactory.buildCalls.isEmpty());
@@ -214,7 +217,7 @@ class HttpCurrentSourceFactoryTests {
         Auth blankUsername = auth("basic", Optional.of("   "), Optional.of("s3cr3t"), Optional.empty());
 
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(blankUsername)));
+                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(blankUsername)), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
         assertTrue(clientFactory.buildCalls.isEmpty());
@@ -225,7 +228,7 @@ class HttpCurrentSourceFactoryTests {
         Auth blankPassword = auth("basic", Optional.of("harbor-bot"), Optional.of(""), Optional.empty());
 
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(blankPassword)));
+                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(blankPassword)), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
         assertTrue(clientFactory.buildCalls.isEmpty());
@@ -238,7 +241,7 @@ class HttpCurrentSourceFactoryTests {
         Auth bearer = authWithToken("bearer", Optional.of("gh-token"));
 
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.of(bearer)));
+                sourceWithAuth("http://localhost:8089/current", Optional.of(bearer)), SEMVER_PARSER);
 
         assertInstanceOf(HttpCurrentSource.class, result,
                 "valid bearer auth must produce a real HttpCurrentSource, not a FailedCurrentSource");
@@ -253,7 +256,7 @@ class HttpCurrentSourceFactoryTests {
         Auth missingToken = authWithToken("bearer", Optional.empty());
 
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.of(missingToken)));
+                sourceWithAuth("http://localhost:8089/current", Optional.of(missingToken)), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
         assertTrue(clientFactory.buildCalls.isEmpty(),
@@ -267,7 +270,7 @@ class HttpCurrentSourceFactoryTests {
         Auth blankToken = authWithToken("bearer", Optional.of(""));
 
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.of(blankToken)));
+                sourceWithAuth("http://localhost:8089/current", Optional.of(blankToken)), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
         assertTrue(clientFactory.buildCalls.isEmpty());
@@ -278,7 +281,7 @@ class HttpCurrentSourceFactoryTests {
         Auth whitespaceToken = authWithToken("bearer", Optional.of("   "));
 
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.of(whitespaceToken)));
+                sourceWithAuth("http://localhost:8089/current", Optional.of(whitespaceToken)), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
         assertTrue(clientFactory.buildCalls.isEmpty());
@@ -291,7 +294,7 @@ class HttpCurrentSourceFactoryTests {
         Auth tokenFile = authWithTokenFile("bearer", Optional.of("/var/run/secrets/token"));
 
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.of(tokenFile)));
+                sourceWithAuth("http://localhost:8089/current", Optional.of(tokenFile)), SEMVER_PARSER);
 
         assertInstanceOf(HttpCurrentSource.class, result,
                 "bearer with only token-file must produce a real HttpCurrentSource");
@@ -307,7 +310,7 @@ class HttpCurrentSourceFactoryTests {
         Auth token = authWithToken("bearer", Optional.of("gh-token"));
 
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.of(token)));
+                sourceWithAuth("http://localhost:8089/current", Optional.of(token)), SEMVER_PARSER);
 
         assertInstanceOf(HttpCurrentSource.class, result);
         assertEquals(1, clientFactory.buildCalls.size());
@@ -320,7 +323,7 @@ class HttpCurrentSourceFactoryTests {
         Auth neither = auth("bearer", Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
 
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.of(neither)));
+                sourceWithAuth("http://localhost:8089/current", Optional.of(neither)), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
         assertTrue(clientFactory.buildCalls.isEmpty(),
@@ -335,7 +338,7 @@ class HttpCurrentSourceFactoryTests {
                 Optional.of("gh-token"), Optional.of("/var/run/secrets/token"));
 
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.of(both)));
+                sourceWithAuth("http://localhost:8089/current", Optional.of(both)), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
         assertTrue(clientFactory.buildCalls.isEmpty(),
@@ -348,7 +351,7 @@ class HttpCurrentSourceFactoryTests {
         Auth blankPath = authWithTokenFile("bearer", Optional.of("   "));
 
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.of(blankPath)));
+                sourceWithAuth("http://localhost:8089/current", Optional.of(blankPath)), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
         assertTrue(clientFactory.buildCalls.isEmpty());
@@ -389,7 +392,7 @@ class HttpCurrentSourceFactoryTests {
         // ca-cert absent: the JVM default trust bundle stays in place — no custom truststore is built
         // and the collaborator is handed Optional.empty().
         CurrentVersionSource result = factory.create(
-                sourceWithCaCert("http://localhost:8089/current", Optional.empty()));
+                sourceWithCaCert("http://localhost:8089/current", Optional.empty()), SEMVER_PARSER);
 
         assertInstanceOf(HttpCurrentSource.class, result);
         assertEquals(1, clientFactory.buildCalls.size());
@@ -404,7 +407,7 @@ class HttpCurrentSourceFactoryTests {
         Files.writeString(pem, VALID_CA_PEM);
 
         CurrentVersionSource result = factory.create(
-                sourceWithCaCert("https://localhost:8443/current", Optional.of(pem.toString())));
+                sourceWithCaCert("https://localhost:8443/current", Optional.of(pem.toString())), SEMVER_PARSER);
 
         assertInstanceOf(HttpCurrentSource.class, result,
                 "a valid ca-cert PEM must still produce a real HttpCurrentSource, not a FailedCurrentSource");
@@ -421,7 +424,7 @@ class HttpCurrentSourceFactoryTests {
     void create_withBlankCaCert_returnsAFailedCurrentSource_withoutInvokingTheCollaborator() {
         // present-but-blank is a value-level misconfiguration → FailedCurrentSource, not a boot crash.
         CurrentVersionSource result = factory.create(
-                sourceWithCaCert("https://localhost:8443/current", Optional.of("   ")));
+                sourceWithCaCert("https://localhost:8443/current", Optional.of("   ")), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
         assertTrue(clientFactory.buildCalls.isEmpty(),
@@ -432,7 +435,7 @@ class HttpCurrentSourceFactoryTests {
     void create_withMissingCaCertFile_returnsAFailedCurrentSource_withoutInvokingTheCollaborator() {
         CurrentVersionSource result = factory.create(
                 sourceWithCaCert("https://localhost:8443/current",
-                        Optional.of("/no/such/path/ca.crt")));
+                        Optional.of("/no/such/path/ca.crt")), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
         assertTrue(clientFactory.buildCalls.isEmpty(),
@@ -445,7 +448,7 @@ class HttpCurrentSourceFactoryTests {
         Files.writeString(notPem, "this is definitely not a PEM certificate");
 
         CurrentVersionSource result = factory.create(
-                sourceWithCaCert("https://localhost:8443/current", Optional.of(notPem.toString())));
+                sourceWithCaCert("https://localhost:8443/current", Optional.of(notPem.toString())), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
         assertTrue(clientFactory.buildCalls.isEmpty(),
@@ -460,7 +463,7 @@ class HttpCurrentSourceFactoryTests {
         Files.writeString(empty, "");
 
         CurrentVersionSource result = factory.create(
-                sourceWithCaCert("https://localhost:8443/current", Optional.of(empty.toString())));
+                sourceWithCaCert("https://localhost:8443/current", Optional.of(empty.toString())), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
         assertTrue(clientFactory.buildCalls.isEmpty(),
@@ -473,7 +476,7 @@ class HttpCurrentSourceFactoryTests {
         // return a FailedCurrentSource, never throw out of create(cfg).
         assertDoesNotThrow(() -> factory.create(
                 sourceWithCaCert("https://localhost:8443/current",
-                        Optional.of("/no/such/path/ca.crt"))));
+                        Optional.of("/no/such/path/ca.crt")), SEMVER_PARSER));
     }
 
     @Test
@@ -484,7 +487,7 @@ class HttpCurrentSourceFactoryTests {
         // problem in auth.
         Auth unknown = auth("oauth2", Optional.empty(), Optional.empty(), Optional.empty());
 
-        assertNotNull(factory.create(sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(unknown))));
+        assertNotNull(factory.create(sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(unknown)), SEMVER_PARSER));
     }
 
     private static ApplicationConfigLoader.VersionSource source(
@@ -519,6 +522,35 @@ class HttpCurrentSourceFactoryTests {
             public Optional<String> url() {
                 return url;
             }
+
+            @Override
+            public Optional<String> regex() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> host() { return Optional.empty(); }
+
+            @Override
+            public Optional<Integer> port() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> user() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> privateKey() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> privateKeyFile() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> hostKey() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> knownHosts() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> releaseField() { return Optional.empty(); }
 
             @Override
             public Optional<String> repo() {

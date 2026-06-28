@@ -24,6 +24,11 @@ dependencies {
     implementation 'org.semver4j:semver4j:6.0.0'
     implementation 'io.quarkiverse.openapi.generator:quarkus-openapi-generator-server:2.17.0-lts'
     implementation 'io.quarkiverse.mcp:quarkus-mcp-server-http:1.13.0'
+    // SSH client for the 'ssh-os-release' current source (and the embedded SSHD server used by its
+    // integration tests). BouncyCastle gives MINA SSHD broad private-key/host-key format support
+    // (OpenSSH + classic PEM, RSA/ECDSA/ed25519) — its documented recommendation.
+    implementation 'org.apache.sshd:sshd-core:2.13.2'
+    implementation 'org.bouncycastle:bcpkix-jdk18on:1.78.1'
 
     testImplementation 'io.quarkus:quarkus-junit5'
     testImplementation 'io.quarkus:quarkus-junit5-mockito'

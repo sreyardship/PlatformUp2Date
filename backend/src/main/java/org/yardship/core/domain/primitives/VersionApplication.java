@@ -6,7 +6,7 @@ import static org.yardship.core.domain.primitives.DomainValidator.notEmpty;
 import static org.yardship.core.domain.primitives.DomainValidator.notNull;
 
 @RegisterForReflection
-public record VersionApplication(String name, Version current, Version latest) {
+public record VersionApplication(String name, VersionValue current, VersionValue latest) {
 
     public VersionApplication {
         notEmpty(name);
@@ -19,14 +19,14 @@ public record VersionApplication(String name, Version current, Version latest) {
         return current.isOlderThan(latest);
     }
 
-    public Version.Diff drift() {
+    public VersionValue.Diff drift() {
         if (!isOld()) {
-            return Version.Diff.NONE;
+            return VersionValue.Diff.NONE;
         }
         return current.diff(latest);
     }
 
-    public boolean hasDriftAtLeast(Version.Diff minimum) {
+    public boolean hasDriftAtLeast(VersionValue.Diff minimum) {
         return drift().isAtLeast(minimum);
     }
 }

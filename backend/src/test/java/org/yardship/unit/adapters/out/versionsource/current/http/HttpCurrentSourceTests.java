@@ -1,11 +1,14 @@
 package org.yardship.unit.adapters.out.versionsource.current.http;
 
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClient;
 import org.yardship.adapters.out.versionsource.current.http.HttpCurrentSource;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionValue;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -24,15 +27,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * true unit test."
  */
 class HttpCurrentSourceTests {
+    private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Test
     void version_resolvesTopLevelPointer_intoVersion() throws Exception {
         JsonNode body = MAPPER.readTree("{\"version\":\"1.0.0\"}");
-        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/version", false);
+        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/version", false, SEMVER_PARSER);
 
-        Version result = source.version();
+        VersionValue result = source.version();
 
         assertEquals("1.0.0", result.value());
     }
@@ -40,9 +44,9 @@ class HttpCurrentSourceTests {
     @Test
     void version_resolvesNonStandardTopLevelPointer() throws Exception {
         JsonNode body = MAPPER.readTree("{\"harbor_version\":\"v2.11.1-6b7ecba1\", \"other\":\"x\"}");
-        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/harbor_version", false);
+        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/harbor_version", false, SEMVER_PARSER);
 
-        Version result = source.version();
+        VersionValue result = source.version();
 
         assertTrue(result.value().contains("2.11.1"));
     }
@@ -50,9 +54,9 @@ class HttpCurrentSourceTests {
     @Test
     void version_resolvesNestedPointer() throws Exception {
         JsonNode body = MAPPER.readTree("{\"data\":{\"version\":\"3.4.5\"}}");
-        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/data/version", false);
+        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/data/version", false, SEMVER_PARSER);
 
-        Version result = source.version();
+        VersionValue result = source.version();
 
         assertEquals("3.4.5", result.value());
     }
@@ -60,9 +64,9 @@ class HttpCurrentSourceTests {
     @Test
     void version_withStripPrereleaseTrue_clearsThePreReleaseSegment() throws Exception {
         JsonNode body = MAPPER.readTree("{\"harbor_version\":\"v2.11.1-6b7ecba1\"}");
-        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/harbor_version", true);
+        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/harbor_version", true, SEMVER_PARSER);
 
-        Version result = source.version();
+        VersionValue result = source.version();
 
         assertEquals("2.11.1", result.value());
     }
@@ -70,9 +74,9 @@ class HttpCurrentSourceTests {
     @Test
     void version_withStripPrereleaseFalse_preservesThePreReleaseSegment() throws Exception {
         JsonNode body = MAPPER.readTree("{\"harbor_version\":\"v2.11.1-6b7ecba1\"}");
-        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/harbor_version", false);
+        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/harbor_version", false, SEMVER_PARSER);
 
-        Version result = source.version();
+        VersionValue result = source.version();
 
         assertTrue(result.value().contains("-6b7ecba1"),
                 "with strip-prerelease false, the prerelease segment must be preserved; was: "
@@ -82,7 +86,7 @@ class HttpCurrentSourceTests {
     @Test
     void version_throws_withClearTruncatedBodyMessage_whenPointerDoesNotResolve() throws Exception {
         JsonNode body = MAPPER.readTree("{\"auth_mode\":\"oidc_auth\"}");
-        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/missing", false);
+        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/missing", false, SEMVER_PARSER);
 
         RuntimeException ex = assertThrows(RuntimeException.class, source::version);
 
@@ -95,7 +99,7 @@ class HttpCurrentSourceTests {
     @Test
     void version_throws_withClearMessage_whenPointerResolvesToANonTextualValue() throws Exception {
         JsonNode body = MAPPER.readTree("{\"version\":12345}");
-        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/version", false);
+        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/version", false, SEMVER_PARSER);
 
         RuntimeException ex = assertThrows(RuntimeException.class, source::version);
 

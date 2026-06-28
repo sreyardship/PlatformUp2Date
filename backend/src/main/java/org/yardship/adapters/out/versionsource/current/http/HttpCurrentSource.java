@@ -4,7 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.MissingNode;
 import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClient;
 import org.yardship.adapters.out.versionsource.VersionResponseExceptionMapper;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
 import java.io.Closeable;
@@ -28,15 +29,18 @@ public class HttpCurrentSource implements CurrentVersionSource, Closeable {
     private final HttpCurrentVersionClient client;
     private final String versionKey;
     private final boolean stripPrerelease;
+    private final VersionParser parser;
 
-    public HttpCurrentSource(HttpCurrentVersionClient client, String versionKey, boolean stripPrerelease) {
+    public HttpCurrentSource(HttpCurrentVersionClient client, String versionKey, boolean stripPrerelease,
+                             VersionParser parser) {
         this.client = client;
         this.versionKey = versionKey;
         this.stripPrerelease = stripPrerelease;
+        this.parser = parser;
     }
 
     @Override
-    public Version version() {
+    public VersionValue version() {
         JsonNode root = client.getCurrentVersion();
         JsonNode node = root.at(versionKey);
         if (node instanceof MissingNode || !node.isTextual()) {
@@ -48,7 +52,7 @@ public class HttpCurrentSource implements CurrentVersionSource, Closeable {
                             + "' did not resolve to a text value in the upstream response. Body: "
                             + truncate(root.toString()));
         }
-        Version version = new Version(node.textValue());
+        VersionValue version = parser.parse(node.textValue());
         return stripPrerelease ? version.withoutPreRelease() : version;
     }
 

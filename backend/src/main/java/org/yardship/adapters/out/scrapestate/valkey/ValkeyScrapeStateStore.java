@@ -10,7 +10,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.yardship.core.domain.primitives.ScrapeSnapshot;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.out.ScrapeStateStore;
 
@@ -25,7 +25,8 @@ import java.util.Optional;
  * Valkey is unreachable.
  *
  * <p>The snapshot is mapped to a plain-string DTO before serialisation so the domain
- * {@link Version} wrapper round-trips cleanly, and back to the domain on read.
+ * {@link org.yardship.core.domain.primitives.VersionValue} wrapper round-trips cleanly, and back to
+ * the domain on read.
  */
 @ApplicationScoped
 public class ValkeyScrapeStateStore implements ScrapeStateStore {
@@ -83,8 +84,13 @@ public class ValkeyScrapeStateStore implements ScrapeStateStore {
         } catch (JsonProcessingException e) {
             throw new ScrapeStateUnavailableException("Failed to deserialise scrape snapshot", e);
         }
+        // The persisted snapshot stores only the version STRINGS, not each app's scheme, so it
+        // rehydrates as SemverVersion — behaviour-preserving for every app today (all semver). When
+        // a non-semver app is persisted (calver, slice 05), the scheme must be persisted alongside
+        // and rehydrated through a per-app VersionParser here.
         List<VersionApplication> applications = dto.applications().stream()
-                .map(app -> new VersionApplication(app.name(), new Version(app.current()), new Version(app.latest())))
+                .map(app -> new VersionApplication(
+                        app.name(), new SemverVersion(app.current()), new SemverVersion(app.latest())))
                 .toList();
         return new ScrapeSnapshot(applications, Instant.ofEpochMilli(dto.lastAttemptAtEpochMillis()));
     }

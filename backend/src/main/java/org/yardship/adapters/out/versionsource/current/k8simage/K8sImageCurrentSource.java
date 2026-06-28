@@ -3,7 +3,8 @@ package org.yardship.adapters.out.versionsource.current.k8simage;
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.PodTemplateSpec;
 import io.fabric8.kubernetes.client.KubernetesClient;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
 import java.io.Closeable;
@@ -17,7 +18,7 @@ import java.util.List;
  * {@code workload} is a {@code kind/name} string ({@code deployment/argocd-server},
  * {@code statefulset/redis}, {@code daemonset/node-exporter}); {@link #version()} fetches that workload
  * from {@code namespace}, selects the container named {@code container} off its pod template
- * ({@code spec.template.spec.containers[].image}) and parses the tag into a {@link Version}.
+ * ({@code spec.template.spec.containers[].image}) and parses the tag into a {@link VersionValue}.
  *
  * <p>When {@code stripPrerelease} is {@code true}, the prerelease segment of the parsed version is
  * cleared before it is returned (e.g. {@code 1.23.0-alpine} → {@code 1.23.0}), mirroring the
@@ -37,32 +38,26 @@ public class K8sImageCurrentSource implements CurrentVersionSource, Closeable {
     private final String workload;
     private final String container;
     private final boolean stripPrerelease;
+    private final VersionParser parser;
 
     /**
      * Primary constructor. {@code stripPrerelease} mirrors the {@code http} current source's flag:
-     * when {@code true}, the prerelease segment of the image tag is cleared before reporting.
+     * when {@code true}, the prerelease segment of the parsed version is cleared before reporting.
+     * The {@code parser} produces the {@link VersionValue} in the app's scheme.
      */
     public K8sImageCurrentSource(KubernetesClient client, String namespace, String workload,
-                                 String container, boolean stripPrerelease) {
+                                 String container, boolean stripPrerelease, VersionParser parser) {
         this.client = client;
         this.namespace = namespace;
         this.workload = workload;
         this.container = container;
         this.stripPrerelease = stripPrerelease;
-    }
-
-    /**
-     * Backward-compat convenience constructor (no strip — existing call sites and ITs). Delegates
-     * to the primary constructor with {@code stripPrerelease=false}.
-     */
-    public K8sImageCurrentSource(KubernetesClient client, String namespace, String workload,
-                                 String container) {
-        this(client, namespace, workload, container, false);
+        this.parser = parser;
     }
 
     @Override
-    public Version version() {
-        Version version = versionFromImage(imageOfNamedContainer(podTemplate()));
+    public VersionValue version() {
+        VersionValue version = versionFromImage(imageOfNamedContainer(podTemplate()));
         return stripPrerelease ? version.withoutPreRelease() : version;
     }
 
@@ -109,21 +104,21 @@ public class K8sImageCurrentSource implements CurrentVersionSource, Closeable {
     }
 
     /**
-     * Extract the {@link Version} from a container image reference: strip the registry/repo prefix
+     * Extract the {@link VersionValue} from a container image reference: strip the registry/repo prefix
      * (everything up to and including the last {@code /}), then take the tag as the part after the
      * last {@code :} in that final segment. Keeping the tag scoped to the final segment means a
      * registry port like {@code registry:5000/app:1.2.3} is unambiguous — the {@code :5000} lives in
      * an earlier path segment. {@code v}-stripping and semver validation are delegated to
-     * {@link Version}, so a digest ({@code @sha256:…}) or a non-semver tag ({@code latest},
+     * the app's {@link VersionParser}, so a digest ({@code @sha256:…}) or a non-semver tag ({@code latest},
      * {@code stable}) throws.
      */
-    private static Version versionFromImage(String image) {
+    private VersionValue versionFromImage(String image) {
         String lastSegment = image.substring(image.lastIndexOf('/') + 1);
         int tagSeparator = lastSegment.lastIndexOf(':');
         if (tagSeparator < 0) {
             throw new IllegalStateException("Image '" + image + "' has no tag.");
         }
-        return new Version(lastSegment.substring(tagSeparator + 1));
+        return parser.parse(lastSegment.substring(tagSeparator + 1));
     }
 
     /**

@@ -1,42 +1,49 @@
 package org.yardship.unit.core.domain.primitives;
 
-import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.yardship.core.domain.exceptions.InvalidVersionException;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionValue;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@QuarkusTest
-public class VersionTests {
+/**
+ * Behavior suite for {@link SemverVersion}, the semver-backed {@link VersionValue}. Ported verbatim
+ * from the former {@code VersionTests} (deleted alongside the old {@code Version} class) — every
+ * assertion is semantically identical; only the concrete type ({@code SemverVersion}) and the Diff
+ * home ({@code VersionValue.Diff}) changed.
+ *
+ * <p>This is a pure domain unit test — no Quarkus context needed.
+ */
+public class SemverVersionTests {
 
     @Test
-    void Version_throwsInvalidVersionException_whenInputIsNull() {
+    void SemverVersion_throwsInvalidVersionException_whenInputIsNull() {
         assertThrows(InvalidVersionException.class,
-                () -> new Version(null));
+                () -> new SemverVersion(null));
     }
 
     @ParameterizedTest
     @MethodSource("invalidInputs")
-    void Version_throwsInvalidVersionException_whenInputIsInvalid(String input) {
+    void SemverVersion_throwsInvalidVersionException_whenInputIsInvalid(String input) {
         assertThrows(InvalidVersionException.class,
-                () -> new Version(input));
+                () -> new SemverVersion(input));
     }
 
     @Test
-    void Version_trimsAnyLeadingVCharacter() {
+    void SemverVersion_trimsAnyLeadingVCharacter() {
         // Arrange
         String expectedValue = "1.2.34";
         String inputStringWithLowerV = "v" + expectedValue;
         String inputStringWithUpperV = "V" + expectedValue;
 
         // Act
-        Version someVersion = new Version(inputStringWithLowerV);
-        Version anotherVersion = new Version(inputStringWithUpperV);
+        SemverVersion someVersion = new SemverVersion(inputStringWithLowerV);
+        SemverVersion anotherVersion = new SemverVersion(inputStringWithUpperV);
 
         // Assert
         assertEquals(expectedValue, someVersion.value());
@@ -46,9 +53,9 @@ public class VersionTests {
     @Test
     void isOlderThan_returnsTrue_whenComparableIsNewer() {
         // Arrange
-        Version oldVersion = new Version("1.2.3");
-        Version sameVersion = new Version("1.2.3");
-        Version newVersion = new Version("1.2.9");
+        SemverVersion oldVersion = new SemverVersion("1.2.3");
+        SemverVersion sameVersion = new SemverVersion("1.2.3");
+        SemverVersion newVersion = new SemverVersion("1.2.9");
 
         // Act & Assert
         assertTrue(oldVersion.isOlderThan(newVersion));
@@ -58,40 +65,40 @@ public class VersionTests {
 
     @Test
     void diffIsAtLeast_isTrue_whenSeverityIsEqual() {
-        assertTrue(Version.Diff.NONE.isAtLeast(Version.Diff.NONE));
-        assertTrue(Version.Diff.PATCH.isAtLeast(Version.Diff.PATCH));
-        assertTrue(Version.Diff.MINOR.isAtLeast(Version.Diff.MINOR));
-        assertTrue(Version.Diff.MAJOR.isAtLeast(Version.Diff.MAJOR));
+        assertTrue(VersionValue.Diff.NONE.isAtLeast(VersionValue.Diff.NONE));
+        assertTrue(VersionValue.Diff.PATCH.isAtLeast(VersionValue.Diff.PATCH));
+        assertTrue(VersionValue.Diff.MINOR.isAtLeast(VersionValue.Diff.MINOR));
+        assertTrue(VersionValue.Diff.MAJOR.isAtLeast(VersionValue.Diff.MAJOR));
     }
 
     @Test
     void diffIsAtLeast_isTrue_whenThisIsMoreSevere() {
         // Ordering contract: NONE < PATCH < MINOR < MAJOR
-        assertTrue(Version.Diff.PATCH.isAtLeast(Version.Diff.NONE));
-        assertTrue(Version.Diff.MINOR.isAtLeast(Version.Diff.PATCH));
-        assertTrue(Version.Diff.MINOR.isAtLeast(Version.Diff.NONE));
-        assertTrue(Version.Diff.MAJOR.isAtLeast(Version.Diff.MINOR));
-        assertTrue(Version.Diff.MAJOR.isAtLeast(Version.Diff.PATCH));
-        assertTrue(Version.Diff.MAJOR.isAtLeast(Version.Diff.NONE));
+        assertTrue(VersionValue.Diff.PATCH.isAtLeast(VersionValue.Diff.NONE));
+        assertTrue(VersionValue.Diff.MINOR.isAtLeast(VersionValue.Diff.PATCH));
+        assertTrue(VersionValue.Diff.MINOR.isAtLeast(VersionValue.Diff.NONE));
+        assertTrue(VersionValue.Diff.MAJOR.isAtLeast(VersionValue.Diff.MINOR));
+        assertTrue(VersionValue.Diff.MAJOR.isAtLeast(VersionValue.Diff.PATCH));
+        assertTrue(VersionValue.Diff.MAJOR.isAtLeast(VersionValue.Diff.NONE));
     }
 
     @Test
     void diffIsAtLeast_isFalse_whenThisIsLessSevere() {
-        assertFalse(Version.Diff.NONE.isAtLeast(Version.Diff.PATCH));
-        assertFalse(Version.Diff.NONE.isAtLeast(Version.Diff.MINOR));
-        assertFalse(Version.Diff.NONE.isAtLeast(Version.Diff.MAJOR));
-        assertFalse(Version.Diff.PATCH.isAtLeast(Version.Diff.MINOR));
-        assertFalse(Version.Diff.PATCH.isAtLeast(Version.Diff.MAJOR));
-        assertFalse(Version.Diff.MINOR.isAtLeast(Version.Diff.MAJOR));
+        assertFalse(VersionValue.Diff.NONE.isAtLeast(VersionValue.Diff.PATCH));
+        assertFalse(VersionValue.Diff.NONE.isAtLeast(VersionValue.Diff.MINOR));
+        assertFalse(VersionValue.Diff.NONE.isAtLeast(VersionValue.Diff.MAJOR));
+        assertFalse(VersionValue.Diff.PATCH.isAtLeast(VersionValue.Diff.MINOR));
+        assertFalse(VersionValue.Diff.PATCH.isAtLeast(VersionValue.Diff.MAJOR));
+        assertFalse(VersionValue.Diff.MINOR.isAtLeast(VersionValue.Diff.MAJOR));
     }
 
     @Test
     void withoutPreRelease_clearsThePreReleaseSegment_whenPresent() {
         // Arrange
-        Version versionWithPreRelease = new Version("2.11.1-6b7ecba1");
+        SemverVersion versionWithPreRelease = new SemverVersion("2.11.1-6b7ecba1");
 
         // Act
-        Version result = versionWithPreRelease.withoutPreRelease();
+        VersionValue result = versionWithPreRelease.withoutPreRelease();
 
         // Assert
         assertEquals("2.11.1", result.value());
@@ -100,10 +107,10 @@ public class VersionTests {
     @Test
     void withoutPreRelease_returnsAnUnchangedCopy_whenNoPreReleaseIsPresent() {
         // Arrange
-        Version versionWithoutPreRelease = new Version("2.11.1");
+        SemverVersion versionWithoutPreRelease = new SemverVersion("2.11.1");
 
         // Act
-        Version result = versionWithoutPreRelease.withoutPreRelease();
+        VersionValue result = versionWithoutPreRelease.withoutPreRelease();
 
         // Assert
         assertEquals("2.11.1", result.value());
@@ -112,10 +119,10 @@ public class VersionTests {
     @Test
     void withoutPreRelease_preservesBuildMetadata() {
         // Arrange
-        Version versionWithPreReleaseAndBuild = new Version("2.11.1-rc.1+build5");
+        SemverVersion versionWithPreReleaseAndBuild = new SemverVersion("2.11.1-rc.1+build5");
 
         // Act
-        Version result = versionWithPreReleaseAndBuild.withoutPreRelease();
+        VersionValue result = versionWithPreReleaseAndBuild.withoutPreRelease();
 
         // Assert
         assertEquals("2.11.1+build5", result.value());
@@ -124,21 +131,21 @@ public class VersionTests {
     @Test
     void withoutPreRelease_returnsANewInstance_leavingTheOriginalUnchanged() {
         // Arrange
-        Version original = new Version("2.11.1-6b7ecba1");
+        SemverVersion original = new SemverVersion("2.11.1-6b7ecba1");
 
         // Act
-        Version result = original.withoutPreRelease();
+        VersionValue result = original.withoutPreRelease();
 
         // Assert
-        assertEquals("2.11.1-6b7ecba1", original.value(), "Version is immutable: the original must be untouched");
+        assertEquals("2.11.1-6b7ecba1", original.value(), "SemverVersion is immutable: the original must be untouched");
         assertEquals("2.11.1", result.value());
     }
 
     @Test
     void isOlderThan_isFalseBothWays_whenVersionsDifferOnlyInBuildMetadata() {
         // Arrange
-        Version buildAbc = new Version("1.2.3+abc");
-        Version buildDef = new Version("1.2.3+def");
+        SemverVersion buildAbc = new SemverVersion("1.2.3+abc");
+        SemverVersion buildDef = new SemverVersion("1.2.3+def");
 
         // Act & Assert
         assertFalse(buildAbc.isOlderThan(buildDef),
@@ -150,8 +157,8 @@ public class VersionTests {
     @Test
     void isOlderThan_isFalseBothWays_whenOnlyOneVersionHasBuildMetadata() {
         // Arrange
-        Version withoutBuild = new Version("1.2.3");
-        Version withBuild = new Version("1.2.3+build5");
+        SemverVersion withoutBuild = new SemverVersion("1.2.3");
+        SemverVersion withBuild = new SemverVersion("1.2.3+build5");
 
         // Act & Assert
         assertFalse(withoutBuild.isOlderThan(withBuild),
@@ -163,37 +170,37 @@ public class VersionTests {
     @Test
     void diff_isNone_whenVersionsDifferOnlyInBuildMetadata() {
         // Arrange
-        Version buildAbc = new Version("1.2.3+abc");
-        Version buildDef = new Version("1.2.3+def");
+        SemverVersion buildAbc = new SemverVersion("1.2.3+abc");
+        SemverVersion buildDef = new SemverVersion("1.2.3+def");
 
         // Act & Assert
         // Per semver spec §10, build metadata is ignored for precedence/drift purposes.
-        // FINDING (if this fails): Version.diff() maps semver4j's BUILD VersionDiff to
+        // FINDING (if this fails): SemverVersion.diff() maps semver4j's BUILD VersionDiff to
         // Diff.PATCH alongside PRE_RELEASE, so a build-metadata-only difference is
         // currently reported as Diff.PATCH rather than Diff.NONE.
-        assertEquals(Version.Diff.NONE, buildAbc.diff(buildDef));
+        assertEquals(VersionValue.Diff.NONE, buildAbc.diff(buildDef));
     }
 
     @Test
     void diff_isNone_whenOnlyOneVersionHasBuildMetadata() {
         // Arrange
-        Version withoutBuild = new Version("1.2.3");
-        Version withBuild = new Version("1.2.3+build5");
+        SemverVersion withoutBuild = new SemverVersion("1.2.3");
+        SemverVersion withBuild = new SemverVersion("1.2.3+build5");
 
         // Act & Assert
         // See FINDING note above: this currently maps to Diff.PATCH via the BUILD case.
-        assertEquals(Version.Diff.NONE, withoutBuild.diff(withBuild));
+        assertEquals(VersionValue.Diff.NONE, withoutBuild.diff(withBuild));
     }
 
     @Test
     void diff_isUnaffectedByBuildMetadata_whenAPreReleaseIsAlsoPresent() {
         // Arrange
-        Version preReleaseOnly = new Version("1.2.3-rc.1");
-        Version preReleaseWithBuild = new Version("1.2.3-rc.1+build5");
+        SemverVersion preReleaseOnly = new SemverVersion("1.2.3-rc.1");
+        SemverVersion preReleaseWithBuild = new SemverVersion("1.2.3-rc.1+build5");
 
         // Act
-        Version.Diff diffWithoutBuild = preReleaseOnly.diff(new Version("1.2.3"));
-        Version.Diff diffWithBuild = preReleaseWithBuild.diff(new Version("1.2.3"));
+        VersionValue.Diff diffWithoutBuild = preReleaseOnly.diff(new SemverVersion("1.2.3"));
+        VersionValue.Diff diffWithBuild = preReleaseWithBuild.diff(new SemverVersion("1.2.3"));
 
         // Assert
         // Adding build metadata alongside an existing prerelease must not change the
@@ -205,8 +212,8 @@ public class VersionTests {
     @Test
     void equals_treatsVersionsAsDifferent_whenTheyDifferOnlyInBuildMetadata() {
         // Arrange
-        Version buildAbc = new Version("1.2.3+abc");
-        Version buildDef = new Version("1.2.3+def");
+        SemverVersion buildAbc = new SemverVersion("1.2.3+abc");
+        SemverVersion buildDef = new SemverVersion("1.2.3+def");
 
         // Act & Assert
         // NOTE: this pins semver4j's actual equals() behaviour, which is stricter than
@@ -221,14 +228,14 @@ public class VersionTests {
 
     @Test
     void preReleaseSegment_returnsEmpty_whenVersionHasNoPrerelease() {
-        assertEquals(java.util.Optional.empty(), new Version("1.22.0").preReleaseSegment(),
+        assertEquals(java.util.Optional.empty(), new SemverVersion("1.22.0").preReleaseSegment(),
                 "1.22.0 has no prerelease segment — must return Optional.empty()");
     }
 
     @Test
     void preReleaseSegment_returnsSinglePartPrerelease_forAlpineVariant() {
         assertEquals(java.util.Optional.of("alpine"),
-                new Version("1.22.0-alpine").preReleaseSegment(),
+                new SemverVersion("1.22.0-alpine").preReleaseSegment(),
                 "1.22.0-alpine → prerelease segment is 'alpine'");
     }
 
@@ -237,7 +244,7 @@ public class VersionTests {
         // semver4j parses "alpine3.16" as a single prerelease identifier (no dot separator),
         // so it returns ["alpine3.16"]. Dot-joining one element yields "alpine3.16".
         assertEquals(java.util.Optional.of("alpine3.16"),
-                new Version("1.22.0-alpine3.16").preReleaseSegment(),
+                new SemverVersion("1.22.0-alpine3.16").preReleaseSegment(),
                 "1.22.0-alpine3.16 → prerelease segment is 'alpine3.16'");
     }
 
@@ -245,15 +252,15 @@ public class VersionTests {
     void preReleaseSegment_returnsDotJoined_forMultiPartPrerelease() {
         // semver4j splits "rc.1" on '.' into ["rc","1"]; dot-joining must give "rc.1".
         assertEquals(java.util.Optional.of("rc.1"),
-                new Version("1.22.0-rc.1").preReleaseSegment(),
+                new SemverVersion("1.22.0-rc.1").preReleaseSegment(),
                 "1.22.0-rc.1 → prerelease segment is 'rc.1' (dot-joined)");
     }
 
     @Test
     void preReleaseSegment_distinguishes_alpineFrom_alpine316() {
         // Exact-match contract: "alpine" ≠ "alpine3.16" — accessor must expose this distinction.
-        var alpine    = new Version("1.22.0-alpine").preReleaseSegment();
-        var alpine316 = new Version("1.22.0-alpine3.16").preReleaseSegment();
+        var alpine    = new SemverVersion("1.22.0-alpine").preReleaseSegment();
+        var alpine316 = new SemverVersion("1.22.0-alpine3.16").preReleaseSegment();
 
         assertNotEquals(alpine, alpine316,
                 "'alpine' and 'alpine3.16' must be distinct prerelease segments");

@@ -1,5 +1,7 @@
 package org.yardship.unit.adapters.out.versionsource.latest.ociregistry;
 
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.latest.FailedLatestSource;
@@ -26,6 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@link FailedLatestSource}, never a boot crash.
  */
 class OciRegistryLatestSourceFactoryTests {
+    private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
+
 
     private final OciRegistryLatestSourceFactory factory = new OciRegistryLatestSourceFactory();
 
@@ -39,7 +43,7 @@ class OciRegistryLatestSourceFactoryTests {
     @Test
     void create_rejectsAbsentRegistry_withAClearMessageNamingRegistry() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> factory.create(source(Optional.empty(), Optional.of("library/nginx"))));
+                () -> factory.create(source(Optional.empty(), Optional.of("library/nginx")), SEMVER_PARSER));
         assertTrue(ex.getMessage().toLowerCase().contains("registry"),
                 "the validation error must mention 'registry'; was: " + ex.getMessage());
     }
@@ -47,7 +51,7 @@ class OciRegistryLatestSourceFactoryTests {
     @Test
     void create_rejectsBlankRegistry_withAClearMessageNamingRegistry() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> factory.create(source(Optional.of("   "), Optional.of("library/nginx"))));
+                () -> factory.create(source(Optional.of("   "), Optional.of("library/nginx")), SEMVER_PARSER));
         assertTrue(ex.getMessage().toLowerCase().contains("registry"),
                 "the validation error must mention 'registry'; was: " + ex.getMessage());
     }
@@ -57,7 +61,7 @@ class OciRegistryLatestSourceFactoryTests {
     @Test
     void create_rejectsAbsentRepo_withAClearMessageNamingRepo() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> factory.create(source(Optional.of("registry.example.com"), Optional.empty())));
+                () -> factory.create(source(Optional.of("registry.example.com"), Optional.empty()), SEMVER_PARSER));
         assertTrue(ex.getMessage().toLowerCase().contains("repo"),
                 "the validation error must mention 'repo'; was: " + ex.getMessage());
     }
@@ -65,7 +69,7 @@ class OciRegistryLatestSourceFactoryTests {
     @Test
     void create_rejectsBlankRepo_withAClearMessageNamingRepo() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> factory.create(source(Optional.of("registry.example.com"), Optional.of("   "))));
+                () -> factory.create(source(Optional.of("registry.example.com"), Optional.of("   ")), SEMVER_PARSER));
         assertTrue(ex.getMessage().toLowerCase().contains("repo"),
                 "the validation error must mention 'repo'; was: " + ex.getMessage());
     }
@@ -75,21 +79,21 @@ class OciRegistryLatestSourceFactoryTests {
     @Test
     void create_buildsASource_whenRegistryAndRepoAreWellFormed() {
         assertNotNull(factory.create(source(
-                Optional.of("registry.example.com"), Optional.of("library/nginx"))));
+                Optional.of("registry.example.com"), Optional.of("library/nginx")), SEMVER_PARSER));
     }
 
     @Test
     void create_buildsASource_forSimpleImageName_withoutSlash() {
         // repo can be a single path segment (e.g. "nginx" for Docker Hub official images)
         assertNotNull(factory.create(source(
-                Optional.of("registry.example.com"), Optional.of("nginx"))));
+                Optional.of("registry.example.com"), Optional.of("nginx")), SEMVER_PARSER));
     }
 
     @Test
     void create_buildsASource_forDeepRepoPath_withMultipleSlashes() {
         // OCI repos may have multi-segment paths like "org/team/image"
         assertNotNull(factory.create(source(
-                Optional.of("registry.example.com"), Optional.of("org/team/image"))));
+                Optional.of("registry.example.com"), Optional.of("org/team/image")), SEMVER_PARSER));
     }
 
     @Test
@@ -97,7 +101,7 @@ class OciRegistryLatestSourceFactoryTests {
         // An explicit "http://" prefix on registry is used as-is (for local/test registries).
         // We assert create() succeeds — the IT verifies the actual wire URL.
         assertNotNull(factory.create(source(
-                Optional.of("http://localhost:5000"), Optional.of("library/nginx"))));
+                Optional.of("http://localhost:5000"), Optional.of("library/nginx")), SEMVER_PARSER));
     }
 
     @Test
@@ -105,7 +109,7 @@ class OciRegistryLatestSourceFactoryTests {
         // A bare hostname (no scheme) must get "https://" prepended.
         // We assert create() succeeds — the IT verifies the actual wire URL.
         assertNotNull(factory.create(source(
-                Optional.of("registry.example.com"), Optional.of("library/nginx"))));
+                Optional.of("registry.example.com"), Optional.of("library/nginx")), SEMVER_PARSER));
     }
 
     // --- auth: value-level misconfiguration → FailedLatestSource (issue 02) ------------------
@@ -115,7 +119,7 @@ class OciRegistryLatestSourceFactoryTests {
         // Anonymous access (no auth fragment) must succeed and return a working source.
         LatestVersionSource result = factory.create(source(
                 Optional.of("registry.example.com"), Optional.of("library/nginx"),
-                Optional.empty()));
+                Optional.empty()), SEMVER_PARSER);
 
         assertNotNull(result);
         // Must NOT be a FailedLatestSource — a FailedLatestSource would throw on version()
@@ -128,7 +132,7 @@ class OciRegistryLatestSourceFactoryTests {
     void create_withValidBasicAuth_returnsARealSource_notFailedLatestSource() {
         LatestVersionSource result = factory.create(source(
                 Optional.of("registry.example.com"), Optional.of("library/nginx"),
-                Optional.of(auth("basic", Optional.of("user"), Optional.of("s3cr3t")))));
+                Optional.of(auth("basic", Optional.of("user"), Optional.of("s3cr3t")))), SEMVER_PARSER);
 
         assertNotNull(result);
         assertTrue(!(result instanceof FailedLatestSource),
@@ -139,7 +143,7 @@ class OciRegistryLatestSourceFactoryTests {
     void create_withBasicAuth_andBlankUsername_returnsFailedLatestSource_withClearMessage() {
         LatestVersionSource result = factory.create(source(
                 Optional.of("registry.example.com"), Optional.of("library/nginx"),
-                Optional.of(auth("basic", Optional.of("  "), Optional.of("s3cr3t")))));
+                Optional.of(auth("basic", Optional.of("  "), Optional.of("s3cr3t")))), SEMVER_PARSER);
 
         assertInstanceOf(FailedLatestSource.class, result,
                 "Blank basic username must produce a FailedLatestSource");
@@ -154,7 +158,7 @@ class OciRegistryLatestSourceFactoryTests {
     void create_withBasicAuth_andAbsentUsername_returnsFailedLatestSource_withClearMessage() {
         LatestVersionSource result = factory.create(source(
                 Optional.of("registry.example.com"), Optional.of("library/nginx"),
-                Optional.of(auth("basic", Optional.empty(), Optional.of("s3cr3t")))));
+                Optional.of(auth("basic", Optional.empty(), Optional.of("s3cr3t")))), SEMVER_PARSER);
 
         assertInstanceOf(FailedLatestSource.class, result,
                 "Absent basic username must produce a FailedLatestSource");
@@ -165,7 +169,7 @@ class OciRegistryLatestSourceFactoryTests {
     void create_withBasicAuth_andBlankPassword_returnsFailedLatestSource_withClearMessage() {
         LatestVersionSource result = factory.create(source(
                 Optional.of("registry.example.com"), Optional.of("library/nginx"),
-                Optional.of(auth("basic", Optional.of("user"), Optional.of("")))));
+                Optional.of(auth("basic", Optional.of("user"), Optional.of("")))), SEMVER_PARSER);
 
         assertInstanceOf(FailedLatestSource.class, result,
                 "Blank basic password must produce a FailedLatestSource");
@@ -176,7 +180,7 @@ class OciRegistryLatestSourceFactoryTests {
     void create_withBasicAuth_andAbsentPassword_returnsFailedLatestSource_withClearMessage() {
         LatestVersionSource result = factory.create(source(
                 Optional.of("registry.example.com"), Optional.of("library/nginx"),
-                Optional.of(auth("basic", Optional.of("user"), Optional.empty()))));
+                Optional.of(auth("basic", Optional.of("user"), Optional.empty()))), SEMVER_PARSER);
 
         assertInstanceOf(FailedLatestSource.class, result,
                 "Absent basic password must produce a FailedLatestSource");
@@ -189,7 +193,7 @@ class OciRegistryLatestSourceFactoryTests {
         // the factory must refuse it with a FailedLatestSource, not a boot crash.
         LatestVersionSource result = factory.create(source(
                 Optional.of("registry.example.com"), Optional.of("library/nginx"),
-                Optional.of(auth("bearer", Optional.empty(), Optional.empty()))));
+                Optional.of(auth("bearer", Optional.empty(), Optional.empty()))), SEMVER_PARSER);
 
         assertInstanceOf(FailedLatestSource.class, result,
                 "'bearer' auth.type must produce a FailedLatestSource");
@@ -204,7 +208,7 @@ class OciRegistryLatestSourceFactoryTests {
         // Any auth.type other than 'basic' is unsupported and must surface as a FailedLatestSource.
         LatestVersionSource result = factory.create(source(
                 Optional.of("registry.example.com"), Optional.of("library/nginx"),
-                Optional.of(auth("oauth2", Optional.empty(), Optional.empty()))));
+                Optional.of(auth("oauth2", Optional.empty(), Optional.empty()))), SEMVER_PARSER);
 
         assertInstanceOf(FailedLatestSource.class, result,
                 "Unsupported auth.type must produce a FailedLatestSource");
@@ -221,7 +225,7 @@ class OciRegistryLatestSourceFactoryTests {
         // We verify no exception escapes create() itself:
         LatestVersionSource result = factory.create(source(
                 Optional.of("registry.example.com"), Optional.of("library/nginx"),
-                Optional.of(auth("token-file", Optional.empty(), Optional.empty()))));
+                Optional.of(auth("token-file", Optional.empty(), Optional.empty()))), SEMVER_PARSER);
 
         // Must return something (a FailedLatestSource), not throw:
         assertNotNull(result);
@@ -254,7 +258,7 @@ class OciRegistryLatestSourceFactoryTests {
         // logic; the IT verifies the end-to-end behaviour.
         LatestVersionSource result = factory.create(sourceWithFilter(
                 Optional.of("registry.example.com"), Optional.of("library/nginx"),
-                Optional.of("alpine")));
+                Optional.of("alpine")), SEMVER_PARSER);
 
         assertNotNull(result);
         assertTrue(!(result instanceof FailedLatestSource),
@@ -266,7 +270,7 @@ class OciRegistryLatestSourceFactoryTests {
         // Absent prereleaseFilter (normal case) must continue to produce a working source.
         LatestVersionSource result = factory.create(sourceWithFilter(
                 Optional.of("registry.example.com"), Optional.of("library/nginx"),
-                Optional.empty()));
+                Optional.empty()), SEMVER_PARSER);
 
         assertNotNull(result);
         assertTrue(!(result instanceof FailedLatestSource),
@@ -311,6 +315,33 @@ class OciRegistryLatestSourceFactoryTests {
             public Optional<String> url() {
                 return Optional.empty();
             }
+
+            @Override
+            public Optional<String> regex() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> host() { return Optional.empty(); }
+
+            @Override
+            public Optional<Integer> port() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> user() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> privateKey() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> privateKeyFile() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> hostKey() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> knownHosts() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> releaseField() { return Optional.empty(); }
 
             @Override
             public Optional<String> repo() {
@@ -385,6 +416,15 @@ class OciRegistryLatestSourceFactoryTests {
         return new ApplicationConfigLoader.VersionSource() {
             @Override public String type() { return "oci-registry"; }
             @Override public Optional<String> url() { return Optional.empty(); }
+            @Override public Optional<String> regex() { return Optional.empty(); }
+            @Override public Optional<String> host() { return Optional.empty(); }
+            @Override public Optional<Integer> port() { return Optional.empty(); }
+            @Override public Optional<String> user() { return Optional.empty(); }
+            @Override public Optional<String> privateKey() { return Optional.empty(); }
+            @Override public Optional<String> privateKeyFile() { return Optional.empty(); }
+            @Override public Optional<String> hostKey() { return Optional.empty(); }
+            @Override public Optional<String> knownHosts() { return Optional.empty(); }
+            @Override public Optional<String> releaseField() { return Optional.empty(); }
             @Override public Optional<String> repo() { return repo; }
             @Override public Optional<String> registry() { return registry; }
             @Override public Optional<String> namespace() { return Optional.empty(); }

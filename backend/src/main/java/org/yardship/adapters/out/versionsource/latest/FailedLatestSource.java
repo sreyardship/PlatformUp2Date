@@ -1,6 +1,6 @@
 package org.yardship.adapters.out.versionsource.latest;
 
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.LatestVersionSource;
 
 import java.io.Closeable;
@@ -25,7 +25,7 @@ public class FailedLatestSource implements LatestVersionSource, Closeable {
     }
 
     @Override
-    public Version version() {
+    public VersionValue version() {
         throw new IllegalStateException(message);
     }
 

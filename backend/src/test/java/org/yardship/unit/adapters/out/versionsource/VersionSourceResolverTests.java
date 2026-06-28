@@ -5,7 +5,10 @@ import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.current.CurrentVersionSourceFactory;
 import org.yardship.adapters.out.versionsource.latest.LatestVersionSourceFactory;
 import org.yardship.adapters.out.versionsource.VersionSourceResolver;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
+import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.ApplicationSources;
 import org.yardship.core.ports.out.CurrentVersionSource;
 import org.yardship.core.ports.out.LatestVersionSource;
@@ -151,6 +154,16 @@ class VersionSourceResolverTests {
             public ApplicationConfigLoader.VersionSource latest() {
                 return latest;
             }
+
+            @Override
+            public VersionScheme versionScheme() {
+                return VersionScheme.SEMVER;
+            }
+
+            @Override
+            public Optional<String> calverFormat() {
+                return Optional.empty();
+            }
         };
     }
 
@@ -165,6 +178,35 @@ class VersionSourceResolverTests {
             public Optional<String> url() {
                 return Optional.of("http://localhost/" + type);
             }
+
+            @Override
+            public Optional<String> regex() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> host() { return Optional.empty(); }
+
+            @Override
+            public Optional<Integer> port() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> user() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> privateKey() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> privateKeyFile() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> hostKey() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> knownHosts() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> releaseField() { return Optional.empty(); }
 
             @Override
             public Optional<String> repo() {
@@ -244,10 +286,10 @@ class VersionSourceResolverTests {
         }
 
         @Override
-        public CurrentVersionSource create(ApplicationConfigLoader.VersionSource cfg) {
+        public CurrentVersionSource create(ApplicationConfigLoader.VersionSource cfg, VersionParser parser) {
             createCount++;
             lastCfg = cfg;
-            lastProduced = () -> new Version("1.0.0");
+            lastProduced = () -> new SemverVersion("1.0.0");
             return lastProduced;
         }
     }
@@ -268,10 +310,10 @@ class VersionSourceResolverTests {
         }
 
         @Override
-        public LatestVersionSource create(ApplicationConfigLoader.VersionSource cfg) {
+        public LatestVersionSource create(ApplicationConfigLoader.VersionSource cfg, VersionParser parser) {
             createCount++;
             lastCfg = cfg;
-            lastProduced = () -> new Version("2.0.0");
+            lastProduced = () -> new SemverVersion("2.0.0");
             return lastProduced;
         }
     }

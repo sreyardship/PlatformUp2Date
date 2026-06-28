@@ -10,7 +10,8 @@ import org.yardship.adapters.in.mcp.ApplicationView;
 import org.yardship.core.domain.primitives.ScrapeTarget;
 import org.yardship.core.domain.primitives.Side;
 import org.yardship.core.domain.primitives.TargetResult;
-import org.yardship.core.domain.primitives.Version;
+import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.in.ApplicationVersionPort;
 import org.yardship.core.ports.in.Outcome;
@@ -47,11 +48,11 @@ public class ApplicationMcpToolsTests {
     private ApplicationMcpTools sut;
 
     private final VersionApplication majorBehind = new VersionApplication("argo-cd",
-            new Version("1.1.1"), new Version("2.2.2"));
+            new SemverVersion("1.1.1"), new SemverVersion("2.2.2"));
     private final VersionApplication minorBehind = new VersionApplication("grafana",
-            new Version("2.1.0"), new Version("2.2.0"));
+            new SemverVersion("2.1.0"), new SemverVersion("2.2.0"));
     private final VersionApplication current = new VersionApplication("gitea",
-            new Version("2.0.0"), new Version("2.0.0"));
+            new SemverVersion("2.0.0"), new SemverVersion("2.0.0"));
 
     private void stubApplications() {
         when(applicationVersionPort.getApplications())
@@ -75,7 +76,7 @@ public class ApplicationMcpToolsTests {
     void listOutdatedApplications_majorThreshold_returnsOnlyMajorDriftApps() {
         stubApplications();
 
-        List<ApplicationView> result = sut.list_outdated_applications(Version.Diff.MAJOR);
+        List<ApplicationView> result = sut.list_outdated_applications(VersionValue.Diff.MAJOR);
 
         assertEquals(1, result.size());
         assertEquals("argo-cd", result.getFirst().name());
@@ -85,7 +86,7 @@ public class ApplicationMcpToolsTests {
     void listOutdatedApplications_projectsViewFieldsCorrectly() {
         stubApplications();
 
-        ApplicationView view = sut.list_outdated_applications(Version.Diff.MAJOR).getFirst();
+        ApplicationView view = sut.list_outdated_applications(VersionValue.Diff.MAJOR).getFirst();
 
         assertEquals("argo-cd", view.name());
         assertEquals("1.1.1", view.current());
