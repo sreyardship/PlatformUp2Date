@@ -57,6 +57,28 @@ public class Version {
     }
 
     /**
+     * Returns the dot-joined prerelease segment of this version, or {@link java.util.Optional#empty()}
+     * when there is no prerelease segment. Semver4j splits the prerelease on {@code .} into a list
+     * (e.g. {@code 1.22.0-rc.1} → {@code ["rc","1"]}); this method re-joins them so callers get
+     * the full string ({@code "rc.1"}).
+     *
+     * <p>Examples:
+     * <ul>
+     *   <li>{@code 1.22.0-alpine} → {@code Optional.of("alpine")}</li>
+     *   <li>{@code 1.22.0-alpine3.16} → {@code Optional.of("alpine3.16")}</li>
+     *   <li>{@code 1.22.0-rc.1} → {@code Optional.of("rc.1")}</li>
+     *   <li>{@code 1.22.0} → {@code Optional.empty()}</li>
+     * </ul>
+     */
+    public java.util.Optional<String> preReleaseSegment() {
+        java.util.List<String> parts = semver.getPreRelease();
+        if (parts == null || parts.isEmpty()) {
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.of(String.join(".", parts));
+    }
+
+    /**
      * Returns a new {@link Version} with the prerelease segment cleared, leaving build metadata
      * and {@code this} untouched. A version with no prerelease segment is returned unchanged
      * (as a new instance wrapping an equal {@link Semver}).

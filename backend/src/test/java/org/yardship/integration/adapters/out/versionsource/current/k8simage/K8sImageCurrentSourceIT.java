@@ -147,6 +147,37 @@ class K8sImageCurrentSourceIT {
         assertThrows(RuntimeException.class, source::version);
     }
 
+    // ---- strip-prerelease (slice 05) ---------------------------------------------------------
+
+    @Test
+    void stripPrerelease_false_preservesPrereleaseSegment_defaultBehaviour() {
+        // stripPrerelease=false (default): a tag "1.23.0-alpine" must be reported as-is.
+        client.apps().deployments().inNamespace(NAMESPACE)
+                .resource(deployment("strip-false", container("app", "myrepo/app:1.23.0-alpine")))
+                .create();
+
+        K8sImageCurrentSource source = new K8sImageCurrentSource(
+                client, NAMESPACE, "deployment/strip-false", "app", false);
+
+        assertEquals(new Version("1.23.0-alpine"), source.version(),
+                "stripPrerelease=false must preserve the prerelease segment");
+    }
+
+    @Test
+    void stripPrerelease_true_stripsPrerelease_fromAlpineTag() {
+        // stripPrerelease=true: a tag "1.23.0-alpine" must be reported as "1.23.0".
+        // Without the strip implementation, version() returns "1.23.0-alpine" → test fails red.
+        client.apps().deployments().inNamespace(NAMESPACE)
+                .resource(deployment("strip-true", container("app", "myrepo/app:1.23.0-alpine")))
+                .create();
+
+        K8sImageCurrentSource source = new K8sImageCurrentSource(
+                client, NAMESPACE, "deployment/strip-true", "app", true);
+
+        assertEquals(new Version("1.23.0"), source.version(),
+                "stripPrerelease=true must strip the prerelease segment: 1.23.0-alpine → 1.23.0");
+    }
+
     // --- fixtures -----------------------------------------------------------------------------
 
     private static Container container(String name, String image) {

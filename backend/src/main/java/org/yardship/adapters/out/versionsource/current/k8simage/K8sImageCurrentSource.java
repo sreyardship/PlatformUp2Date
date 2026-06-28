@@ -19,6 +19,13 @@ import java.util.List;
  * from {@code namespace}, selects the container named {@code container} off its pod template
  * ({@code spec.template.spec.containers[].image}) and parses the tag into a {@link Version}.
  *
+ * <p>When {@code stripPrerelease} is {@code true}, the prerelease segment of the parsed version is
+ * cleared before it is returned (e.g. {@code 1.23.0-alpine} → {@code 1.23.0}), mirroring the
+ * behaviour of the {@code http} current source's {@code strip-prerelease} option (ADR-0014). This
+ * allows a cluster running an alpine-flavour image ({@code app:1.23.0-alpine}) to compare as
+ * {@code 1.23.0} against an {@code oci-registry} latest source also configured with
+ * {@code strip-prerelease: true}.
+ *
  * <p>A missing workload, an unknown kind, a missing named container, a digest reference, or a
  * non-semver tag all THROW, so the scrape loop isolates and counts that app's failure (same
  * isolation as an unreachable HTTP endpoint).
@@ -29,17 +36,34 @@ public class K8sImageCurrentSource implements CurrentVersionSource, Closeable {
     private final String namespace;
     private final String workload;
     private final String container;
+    private final boolean stripPrerelease;
 
-    public K8sImageCurrentSource(KubernetesClient client, String namespace, String workload, String container) {
+    /**
+     * Primary constructor. {@code stripPrerelease} mirrors the {@code http} current source's flag:
+     * when {@code true}, the prerelease segment of the image tag is cleared before reporting.
+     */
+    public K8sImageCurrentSource(KubernetesClient client, String namespace, String workload,
+                                 String container, boolean stripPrerelease) {
         this.client = client;
         this.namespace = namespace;
         this.workload = workload;
         this.container = container;
+        this.stripPrerelease = stripPrerelease;
+    }
+
+    /**
+     * Backward-compat convenience constructor (no strip — existing call sites and ITs). Delegates
+     * to the primary constructor with {@code stripPrerelease=false}.
+     */
+    public K8sImageCurrentSource(KubernetesClient client, String namespace, String workload,
+                                 String container) {
+        this(client, namespace, workload, container, false);
     }
 
     @Override
     public Version version() {
-        return versionFromImage(imageOfNamedContainer(podTemplate()));
+        Version version = versionFromImage(imageOfNamedContainer(podTemplate()));
+        return stripPrerelease ? version.withoutPreRelease() : version;
     }
 
     private PodTemplateSpec podTemplate() {

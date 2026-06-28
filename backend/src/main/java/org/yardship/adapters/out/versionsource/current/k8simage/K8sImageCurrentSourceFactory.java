@@ -39,7 +39,8 @@ public class K8sImageCurrentSourceFactory implements CurrentVersionSourceFactory
         String namespace = required(cfg.namespace(), "namespace");
         String workload = required(cfg.workload(), "workload");
         String container = required(cfg.container(), "container");
-        return new K8sImageCurrentSource(client, namespace, workload, container);
+        boolean stripPrerelease = cfg.stripPrerelease().orElse(false);
+        return new K8sImageCurrentSource(client, namespace, workload, container, stripPrerelease);
     }
 
     private static String required(Optional<String> value, String field) {

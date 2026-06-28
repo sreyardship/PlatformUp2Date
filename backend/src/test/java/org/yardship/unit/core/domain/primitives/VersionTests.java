@@ -217,6 +217,48 @@ public class VersionTests {
         assertNotEquals(buildAbc, buildDef);
     }
 
+    // ---- preReleaseSegment() accessor -----------------------------------------------------------
+
+    @Test
+    void preReleaseSegment_returnsEmpty_whenVersionHasNoPrerelease() {
+        assertEquals(java.util.Optional.empty(), new Version("1.22.0").preReleaseSegment(),
+                "1.22.0 has no prerelease segment — must return Optional.empty()");
+    }
+
+    @Test
+    void preReleaseSegment_returnsSinglePartPrerelease_forAlpineVariant() {
+        assertEquals(java.util.Optional.of("alpine"),
+                new Version("1.22.0-alpine").preReleaseSegment(),
+                "1.22.0-alpine → prerelease segment is 'alpine'");
+    }
+
+    @Test
+    void preReleaseSegment_returnsSinglePartPrerelease_forAlpine316Variant() {
+        // semver4j parses "alpine3.16" as a single prerelease identifier (no dot separator),
+        // so it returns ["alpine3.16"]. Dot-joining one element yields "alpine3.16".
+        assertEquals(java.util.Optional.of("alpine3.16"),
+                new Version("1.22.0-alpine3.16").preReleaseSegment(),
+                "1.22.0-alpine3.16 → prerelease segment is 'alpine3.16'");
+    }
+
+    @Test
+    void preReleaseSegment_returnsDotJoined_forMultiPartPrerelease() {
+        // semver4j splits "rc.1" on '.' into ["rc","1"]; dot-joining must give "rc.1".
+        assertEquals(java.util.Optional.of("rc.1"),
+                new Version("1.22.0-rc.1").preReleaseSegment(),
+                "1.22.0-rc.1 → prerelease segment is 'rc.1' (dot-joined)");
+    }
+
+    @Test
+    void preReleaseSegment_distinguishes_alpineFrom_alpine316() {
+        // Exact-match contract: "alpine" ≠ "alpine3.16" — accessor must expose this distinction.
+        var alpine    = new Version("1.22.0-alpine").preReleaseSegment();
+        var alpine316 = new Version("1.22.0-alpine3.16").preReleaseSegment();
+
+        assertNotEquals(alpine, alpine316,
+                "'alpine' and 'alpine3.16' must be distinct prerelease segments");
+    }
+
     private static List<String> invalidInputs() {
         return List.of(
                 "Version",

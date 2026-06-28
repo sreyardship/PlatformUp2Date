@@ -561,8 +561,23 @@ class HttpCurrentSourceFactoryTests {
             }
 
             @Override
+            public Optional<Integer> maxTags() {
+                return Optional.empty();
+            }
+
+            @Override
             public Optional<String> caCert() {
                 return caCert;
+            }
+
+            @Override
+            public Optional<String> registry() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> prereleaseFilter() {
+                return Optional.empty();
             }
         };
     }

@@ -43,11 +43,16 @@ _Avoid_: Scrape request, scrape item
 Where a scrape reads a version from. An Application's *current* version comes
 from one of two kinds of source — an HTTP version endpoint exposed by the
 running app, or the deployed container image tag read from the Kubernetes API
-(a *k8s-image* source). The *latest* version comes from an upstream source
-(GitHub Releases, a Helm chart index). Exactly one current source per
-Application.
+(a *k8s-image* source). The *latest* version comes from an upstream source —
+GitHub Releases (a *github-release* source), or the published image tags of an
+OCI-spec container registry (an *oci-registry* source, named for the substrate
+it scans, like *github-release*). A registry has no native "release" concept, so
+the *oci-registry* source treats the largest semver tag in the repository's tag
+list as the latest release — the same largest-semver selection *github-release*
+applies (see `docs/adr/0010`). Exactly one current source per Application.
 _Avoid_: Upstream endpoint (a k8s-image source is the cluster's own state, not
-upstream), probe
+upstream), probe; "image" alone (a k8s-image current source reads the *deployed*
+tag, an oci-registry latest source reads *published* tags — different sides)
 
 **Manual scrape** (a.k.a. **scrape trigger**):
 A scrape requested on demand by a human or agent, as opposed to the automatic

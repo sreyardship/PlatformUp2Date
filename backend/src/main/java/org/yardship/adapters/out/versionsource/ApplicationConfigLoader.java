@@ -66,6 +66,15 @@ public interface ApplicationConfigLoader {
          */
         Optional<String> repo();
 
+        /**
+         * Optional registry host (e.g. {@code registry.example.com}) read only by the
+         * {@code oci-registry} latest source. The factory builds the base URL as
+         * {@code https://{registry}/v2/{repo}} by default; an explicit {@code http://} prefix on
+         * the value is honoured (useful for local/test registries). Non-blank absence causes the
+         * factory to throw at construction time.
+         */
+        Optional<String> registry();
+
         Optional<String> namespace();
         Optional<String> workload();
         Optional<String> container();
@@ -78,12 +87,19 @@ public interface ApplicationConfigLoader {
         Optional<String> versionKey();
 
         /**
-         * Optional flag read only by the {@code http} current source: when {@code true}, the
-         * prerelease segment of the version read from the upstream endpoint is cleared (e.g.
-         * {@code 2.11.1-6b7ecba1} becomes {@code 2.11.1}) so a release carrying a build/commit
-         * suffix compares equal to its upstream release instead of ranking below it. Absent for
-         * non-{@code http} kinds and defaults to {@code false} when absent for {@code http},
-         * preserving today's behaviour (prerelease preserved) for every existing app.
+         * Optional flag read by the {@code http} current source, the {@code k8s-image} current
+         * source, and the {@code oci-registry} latest source: when {@code true}, the prerelease
+         * segment of the resolved version is cleared before it is reported (e.g.
+         * {@code 2.11.1-6b7ecba1} becomes {@code 2.11.1}, {@code 1.23.0-alpine} becomes
+         * {@code 1.23.0}). This allows a release carrying a build/commit suffix or a flavour suffix
+         * to compare equal to its upstream release instead of ranking below it (ADR-0014).
+         *
+         * <p>For the {@code oci-registry} latest source, selection and ranking still use the FULL
+         * tag value (so {@code 1.24.0-alpine} correctly beats {@code 1.22.0-alpine}); only the
+         * REPORTED result is stripped.
+         *
+         * <p>Absent for non-applicable kinds; defaults to {@code false} when absent, preserving
+         * today's behaviour (prerelease preserved) for every existing app.
          */
         Optional<Boolean> stripPrerelease();
 
@@ -99,14 +115,36 @@ public interface ApplicationConfigLoader {
         Optional<Auth> auth();
 
         /**
-         * Optional page-size fragment read only by the {@code github-release} latest source
-         * (issue: largest-semver-across-recent-releases). Controls how many of the most-recently
-         * published releases are requested from {@code GET /releases} via the {@code per_page}
-         * query parameter. Absent for non-{@code github-release} kinds; the
-         * {@code GithubReleaseLatestSourceFactory} defaults it to 30 when absent and fails fast in
-         * {@code create()} for a value outside GitHub's {@code per_page} range of 1–100.
+         * Optional page-size fragment read only by the {@code github-release} and
+         * {@code oci-registry} latest sources. For {@code github-release} it controls the
+         * {@code per_page} query parameter (defaults to 30 when absent; fails fast outside 1–100).
+         * For {@code oci-registry} it is the {@code n} query parameter on every
+         * {@code tags/list} page request (defaults to 100 when absent; ADR-0014).
          */
         Optional<Integer> pageSize();
+
+        /**
+         * Optional safety cap on the total number of tags the {@code oci-registry} latest source
+         * will accumulate across all pages before stopping pagination. Absent for non-{@code
+         * oci-registry} kinds; defaults to 1000 when absent for {@code oci-registry}. On hitting
+         * the cap with more pages remaining (a {@code Link: rel="next"} header is still present),
+         * the source returns the largest clean semver among the tags SEEN and logs a warning naming
+         * the repo and the cap — a deliberate, documented compromise (ADR-0014: truncate-and-warn).
+         * A repo whose tags fit within {@code max-tags} is unaffected (no warning, no truncation).
+         */
+        Optional<Integer> maxTags();
+
+        /**
+         * Optional prerelease-variant filter for the {@code oci-registry} latest source (ADR-0014).
+         * When absent, prerelease/variant tags are skipped (e.g. {@code 1.22.0-alpine} is not
+         * considered); only clean semver tags (no prerelease segment) are eligible. When present,
+         * the filter flips the selection to EXACTLY match the prerelease segment: only tags whose
+         * semver prerelease segment (dot-joined) equals this string are considered, and the
+         * largest among them is reported with its FULL tag value (e.g. {@code 1.22.0-alpine}).
+         * EXACT match only: {@code alpine} matches {@code 1.22.0-alpine} but NOT
+         * {@code 1.22.0-alpine3.16}. Absent for non-{@code oci-registry} kinds.
+         */
+        Optional<String> prereleaseFilter();
 
         /**
          * Tagged auth fragment: a required {@code type} discriminator (e.g. {@code basic}) plus the
