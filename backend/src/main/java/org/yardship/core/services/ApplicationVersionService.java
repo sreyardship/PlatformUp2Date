@@ -30,11 +30,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 
 @ApplicationScoped
 public class ApplicationVersionService implements ApplicationVersionPort {
 
     private final Logger logger = LoggerFactory.getLogger(ApplicationVersionService.class);
+
+    /** Default global concurrency cap for the bounded-parallel scrape loop (issue 04). */
+    public static final int DEFAULT_SCRAPE_CONCURRENCY = 15;
 
     private final VersionSources versionSources;
     private final ScrapeStateStore scrapeStateStore;
@@ -43,6 +48,7 @@ public class ApplicationVersionService implements ApplicationVersionPort {
     private final ScrapeRateLimiter targetedScrapeRateLimiter;
     private final Duration scrapeInterval;
     private final Clock clock;
+    private final int concurrencyCap;
 
     @Inject
     public ApplicationVersionService(
@@ -51,7 +57,8 @@ public class ApplicationVersionService implements ApplicationVersionPort {
             ScrapeLock scrapeLock,
             @FullScrapeBudget ScrapeRateLimiter fullScrapeRateLimiter,
             @TargetedScrapeBudget ScrapeRateLimiter targetedScrapeRateLimiter,
-            @ConfigProperty(name = "platform-config.scrape-interval") Duration scrapeInterval) {
+            @ConfigProperty(name = "platform-config.scrape-interval") Duration scrapeInterval,
+            @ConfigProperty(name = "platform-config.scrape-concurrency", defaultValue = "15") int scrapeConcurrency) {
         this(
                 versionSources,
                 scrapeStateStore,
@@ -59,12 +66,14 @@ public class ApplicationVersionService implements ApplicationVersionPort {
                 fullScrapeRateLimiter,
                 targetedScrapeRateLimiter,
                 scrapeInterval,
-                Clock.systemUTC());
+                Clock.systemUTC(),
+                scrapeConcurrency);
     }
 
     // Visible for testing: lets tests drive the staleness clock deterministically, and inject the
     // full-scrape and targeted-scrape budgets explicitly (issue 03 — two distinct rolling-window
     // budgets so agent-driven targeted scrapes cannot starve the UI's full-Refresh budget).
+    // Delegates to the 8-arg ctor with the default concurrency cap.
     public ApplicationVersionService(
             VersionSources versionSources,
             ScrapeStateStore scrapeStateStore,
@@ -73,6 +82,28 @@ public class ApplicationVersionService implements ApplicationVersionPort {
             ScrapeRateLimiter targetedScrapeRateLimiter,
             Duration scrapeInterval,
             Clock clock) {
+        this(
+                versionSources,
+                scrapeStateStore,
+                scrapeLock,
+                fullScrapeRateLimiter,
+                targetedScrapeRateLimiter,
+                scrapeInterval,
+                clock,
+                DEFAULT_SCRAPE_CONCURRENCY);
+    }
+
+    // Visible for testing: additionally accepts an explicit concurrency cap so tests can drive the
+    // bounded-parallel scrape loop with a small cap (issue 04).
+    public ApplicationVersionService(
+            VersionSources versionSources,
+            ScrapeStateStore scrapeStateStore,
+            ScrapeLock scrapeLock,
+            ScrapeRateLimiter fullScrapeRateLimiter,
+            ScrapeRateLimiter targetedScrapeRateLimiter,
+            Duration scrapeInterval,
+            Clock clock,
+            int concurrencyCap) {
         this.versionSources = versionSources;
         this.scrapeStateStore = scrapeStateStore;
         this.scrapeLock = scrapeLock;
@@ -80,6 +111,7 @@ public class ApplicationVersionService implements ApplicationVersionPort {
         this.targetedScrapeRateLimiter = targetedScrapeRateLimiter;
         this.scrapeInterval = scrapeInterval;
         this.clock = clock;
+        this.concurrencyCap = concurrencyCap;
     }
 
     @Override
@@ -263,30 +295,68 @@ public class ApplicationVersionService implements ApplicationVersionPort {
     }
 
     /**
-     * The scrape loop: for each configured app read both sources, isolate per-app failures, and
-     * count {@code attempted}/{@code failed}. A single source throwing is caught and counted in
-     * {@code failed} — it does NOT abort the scrape or propagate. The invariant
+     * The scrape loop: reads both sources for every configured app in BOUNDED PARALLEL using virtual
+     * threads, gated by a {@link Semaphore} so at most {@code concurrencyCap} reads are in flight
+     * simultaneously. Results are assembled in CONFIG ORDER (index-positioned slots) regardless of
+     * completion order.
+     *
+     * <p>Per-app failures are isolated: one app throwing never aborts the scrape. The invariant
      * {@code applications.size() + failed == attempted} holds.
      */
     private ScrapeResult scrape() {
+        List<ApplicationSources> apps = versionSources.applicationSources();
+        int attempted = apps.size();
+
+        // Index-positioned result slots ensure config-order assembly after parallel completion.
+        record Slot(VersionApplication app, TargetResult result) {}
+        Slot[] slots = new Slot[attempted];
+
+        int effectiveCap = Math.max(1, concurrencyCap);
+        Semaphore sem = new Semaphore(effectiveCap);
+
+        // A per-scrape virtual-thread executor; close() blocks until all tasks complete.
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            for (int i = 0; i < attempted; i++) {
+                final int idx = i;
+                final ApplicationSources app = apps.get(i);
+                executor.submit(() -> {
+                    try {
+                        sem.acquire();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        slots[idx] = new Slot(null,
+                                TargetResult.failure(app.name(), Side.BOTH, "interrupted"));
+                        return;
+                    }
+                    try {
+                        VersionApplication resolved = new VersionApplication(
+                                app.name(),
+                                app.current().version(),
+                                app.latest().version());
+                        slots[idx] = new Slot(resolved, TargetResult.success(app.name(), Side.BOTH));
+                    } catch (Exception e) {
+                        logger.warn("Skipping app '{}' this scrape: {}", app.name(), e.getMessage());
+                        slots[idx] = new Slot(null,
+                                TargetResult.failure(app.name(), Side.BOTH, failureReason(e)));
+                    } finally {
+                        sem.release();
+                    }
+                });
+            }
+        } // close() awaits all submitted tasks
+
+        // Assemble in config order from the index-positioned slots.
         List<VersionApplication> resolved = new ArrayList<>();
         List<TargetResult> targetResults = new ArrayList<>();
-        int attempted = 0;
         int failed = 0;
 
-        for (ApplicationSources app : versionSources.applicationSources()) {
-            attempted++;
-            try {
-                resolved.add(new VersionApplication(
-                        app.name(),
-                        app.current().version(),
-                        app.latest().version()));
-                targetResults.add(TargetResult.success(app.name(), Side.BOTH));
-            } catch (Exception e) {
+        for (Slot slot : slots) {
+            if (slot.app() != null) {
+                resolved.add(slot.app());
+            } else {
                 failed++;
-                logger.warn("Skipping app '{}' this scrape: {}", app.name(), e.getMessage());
-                targetResults.add(TargetResult.failure(app.name(), Side.BOTH, failureReason(e)));
             }
+            targetResults.add(slot.result());
         }
 
         return new ScrapeResult(resolved, attempted, failed, targetResults);

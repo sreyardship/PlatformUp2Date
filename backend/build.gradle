@@ -59,6 +59,25 @@ java {
 test {
     systemProperty "java.util.logging.manager", "org.jboss.logmanager.LogManager"
     jvmArgs '-XX:+EnableDynamicAgentLoading', '-Djdk.instrument.traceUsage'
+    useJUnitPlatform {
+        excludeTags 'performance'
+    }
+}
+
+// Dedicated task for the deliberately-slow performance harness.
+// Run with: gradle perfTest
+// The default `test` task excludes the 'performance' tag so this harness never
+// runs during a normal build or CI test step.
+tasks.register('perfTest', Test) {
+    description = 'Runs the performance harness (@Tag("performance") tests only).'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    systemProperty "java.util.logging.manager", "org.jboss.logmanager.LogManager"
+    jvmArgs '-XX:+EnableDynamicAgentLoading', '-Djdk.instrument.traceUsage'
+    useJUnitPlatform {
+        includeTags 'performance'
+    }
 }
 compileJava {
     options.encoding = 'UTF-8'

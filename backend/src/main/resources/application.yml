@@ -38,6 +38,7 @@ quarkus:
       hosts: redis://localhost:6379
   platform-config:
     scrape-interval: 1h
+    scrape-concurrency: 15
     # Optional GitHub token for the scrape's `latest` leg. Resolved from the environment via
     # SmallRye expansion: an unset GITHUB_TOKEN yields an empty/absent token (no startup error),
     # preserving today's unauthenticated behaviour.
