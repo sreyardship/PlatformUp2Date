@@ -70,7 +70,7 @@ const TopBar = ({ onRefreshed }) => {
     >
       <Toolbar sx={{ justifyContent: 'space-between' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <img src="/logo.png" alt="PlatformUp2Date logo" height={32} />
+          <img src="/logo.svg" alt="PlatformUp2Date logo" height={32} />
           <Typography variant="h3" color="primary" component="span">
             PlatformUp2Date
           </Typography>
