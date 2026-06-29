@@ -2,46 +2,23 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   width="210mm"
-   height="297mm"
-   viewBox="0 0 210 297"
+   width="102.49563mm"
+   height="115.72802mm"
+   viewBox="0 0 102.49563 115.72802"
    version="1.1"
    id="svg1"
-   inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
-   sodipodi:docname="logo.svg"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns="http://www.w3.org/2000/svg"
    xmlns:svg="http://www.w3.org/2000/svg">
-  <sodipodi:namedview
-     id="namedview1"
-     pagecolor="#ffffff"
-     bordercolor="#000000"
-     borderopacity="0.25"
-     inkscape:showpageshadow="2"
-     inkscape:pageopacity="0.0"
-     inkscape:pagecheckerboard="0"
-     inkscape:deskcolor="#d1d1d1"
-     inkscape:document-units="mm"
-     inkscape:zoom="1"
-     inkscape:cx="546"
-     inkscape:cy="462"
-     inkscape:window-width="2105"
-     inkscape:window-height="1351"
-     inkscape:window-x="1384"
-     inkscape:window-y="1144"
-     inkscape:window-maximized="1"
-     inkscape:current-layer="layer1" />
   <defs
      id="defs1">
     <marker
-       markerWidth="63.99999619"
-       markerHeight="63.99999619"
+       markerWidth="63.999996"
+       markerHeight="63.999996"
        refX="31.999998"
        refY="16"
        orient="auto"
        id="marker4"
-       viewBox="0 0 63.99999733 63.99999733"
+       viewBox="0 0 63.999997 63.999997"
        preserveAspectRatio="xMidYMid">
       <g
          id="g4"
@@ -62,9 +39,8 @@
     </marker>
   </defs>
   <g
-     inkscape:label="Layer 1"
-     inkscape:groupmode="layer"
-     id="layer1">
+     id="layer1"
+     transform="translate(-49.511061,-64.366479)">
     <path
        id="path1"
        style="fill:#3072f0;stroke:none;stroke-width:0.265;stroke-dasharray:none;marker-mid:url(#marker4);marker-end:url(#marker4)"
@@ -72,26 +48,14 @@
     <g
        id="g5"
        style="fill:#ffffff;fill-opacity:1"
-       transform="matrix(0.74833472,0,0,0.74833472,85.513118,78.10116)">
+       transform="matrix(0.74833472,0,0,0.74833472,85.513119,82.15532)">
       <g
          id="g6"
          transform="translate(0,-1.5750949)">
         <path
-           sodipodi:type="star"
            style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.264999;stroke-dasharray:none"
            id="path5"
-           inkscape:flatsided="true"
-           sodipodi:sides="3"
-           sodipodi:cx="20.372917"
-           sodipodi:cy="39.422916"
-           sodipodi:r1="23.672447"
-           sodipodi:r2="11.836223"
-           sodipodi:arg1="0.52359878"
-           sodipodi:arg2="1.5707963"
-           inkscape:rounded="0"
-           inkscape:randomized="0"
            d="m 40.873858,51.25914 -41.00188153,0 L 20.372917,15.750469 Z"
-           inkscape:transform-center-y="-4.7395692"
            transform="matrix(1,0,0,0.80085832,0,10.207831)" />
         <rect
            style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.264999;stroke-dasharray:none"
@@ -103,19 +67,8 @@
       </g>
     </g>
     <path
-       sodipodi:type="star"
        style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:2.865;stroke-dasharray:none;stroke-opacity:1"
        id="path6"
-       inkscape:flatsided="true"
-       sodipodi:sides="6"
-       sodipodi:cx="11.1125"
-       sodipodi:cy="48.683334"
-       sodipodi:r1="49.938309"
-       sodipodi:r2="43.247845"
-       sodipodi:arg1="0.52359878"
-       sodipodi:arg2="1.0471976"
-       inkscape:rounded="0"
-       inkscape:randomized="0"
        d="M 54.360344,73.652489 11.1125,98.621643 -32.135344,73.652489 l 0,-49.938309 L 11.1125,-1.2549744 54.360344,23.71418 Z"
        transform="matrix(0.96605654,0,0,0.96605654,90.023575,75.199637)" />
     <circle
