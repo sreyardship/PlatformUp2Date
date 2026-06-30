@@ -43,6 +43,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>No {@code @QuarkusTest} — the source and factory are plain Java objects that use MINA
  * directly, just as {@code HttpRegexLatestSourceIT} uses WireMock without Quarkus context.
  *
+ * <h2>Scope</h2>
+ * <p>This IT covers SSH transport, host-key verification, and auth-mode concerns — the parts
+ * that require a real (in-process) SSH server. Pure {@code /etc/os-release} parsing logic
+ * (quote stripping, field extraction, content variants, missing-field error) is owned by
+ * {@code OsReleaseParserTests} (unit). One happy-path fixture round-trip here confirms that
+ * parsing is wired end-to-end.
+ *
  * <h2>Embedded server design</h2>
  * <ul>
  *   <li>Server key pair: RSA 2048, generated once per class in {@link #startSshServer}.</li>
@@ -71,14 +78,6 @@ import static org.junit.jupiter.api.Assertions.*;
  *   <li><b>{@code known-hosts}</b>: a standard OpenSSH known_hosts file with one entry in
  *       bracket notation: {@code [127.0.0.1]:PORT keytype base64key}.</li>
  * </ul>
- *
- * <h2>Fixture variants</h2>
- * <ul>
- *   <li>{@link #UBUNTU_OS_RELEASE} — {@code VERSION_ID="24.04"}; calver {@code YY.0M}.</li>
- *   <li>{@link #OPENWRT_OS_RELEASE} — {@code VERSION_ID="23.05.5"}; calver {@code YY.0M.MICRO}.</li>
- *   <li>{@link #SEMVER_VM_OS_RELEASE} — {@code VERSION_ID="1.0.0"}; semver.</li>
- *   <li>{@link #CUSTOM_FIELD_OS_RELEASE} — no {@code VERSION_ID}; has {@code BUILD_ID="1.2.3"}.</li>
- * </ul>
  */
 class SshOsReleaseCurrentSourceIT {
 
@@ -89,10 +88,10 @@ class SshOsReleaseCurrentSourceIT {
     static final String FIXED_READ_COMMAND = "cat /etc/os-release";
 
     // -----------------------------------------------------------------------
-    // /etc/os-release fixture bodies
+    // /etc/os-release fixture body (one round-trip; parsing matrix owned by OsReleaseParserTests)
     // -----------------------------------------------------------------------
 
-    /** Ubuntu 24.04 — VERSION_ID is double-quoted; quote stripping must yield "24.04". */
+    /** Ubuntu 24.04 — VERSION_ID is double-quoted; one end-to-end round-trip confirms wiring. */
     private static final String UBUNTU_OS_RELEASE = """
             NAME="Ubuntu"
             VERSION="24.04.2 LTS (Noble Numbat)"
@@ -102,40 +101,11 @@ class SshOsReleaseCurrentSourceIT {
             PRETTY_NAME="Ubuntu 24.04.2 LTS"
             """;
 
-    /** OpenWRT 23.05.5 — VERSION_ID is double-quoted; quote stripping must yield "23.05.5". */
-    private static final String OPENWRT_OS_RELEASE = """
-            NAME="OpenWrt"
-            VERSION="23.05.5"
-            ID="openwrt"
-            ID_LIKE="lede openwrt"
-            VERSION_ID="23.05.5"
-            PRETTY_NAME="OpenWrt 23.05.5"
-            """;
-
-    /**
-     * A hypothetical VM that reports a three-part semver version — lets us exercise the semver
-     * parser without complicating Ubuntu/OpenWRT tests with calver.
-     */
-    private static final String SEMVER_VM_OS_RELEASE = """
-            NAME="MyApp"
-            ID=myapp
-            VERSION_ID="1.0.0"
-            """;
-
-    /** A fixture with NO VERSION_ID but a custom BUILD_ID field for custom-field tests. */
-    private static final String CUSTOM_FIELD_OS_RELEASE = """
-            NAME="CustomOS"
-            ID=custom
-            BUILD_ID="1.2.3"
-            """;
-
     // -----------------------------------------------------------------------
     // Parsers
     // -----------------------------------------------------------------------
 
-    private static final VersionParser SEMVER_PARSER  = new VersionParser(VersionScheme.SEMVER);
-    private static final VersionParser CALVER_UBUNTU  = new VersionParser(VersionScheme.CALVER, "YY.0M");
-    private static final VersionParser CALVER_OPENWRT = new VersionParser(VersionScheme.CALVER, "YY.0M.MICRO");
+    private static final VersionParser CALVER_UBUNTU = new VersionParser(VersionScheme.CALVER, "YY.0M");
 
     // -----------------------------------------------------------------------
     // Shared server state (set up once per test class)
@@ -279,7 +249,8 @@ class SshOsReleaseCurrentSourceIT {
     }
 
     // -----------------------------------------------------------------------
-    // Happy path: Ubuntu fixture, inline key, pinned host-key
+    // Happy path: Ubuntu fixture — one real-SSH-read-returns-parsed-value round-trip
+    // (parsing matrix owned by OsReleaseParserTests; this confirms end-to-end wiring)
     // -----------------------------------------------------------------------
 
     @Test
@@ -291,58 +262,7 @@ class SshOsReleaseCurrentSourceIT {
         VersionValue result = source.version();
 
         assertEquals("24.04", result.value(),
-                "must extract VERSION_ID=\"24.04\" from the Ubuntu fixture");
-    }
-
-    @Test
-    void ubuntuFixture_quotedVersionId_isStrippedCorrectly() throws Exception {
-        // The fixture has VERSION_ID="24.04" — double-quote stripping must happen before parsing.
-        CurrentVersionSource source = FACTORY.create(
-                sourceBuilder().build(),
-                CALVER_UBUNTU);
-
-        VersionValue result = source.version();
-
-        // If quotes are NOT stripped, the parser would receive `"24.04"` and either throw or
-        // return a wrong value — so a successful parse proves quote stripping is in place.
-        assertEquals("24.04", result.value(),
-                "surrounding double-quotes in VERSION_ID must be stripped before parsing");
-    }
-
-    // -----------------------------------------------------------------------
-    // Happy path: semver parser
-    // -----------------------------------------------------------------------
-
-    @Test
-    void semverVmFixture_semverParser_returnsVersionValue_1_0_0() throws Exception {
-        currentFixture.set(SEMVER_VM_OS_RELEASE);
-
-        CurrentVersionSource source = FACTORY.create(
-                sourceBuilder().build(),
-                SEMVER_PARSER);
-
-        VersionValue result = source.version();
-
-        assertEquals("1.0.0", result.value(),
-                "a three-part version in VERSION_ID must parse under the semver scheme");
-    }
-
-    // -----------------------------------------------------------------------
-    // Happy path: OpenWRT fixture
-    // -----------------------------------------------------------------------
-
-    @Test
-    void openWrtFixture_returnsVersionId_23_05_5() throws Exception {
-        currentFixture.set(OPENWRT_OS_RELEASE);
-
-        CurrentVersionSource source = FACTORY.create(
-                sourceBuilder().build(),
-                CALVER_OPENWRT);
-
-        VersionValue result = source.version();
-
-        assertEquals("23.05.5", result.value(),
-                "must extract VERSION_ID=\"23.05.5\" from the OpenWRT fixture");
+                "must extract VERSION_ID=\"24.04\" from the Ubuntu fixture via a real SSH round-trip");
     }
 
     // -----------------------------------------------------------------------
@@ -474,55 +394,6 @@ class SshOsReleaseCurrentSourceIT {
     }
 
     // -----------------------------------------------------------------------
-    // release-field: missing and custom
-    // -----------------------------------------------------------------------
-
-    @Test
-    void missingReleaseField_throws_isolatingTheScrapeFailure() {
-        // The fixture has no VERSION_ID (the default release-field)
-        currentFixture.set(CUSTOM_FIELD_OS_RELEASE);
-
-        CurrentVersionSource source = FACTORY.create(
-                sourceBuilder().build(), // default release-field = VERSION_ID
-                SEMVER_PARSER);
-
-        assertThrows(Exception.class, source::version,
-                "a missing release-field in /etc/os-release must throw from version(), isolating this app");
-    }
-
-    @Test
-    void customReleaseField_extractsAlternativeField() throws Exception {
-        // The fixture has no VERSION_ID but has BUILD_ID="1.2.3"
-        currentFixture.set(CUSTOM_FIELD_OS_RELEASE);
-
-        CurrentVersionSource source = FACTORY.create(
-                sourceBuilder()
-                        .withReleaseField(Optional.of("BUILD_ID"))
-                        .build(),
-                SEMVER_PARSER);
-
-        VersionValue result = source.version();
-
-        assertEquals("1.2.3", result.value(),
-                "release-field=BUILD_ID must extract BUILD_ID instead of VERSION_ID");
-    }
-
-    @Test
-    void defaultReleaseField_isVersionId() throws Exception {
-        // Explicitly confirm that absent release-field defaults to VERSION_ID.
-        currentFixture.set(UBUNTU_OS_RELEASE); // has VERSION_ID="24.04"
-
-        CurrentVersionSource source = FACTORY.create(
-                sourceBuilder().withReleaseField(Optional.empty()).build(),
-                CALVER_UBUNTU);
-
-        VersionValue result = source.version();
-
-        assertEquals("24.04", result.value(),
-                "absent release-field must default to VERSION_ID");
-    }
-
-    // -----------------------------------------------------------------------
     // Closeable contract
     // -----------------------------------------------------------------------
 
@@ -536,56 +407,23 @@ class SshOsReleaseCurrentSourceIT {
     }
 
     // -----------------------------------------------------------------------
-    // ed25519 (production host-key type, ADR-0018)
+    // ed25519 smoke (production host-key type, ADR-0018)
     // -----------------------------------------------------------------------
 
+    /**
+     * Single ed25519 smoke: proves the ed25519 key type works through the full client
+     * connect/auth/exec path. Per-mode ed25519 duplication (private-key-file, known-hosts)
+     * is dropped — the RSA auth-mode matrix already covers those paths; this smoke proves
+     * the key-type is handled.
+     */
     @Test
     void ed25519_inlinePrivateKey_pinnedHostKey_returnsVersionId_24_04() throws Exception {
-        // ed25519 is the production host-key type: exercise the full client connect/auth/exec path
-        // against it, mirroring the RSA happy path.
         CurrentVersionSource source = FACTORY.create(ed25519SourceBuilder().build(), CALVER_UBUNTU);
 
         VersionValue result = source.version();
 
         assertEquals("24.04", result.value(),
                 "ed25519 inline key + pinned ed25519 host-key must authenticate and return VERSION_ID");
-    }
-
-    @Test
-    void ed25519_privateKeyFile_authenticatesSuccessfully(@TempDir Path dir) throws Exception {
-        Path keyFile = dir.resolve("ed25519-client-key");
-        Files.writeString(keyFile, ED25519_CLIENT_PRIVATE_KEY);
-
-        CurrentVersionSource source = FACTORY.create(
-                ed25519SourceBuilder()
-                        .withPrivateKey(Optional.empty())
-                        .withPrivateKeyFile(Optional.of(keyFile.toString()))
-                        .build(),
-                CALVER_UBUNTU);
-
-        VersionValue result = source.version();
-
-        assertEquals("24.04", result.value(),
-                "ed25519 private-key-file form must authenticate and return VERSION_ID");
-    }
-
-    @Test
-    void ed25519_knownHostsFile_correctKey_returnsVersionId(@TempDir Path dir) throws Exception {
-        Path knownHostsFile = dir.resolve("known_hosts");
-        String entry = "[127.0.0.1]:" + ed25519Server.getPort() + " " + ED25519_SERVER_PUBLIC_LINE;
-        Files.writeString(knownHostsFile, entry + System.lineSeparator());
-
-        CurrentVersionSource source = FACTORY.create(
-                ed25519SourceBuilder()
-                        .withHostKey(Optional.empty())
-                        .withKnownHosts(Optional.of(knownHostsFile.toString()))
-                        .build(),
-                CALVER_UBUNTU);
-
-        VersionValue result = source.version();
-
-        assertEquals("24.04", result.value(),
-                "ed25519 known-hosts form must verify the server key and return the version");
     }
 
     // -----------------------------------------------------------------------

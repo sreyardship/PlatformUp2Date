@@ -10,13 +10,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
-import org.yardship.adapters.out.versionsource.auth.BasicAuthFilter;
-import org.yardship.adapters.out.versionsource.auth.BearerAuthFilter;
 import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClientFactory;
-import org.yardship.adapters.out.versionsource.current.FailedCurrentSource;
 import org.yardship.adapters.out.versionsource.current.http.HttpCurrentSource;
 import org.yardship.adapters.out.versionsource.current.http.HttpCurrentSourceFactory;
-import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
@@ -28,10 +24,8 @@ import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Integration test for the real {@link HttpCurrentSource} adapter, now a pure POJO wired to a REAL
@@ -45,6 +39,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the POJO source round-trips an actual HTTP call correctly, including the non-2xx mapping. The
  * "never sends an Authorization header" guardrail moved to {@code HttpCurrentVersionClientFactoryIT},
  * since that header decision is now entirely the client factory's concern.
+ *
+ * <p>Factory config-validation cases (blank password, blank token → FailedCurrentSource) are owned
+ * exhaustively by {@code HttpCurrentSourceFactoryTests} at the unit level and are not re-asserted here.
+ * Auth-on-the-wire is owned by the unit filter tests + {@code HttpCurrentVersionClientFactoryIT};
+ * the authenticated source path is proven by the factory end-to-end happy paths below.
  *
  * <p>{@code @QuarkusTest} is used so {@link HttpCurrentVersionClientFactory} can be injected — matching
  * the existing IT style.
@@ -100,63 +99,15 @@ class HttpCurrentSourceIT {
         assertThrows(RuntimeException.class, source::version);
     }
 
-    // --- Issue 02: Harbor Basic-auth round trip --------------------------------------------
-
-    @Test
-    void read_authenticatedWithBasicAuthFilter_returnsTheHarborVersion() {
-        // Harbor 2.13+ only returns 'harbor_version' from /systeminfo to an authenticated caller —
-        // an anonymous request gets a 2xx body WITHOUT the key (not modelled here; pinned by
-        // HttpCurrentSourceTests at the unit level). Here a real BasicAuthFilter, built via the real
-        // HttpCurrentVersionClientFactory, must round-trip a 401-guarded endpoint successfully.
-        // WireMock resolves ties between equally-specific stubs by "last registered wins" — the
-        // catch-all 401 must therefore be registered FIRST, so the more specific withBasicAuth
-        // stub (registered second) is the one actually applied to a matching authenticated request.
-        wireMockServer.stubFor(get(urlEqualTo("/systeminfo"))
-                .willReturn(aResponse().withStatus(401)));
-        wireMockServer.stubFor(get(urlEqualTo("/systeminfo"))
-                .withBasicAuth("harbor-bot", "s3cr3t")
-                .willReturn(jsonResponse(200, "{\"harbor_version\":\"v2.13.0\"}")));
-
-        HttpCurrentSource source = new HttpCurrentSource(
-                clientFactory.build("http://localhost:8089/systeminfo",
-                        Optional.of(new BasicAuthFilter("harbor-bot", "s3cr3t")), Optional.empty()),
-                "/harbor_version",
-                false, SEMVER_PARSER);
-
-        VersionValue result = source.version();
-
-        // The 'v' prefix is trimmed by the Version primitive (see Version.trimInput).
-        assertEquals("2.13.0", result.value());
-    }
-
-    @Test
-    void read_withWrongBasicAuthCredentials_throws_becauseUpstreamReturns401() {
-        // Catch-all 401 registered FIRST — see the "last registered wins" note on
-        // read_authenticatedWithBasicAuthFilter_returnsTheHarborVersion. Here it must be the one that
-        // actually applies (the request below carries WRONG credentials, so it should never match
-        // the withBasicAuth stub regardless of registration order — registering it last for
-        // consistency with the other tests in this class, and to prove the 401 stub is reachable).
-        wireMockServer.stubFor(get(urlEqualTo("/systeminfo"))
-                .willReturn(aResponse().withStatus(401)));
-        wireMockServer.stubFor(get(urlEqualTo("/systeminfo"))
-                .withBasicAuth("harbor-bot", "s3cr3t")
-                .willReturn(jsonResponse(200, "{\"harbor_version\":\"v2.13.0\"}")));
-
-        HttpCurrentSource source = new HttpCurrentSource(
-                clientFactory.build("http://localhost:8089/systeminfo",
-                        Optional.of(new BasicAuthFilter("harbor-bot", "WRONG")), Optional.empty()),
-                "/harbor_version",
-                false, SEMVER_PARSER);
-
-        assertThrows(RuntimeException.class, source::version);
-    }
+    // --- Issue 02: Harbor Basic-auth end-to-end (factory path) --------------------------------
 
     @Test
     void factoryCreate_withValidHarborBasicAuthConfig_endToEnd_readsHarborVersion() {
         // Drives the FULL production path the dev application.yml entry exercises:
         // HttpCurrentSourceFactory.create(cfg) -> real HttpCurrentVersionClientFactory -> BasicAuthFilter
         // -> real HTTP call through WireMock. Catch-all 401 registered FIRST — see the
-        // "last registered wins" note on read_authenticatedWithBasicAuthFilter_returnsTheHarborVersion.
+        // "last registered wins" note on WireMock stub ordering: the more specific withBasicAuth
+        // stub (registered second) is applied to a matching authenticated request.
         wireMockServer.stubFor(get(urlEqualTo("/systeminfo"))
                 .willReturn(aResponse().withStatus(401)));
         wireMockServer.stubFor(get(urlEqualTo("/systeminfo"))
@@ -172,45 +123,7 @@ class HttpCurrentSourceIT {
         assertEquals("2.13.0", result.version().value());
     }
 
-    @Test
-    void factoryCreate_withBlankHarborPassword_yieldsAFailedCurrentSource_notAVersionKeyError() {
-        // The clear-failure guarantee: a blank credential (e.g. an unset HARBOR_PASS env var
-        // resolving to "" via SmallRye expansion) must surface as a FailedCurrentSource with an
-        // auth-specific message — NEVER the misleading "version-key did not resolve" error that an
-        // unauthenticated 2xx-without-harbor_version response would otherwise produce.
-        HttpCurrentSourceFactory httpFactory = new HttpCurrentSourceFactory(clientFactory);
-        CurrentVersionSource result = httpFactory.create(harborConfig(
-                Optional.of("harbor-bot"), Optional.of("")), SEMVER_PARSER);
-
-        assertInstanceOf(FailedCurrentSource.class, result);
-        IllegalStateException ex = assertThrows(IllegalStateException.class, result::version);
-        assertFalse(ex.getMessage().toLowerCase().contains("version-key"),
-                "must not be the version-key-did-not-resolve message; was: " + ex.getMessage());
-    }
-
-    // --- Issue 03: Bearer-auth round trip ---------------------------------------------------
-
-    @Test
-    void read_authenticatedWithBearerAuthFilter_returnsTheVersion() {
-        // Catch-all 401 registered FIRST, specific bearer-matching 200 stub registered LAST — see
-        // the "last registered wins" note on read_authenticatedWithBasicAuthFilter_returnsTheHarborVersion.
-        wireMockServer.stubFor(get(urlEqualTo("/current"))
-                .willReturn(aResponse().withStatus(401)));
-        wireMockServer.stubFor(get(urlEqualTo("/current"))
-                .withHeader("Authorization", equalTo("Bearer gh-token"))
-                .willReturn(jsonResponse(200, "{\"version\":\"v3.1.0\"}")));
-
-        HttpCurrentSource source = new HttpCurrentSource(
-                clientFactory.build("http://localhost:8089/current",
-                        Optional.of(new BearerAuthFilter("gh-token")), Optional.empty()),
-                "/version",
-                false, SEMVER_PARSER);
-
-        VersionValue result = source.version();
-
-        // The 'v' prefix is trimmed by the Version primitive (see Version.trimInput).
-        assertEquals("3.1.0", result.value());
-    }
+    // --- Issue 03: Bearer-auth end-to-end (factory path) --------------------------------------
 
     @Test
     void factoryCreate_withValidBearerAuthConfig_endToEnd_readsTheVersion() {
@@ -228,20 +141,6 @@ class HttpCurrentSourceIT {
 
         assertInstanceOf(HttpCurrentSource.class, result);
         assertEquals("3.1.0", result.version().value());
-    }
-
-    @Test
-    void factoryCreate_withBlankBearerToken_yieldsAFailedCurrentSource_notAVersionKeyError() {
-        // The clear-failure guarantee: a blank token (e.g. an unset GH_TOKEN env var resolving to
-        // "" via SmallRye expansion) must surface as a FailedCurrentSource with an auth-specific
-        // message — NEVER the misleading "version-key did not resolve" error.
-        HttpCurrentSourceFactory httpFactory = new HttpCurrentSourceFactory(clientFactory);
-        CurrentVersionSource result = httpFactory.create(bearerConfig(Optional.of("")), SEMVER_PARSER);
-
-        assertInstanceOf(FailedCurrentSource.class, result);
-        IllegalStateException ex = assertThrows(IllegalStateException.class, result::version);
-        assertFalse(ex.getMessage().toLowerCase().contains("version-key"),
-                "must not be the version-key-did-not-resolve message; was: " + ex.getMessage());
     }
 
     private static ApplicationConfigLoader.VersionSource bearerConfig(Optional<String> token) {

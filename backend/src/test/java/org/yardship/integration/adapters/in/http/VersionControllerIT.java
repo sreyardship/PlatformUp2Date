@@ -5,7 +5,6 @@ import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.scrapestate.ScrapeStateUnavailableException;
 import org.yardship.core.domain.primitives.SemverVersion;
-import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.in.ApplicationVersionPort;
 
@@ -19,12 +18,10 @@ import static org.mockito.Mockito.when;
  * HTTP-level tests for {@code GET /api/v1/version}. The inbound port is mocked so these
  * exercise the controller + JAX-RS mapping in isolation from Valkey:
  *
- * <ul>
- *   <li>the JSON shape (a map of name -> {current, latest, outdated, drift}) mirrors the
- *       MCP {@code ApplicationView} projection;</li>
- *   <li>fail-closed: when the snapshot source is unavailable (port throws), the endpoint
- *       returns 503 rather than a 200 with an empty/partial body.</li>
- * </ul>
+ * <p>One happy-path snapshot-shape test proves the JSON serialization
+ * (a map of name → {current, latest, outdated, drift}). Drift-level matrix is owned by
+ * {@code SemverVersionTests} (unit). The fail-closed 503 path covers the sole transport
+ * behavior: when the snapshot source is unavailable the endpoint must NOT degrade to a 200.
  */
 @QuarkusTest
 class VersionControllerIT {
@@ -33,23 +30,10 @@ class VersionControllerIT {
     ApplicationVersionPort applicationVersionPort;
 
     @Test
-    void getVersion_returnsSnapshotShape_forUpToDateApp() {
-        when(applicationVersionPort.getApplications()).thenReturn(List.of(
-                new VersionApplication("gitea", new SemverVersion("2.0.0"), new SemverVersion("2.0.0"))));
-
-        given()
-                .when()
-                .get("/api/v1/version")
-                .then()
-                .statusCode(200)
-                .body("'gitea'.current", equalTo("2.0.0"))
-                .body("'gitea'.latest", equalTo("2.0.0"))
-                .body("'gitea'.outdated", equalTo(false))
-                .body("'gitea'.drift", equalTo("NONE"));
-    }
-
-    @Test
-    void getVersion_returnsSnapshotShape_forPatchBehindApp() {
+    void getVersion_returnsSnapshotShape_forOutdatedApp() {
+        // Use an outdated app so the single kept shape test exercises the non-trivial
+        // serialization: outdated == true and a non-NONE drift label string. The full
+        // per-drift-level matrix is owned by SemverVersionTests (unit).
         when(applicationVersionPort.getApplications()).thenReturn(List.of(
                 new VersionApplication("grafana", new SemverVersion("2.2.0"), new SemverVersion("2.2.1"))));
 
@@ -62,22 +46,6 @@ class VersionControllerIT {
                 .body("'grafana'.latest", equalTo("2.2.1"))
                 .body("'grafana'.outdated", equalTo(true))
                 .body("'grafana'.drift", equalTo("PATCH"));
-    }
-
-    @Test
-    void getVersion_returnsSnapshotShape_forMajorBehindApp() {
-        when(applicationVersionPort.getApplications()).thenReturn(List.of(
-                new VersionApplication("argo-cd", new SemverVersion("1.0.0"), new SemverVersion("2.0.0"))));
-
-        given()
-                .when()
-                .get("/api/v1/version")
-                .then()
-                .statusCode(200)
-                .body("'argo-cd'.current", equalTo("1.0.0"))
-                .body("'argo-cd'.latest", equalTo("2.0.0"))
-                .body("'argo-cd'.outdated", equalTo(true))
-                .body("'argo-cd'.drift", equalTo("MAJOR"));
     }
 
     @Test

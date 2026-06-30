@@ -10,7 +10,6 @@ import org.slf4j.LoggerFactory;
 import org.yardship.adapters.out.versionsource.VersionResponseExceptionMapper;
 import org.yardship.adapters.out.versionsource.auth.BasicAuthFilter;
 import org.yardship.adapters.out.versionsource.auth.BearerAuthFilter;
-import org.yardship.core.domain.exceptions.InvalidVersionException;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.LatestVersionSource;
@@ -70,7 +69,7 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
     private final Optional<String> username;
     private final Optional<String> password;
     private final TagSelection selection;
-    private final VersionParser parser;
+    private final OciTagSelector tagSelector;
 
     /** Internal pagination result for one page: the tag names plus the cursor for the next page. */
     private record TagsPage(List<String> tags, Optional<String> nextLastToken) {}
@@ -102,7 +101,7 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
         this.username = username;
         this.password = password;
         this.selection = selection;
-        this.parser = parser;
+        this.tagSelector = new OciTagSelector(selection, parser, baseUrl);
     }
 
     @Override
@@ -251,7 +250,7 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
             lastToken = nextToken.get();
         }
 
-        return selectVersion(allTags);
+        return tagSelector.select(allTags);
     }
 
     /**
@@ -384,75 +383,6 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("Failed to parse token response: " + json, ex);
         }
-    }
-
-    /**
-     * Selects the largest eligible version from an accumulated tag list. When
-     * {@link TagSelection#prereleaseFilter()} is present, delegates to
-     * {@link #selectVersionWithPrereleaseFilter(List, String)} which opts exactly one prerelease
-     * flavour back in (ADR-0014). When absent, selects the largest CLEAN semver (no prerelease
-     * segment) — the original slice-01 behaviour.
-     */
-    private VersionValue selectVersion(List<String> tags) {
-        if (selection.prereleaseFilter().isPresent()) {
-            return selectVersionWithPrereleaseFilter(tags, selection.prereleaseFilter().get());
-        }
-        return selectLargestCleanVersion(tags);
-    }
-
-    /**
-     * Selects the largest tag whose semver prerelease segment (dot-joined) EXACTLY equals
-     * {@code filter}. The full original tag string is reported (e.g. {@code 1.22.0-alpine}), unless
-     * {@link TagSelection#stripPrerelease()} is {@code true} in which case the prerelease segment is
-     * cleared before reporting (e.g. {@code 1.22.0}).
-     * When no tag matches the filter, throws {@link IllegalStateException}.
-     *
-     * <p>Logic:
-     * <ol>
-     *   <li>Parses each tag as semver (skipping non-semver silently).</li>
-     *   <li>Retains only tags whose {@code preReleaseSegment()} equals {@code filter} (exact match,
-     *       not prefix: {@code "alpine"} matches {@code 1.22.0-alpine} but NOT {@code 1.22.0-alpine3.16}).</li>
-     *   <li>Returns the largest among them (by semver precedence) — reporting the FULL tag value by
-     *       default, or the stripped version when {@link TagSelection#stripPrerelease()} is true.</li>
-     *   <li>Throws when zero tags survive the filter — per-app scrape failure.</li>
-     * </ol>
-     */
-    private VersionValue selectVersionWithPrereleaseFilter(List<String> tags, String filter) {
-        VersionValue selected = tags.stream()
-                .map(this::tryParseVersion)
-                .flatMap(Optional::stream)
-                .filter(v -> v.preReleaseSegment().filter(filter::equals).isPresent())
-                .reduce((current, candidate) -> current.isOlderThan(candidate) ? candidate : current)
-                .orElseThrow(() -> new IllegalStateException(
-                        "No tag with prerelease segment '" + filter
-                        + "' found in OCI registry tag list for: " + baseUrl));
-        return selection.stripPrerelease() ? selected.withoutPreRelease() : selected;
-    }
-
-    private Optional<VersionValue> tryParseVersion(String tag) {
-        try {
-            return Optional.of(parser.parse(tag));
-        } catch (InvalidVersionException ex) {
-            return Optional.empty();
-        }
-    }
-
-    /**
-     * Selects the largest clean semver from an accumulated tag list.
-     * "Clean" means no prerelease segment (e.g. {@code 1.22.0-alpine} is skipped).
-     */
-    private VersionValue selectLargestCleanVersion(List<String> tags) {
-        return tags.stream()
-                .map(this::tryParseCleanVersion)
-                .flatMap(Optional::stream)
-                .reduce((current, candidate) -> current.isOlderThan(candidate) ? candidate : current)
-                .orElseThrow(() -> new IllegalStateException(
-                        "No clean semver tag found in OCI registry tag list for: " + baseUrl));
-    }
-
-    private Optional<VersionValue> tryParseCleanVersion(String tag) {
-        return tryParseVersion(tag)
-                .filter(v -> v.preReleaseSegment().isEmpty());
     }
 
     /**

@@ -35,32 +35,19 @@ test('renders Total Apps, Up to Date, and Updates Available card labels', () => 
   expect(screen.getByText(/updates available/i)).toBeInTheDocument()
 })
 
-test('Total Apps shows the total count of apps in the payload', () => {
+test('shows derived counts from the payload in each card, including PATCH/MINOR/MAJOR breakdown labels', () => {
   render(<SummaryCards versions={mixedVersions} />)
 
-  const card = getCardByLabel(/total apps/i)
-  expect(within(card).getByText('7')).toBeInTheDocument()
-})
+  expect(within(getCardByLabel(/total apps/i)).getByText('7')).toBeInTheDocument()
+  expect(within(getCardByLabel(/up to date/i)).getByText('1')).toBeInTheDocument()
 
-test('Up to Date shows only the count of apps with drift NONE', () => {
-  render(<SummaryCards versions={mixedVersions} />)
-
-  const card = getCardByLabel(/up to date/i)
-  expect(within(card).getByText('1')).toBeInTheDocument()
-})
-
-test('Updates Available shows the PATCH/MINOR/MAJOR breakdown with labels', () => {
-  render(<SummaryCards versions={mixedVersions} />)
-
-  const card = getCardByLabel(/updates available/i)
-
-  expect(within(card).getByText(/patch/i)).toBeInTheDocument()
-  expect(within(card).getByText(/minor/i)).toBeInTheDocument()
-  expect(within(card).getByText(/major/i)).toBeInTheDocument()
-
-  expect(within(card).getByText('2')).toBeInTheDocument() // patch count
-  expect(within(card).getByText('1')).toBeInTheDocument() // minor count
-  expect(within(card).getByText('3')).toBeInTheDocument() // major count
+  const updatesCard = getCardByLabel(/updates available/i)
+  expect(within(updatesCard).getByText(/patch/i)).toBeInTheDocument()
+  expect(within(updatesCard).getByText(/minor/i)).toBeInTheDocument()
+  expect(within(updatesCard).getByText(/major/i)).toBeInTheDocument()
+  expect(within(updatesCard).getByText('2')).toBeInTheDocument() // patch
+  expect(within(updatesCard).getByText('1')).toBeInTheDocument() // minor
+  expect(within(updatesCard).getByText('3')).toBeInTheDocument() // major
 })
 
 test('renders all-zero counts for an empty payload', () => {

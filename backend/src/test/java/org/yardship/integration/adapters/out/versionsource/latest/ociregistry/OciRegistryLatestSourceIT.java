@@ -33,8 +33,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * <p>{@code @QuarkusTest} is required because {@code QuarkusRestClientBuilder} needs a running
  * Quarkus context — matching the existing IT style.
  *
- * <p>This slice covers: single-page tags/list (no challenge); largest clean semver selected;
- * non-semver and prerelease tags skipped; real Jackson deserialization of the response body.
+ * <p>This slice covers the fetch-and-select round-trip: single-page tags/list (no challenge),
+ * real Jackson deserialization, the all-skipped error path, and the HTTP endpoint path.
+ * Tag-selection logic (ranking, filter, strip) is owned by
+ * {@link org.yardship.unit.adapters.out.versionsource.latest.ociregistry.OciTagSelectorTests}.
  */
 @QuarkusTest
 class OciRegistryLatestSourceIT {
@@ -57,25 +59,6 @@ class OciRegistryLatestSourceIT {
     @BeforeEach
     void resetStubs() {
         wireMockServer.resetAll();
-    }
-
-    @Test
-    void read_selectsTheLargestCleanSemverTag_fromTagsList() {
-        wireMockServer.stubFor(get(urlPathEqualTo("/v2/library/nginx/tags/list"))
-                .willReturn(jsonResponse(200, """
-                        {
-                          "name": "library/nginx",
-                          "tags": ["1.24.0", "1.25.3", "1.25.3-alpine", "latest", "stable"]
-                        }
-                        """)));
-
-        OciRegistryLatestSource latestSource =
-                anonymousSource("http://localhost:8090/v2/library/nginx");
-
-        VersionValue result = latestSource.version();
-
-        assertEquals("1.25.3", result.value(),
-                "1.25.3 is the largest clean semver; 1.25.3-alpine (prerelease), latest and stable (non-semver) are skipped");
     }
 
     @Test
@@ -129,24 +112,6 @@ class OciRegistryLatestSourceIT {
         latestSource.version();
 
         wireMockServer.verify(getRequestedFor(urlPathEqualTo("/v2/library/nginx/tags/list")));
-    }
-
-    @Test
-    void read_handlesSingleTag_whenItIsCleanSemver() {
-        wireMockServer.stubFor(get(urlPathEqualTo("/v2/library/alpine/tags/list"))
-                .willReturn(jsonResponse(200, """
-                        {
-                          "name": "library/alpine",
-                          "tags": ["3.18.0"]
-                        }
-                        """)));
-
-        OciRegistryLatestSource latestSource =
-                anonymousSource("http://localhost:8090/v2/library/alpine");
-
-        VersionValue result = latestSource.version();
-
-        assertEquals("3.18.0", result.value());
     }
 
     private static com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder jsonResponse(

@@ -50,6 +50,8 @@ public class SshOsReleaseCurrentSource implements CurrentVersionSource, Closeabl
     static final String READ_COMMAND = "cat /etc/os-release";
     static final String DEFAULT_RELEASE_FIELD = "VERSION_ID";
 
+    private static final OsReleaseParser OS_RELEASE_PARSER = new OsReleaseParser();
+
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration AUTH_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration CHANNEL_TIMEOUT = Duration.ofSeconds(30);
@@ -85,7 +87,7 @@ public class SshOsReleaseCurrentSource implements CurrentVersionSource, Closeabl
             KeyPair keyPair = keyLoader.load();
             try (ClientSession session = openAuthenticatedSession(client, keyPair)) {
                 String osReleaseContent = execReadCommand(session);
-                String rawValue = extractField(osReleaseContent, releaseField);
+                String rawValue = OS_RELEASE_PARSER.extractField(osReleaseContent, releaseField);
                 return parser.parse(rawValue);
             }
         } catch (RuntimeException e) {
@@ -120,30 +122,6 @@ public class SshOsReleaseCurrentSource implements CurrentVersionSource, Closeabl
             channel.waitFor(EnumSet.of(ClientChannelEvent.CLOSED), CHANNEL_TIMEOUT.toMillis());
             return stdout.toString(StandardCharsets.UTF_8);
         }
-    }
-
-    private static String extractField(String osReleaseContent, String field) {
-        String prefix = field + "=";
-        for (String line : osReleaseContent.split("\n")) {
-            if (line.startsWith(prefix)) {
-                String value = line.substring(prefix.length()).trim();
-                value = stripSurroundingQuotes(value);
-                return value;
-            }
-        }
-        throw new IllegalStateException(
-                "Field '" + field + "' not found in /etc/os-release output");
-    }
-
-    private static String stripSurroundingQuotes(String value) {
-        if (value.length() >= 2) {
-            char first = value.charAt(0);
-            char last = value.charAt(value.length() - 1);
-            if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
-                return value.substring(1, value.length() - 1);
-            }
-        }
-        return value;
     }
 
     @Override

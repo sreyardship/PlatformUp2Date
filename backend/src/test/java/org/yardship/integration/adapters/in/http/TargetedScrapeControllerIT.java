@@ -3,7 +3,6 @@ package org.yardship.integration.adapters.in.http;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.scrapestate.ScrapeStateUnavailableException;
 import org.yardship.core.domain.primitives.Side;
 import org.yardship.core.domain.primitives.TargetResult;
 import org.yardship.core.ports.in.ApplicationVersionPort;
@@ -18,7 +17,13 @@ import static org.mockito.Mockito.when;
 
 /**
  * HTTP-level tests for {@code POST /api/v1/scrape/applications}. The inbound port is mocked so
- * these exercise the controller + JAX-RS mapping in isolation — mirrors {@link ScrapeControllerIT}.
+ * these exercise the controller + JAX-RS mapping in isolation.
+ *
+ * <p>Outcome→HTTP mapping (200/429+Retry-After/503) is proven once in {@link ScrapeControllerIT}
+ * and verified to be byte-for-byte identical on this endpoint; those cases are not duplicated here.
+ * This class covers only targeted-endpoint-specific behaviours: request-body binding, {@code side}
+ * enum validation (unknown value→400, case-insensitive accept), per-target results body shape,
+ * and the unmonitored-target-included-in-body case.
  */
 @QuarkusTest
 class TargetedScrapeControllerIT {
@@ -72,56 +77,6 @@ class TargetedScrapeControllerIT {
                 .statusCode(200)
                 .body("targetResults[0].succeeded", equalTo(false))
                 .body("targetResults[0].reason", equalTo("not monitored"));
-    }
-
-    @Test
-    void postScrapeApplications_inProgress_returns200WithInProgressOutcome() {
-        when(applicationVersionPort.targetedScrape(any())).thenReturn(ScrapeStatus.inProgress());
-
-        given()
-                .contentType("application/json")
-                .body("""
-                        {"targets":[{"name":"argo-cd","side":"both"}]}
-                        """)
-                .when()
-                .post("/api/v1/scrape/applications")
-                .then()
-                .statusCode(200)
-                .body("outcome", equalTo("IN_PROGRESS"));
-    }
-
-    @Test
-    void postScrapeApplications_rateLimited_returns429WithRetryAfterHeaderAndBody() {
-        when(applicationVersionPort.targetedScrape(any())).thenReturn(ScrapeStatus.rateLimited(42));
-
-        given()
-                .contentType("application/json")
-                .body("""
-                        {"targets":[{"name":"argo-cd","side":"both"}]}
-                        """)
-                .when()
-                .post("/api/v1/scrape/applications")
-                .then()
-                .statusCode(429)
-                .header("Retry-After", equalTo("42"))
-                .body("outcome", equalTo("RATE_LIMITED"))
-                .body("retryAfterSeconds", equalTo(42));
-    }
-
-    @Test
-    void postScrapeApplications_returns503_whenScrapeStateUnavailable() {
-        when(applicationVersionPort.targetedScrape(any()))
-                .thenThrow(new ScrapeStateUnavailableException("valkey unreachable", new RuntimeException()));
-
-        given()
-                .contentType("application/json")
-                .body("""
-                        {"targets":[{"name":"argo-cd","side":"both"}]}
-                        """)
-                .when()
-                .post("/api/v1/scrape/applications")
-                .then()
-                .statusCode(503);
     }
 
     @Test

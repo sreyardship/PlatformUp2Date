@@ -5,10 +5,7 @@ import io.quarkiverse.mcp.server.test.McpAssured.McpStreamableTestClient;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
-import org.yardship.core.domain.primitives.Side;
-import org.yardship.core.domain.primitives.TargetResult;
 import org.yardship.core.domain.primitives.SemverVersion;
-import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.in.ApplicationVersionPort;
 import org.yardship.core.ports.in.ScrapeStatus;
@@ -28,9 +25,10 @@ import static org.mockito.Mockito.when;
  * /sse) via {@code quarkus.mcp.server.http.root-path} (see docs/adr/0004); McpAssured does not
  * read that config, so the path is set explicitly below with {@code setMcpPath}. The extension
  * auto-discovers the {@code @Tool}-annotated beans; this test asserts the wiring works:
- *   - tools/list exposes both list_outdated_applications and get_application,
- *   - tools/call list_outdated_applications returns the outdated apps and omits current ones.
+ *   - tools/list exposes all four tools with the expected registration and descriptions,
+ *   - rate-limited outcomes are conveyed via the payload field, NOT a JSON-RPC protocol error.
  *
+ * Business logic (filtering, pass-through, side-parsing) is owned by ApplicationMcpToolsTests.
  * The inbound port is mocked so the result is deterministic and no real HTTP scrape runs.
  *
  * McpAssured 1.13.0 API (verified against the jar):
@@ -76,26 +74,6 @@ public class ApplicationMcpServerIT {
     }
 
     @Test
-    void toolsCall_listOutdatedApplications_returnsOutdatedAndOmitsCurrent() {
-        stubMixedApplications();
-
-        McpStreamableTestClient client = McpAssured.newStreamableClient()
-                .setMcpPath("/api/mcp")
-                .build()
-                .connect();
-        client.when()
-                .toolsCall("list_outdated_applications", response -> {
-                    assertFalse(response.isError(), "tool call must succeed");
-                    String text = response.firstContent().asText().text();
-                    assertTrue(text.contains("argo-cd"),
-                            "outdated app must be present in payload: " + text);
-                    assertFalse(text.contains("gitea"),
-                            "current app must be omitted from payload: " + text);
-                })
-                .thenAssertResults();
-    }
-
-    @Test
     void toolsList_exposesTriggerScrapeTool() {
         McpStreamableTestClient client = McpAssured.newStreamableClient()
                 .setMcpPath("/api/mcp")
@@ -104,61 +82,6 @@ public class ApplicationMcpServerIT {
         client.when()
                 .toolsList(page -> assertNotNull(page.findByName("trigger_scrape"),
                         "trigger_scrape tool must be registered"))
-                .thenAssertResults();
-    }
-
-    @Test
-    void toolsCall_triggerScrape_scraped_returnsOutcomeAndCounts() {
-        when(applicationVersionPort.triggerScrape())
-                .thenReturn(ScrapeStatus.scraped(3, 0, 9, 60));
-
-        McpStreamableTestClient client = McpAssured.newStreamableClient()
-                .setMcpPath("/api/mcp")
-                .build()
-                .connect();
-        client.when()
-                .toolsCall("trigger_scrape", response -> {
-                    assertFalse(response.isError(), "successful scrape must not be an error");
-                    String text = response.firstContent().asText().text();
-                    assertTrue(text.contains("SCRAPED"),
-                            "payload must carry the SCRAPED outcome: " + text);
-                    assertTrue(text.contains("\"appsAttempted\":3"),
-                            "payload must carry the attempted count: " + text);
-                    assertTrue(text.contains("\"triggersRemaining\":9"),
-                            "payload must carry the remaining-trigger budget: " + text);
-                })
-                .thenAssertResults();
-    }
-
-    @Test
-    void toolsCall_triggerScrape_scraped_payloadExposesPerAppTargetResults() {
-        when(applicationVersionPort.triggerScrape()).thenReturn(
-                ScrapeStatus.scraped(
-                        2,
-                        1,
-                        9,
-                        60,
-                        List.of(
-                                TargetResult.success("argo-cd", Side.BOTH),
-                                TargetResult.failure("grafana", Side.BOTH, "github down"))));
-
-        McpStreamableTestClient client = McpAssured.newStreamableClient()
-                .setMcpPath("/api/mcp")
-                .build()
-                .connect();
-        client.when()
-                .toolsCall("trigger_scrape", response -> {
-                    assertFalse(response.isError(), "successful scrape must not be an error");
-                    String text = response.firstContent().asText().text();
-                    assertTrue(text.contains("\"name\":\"argo-cd\""),
-                            "payload must name the succeeding app: " + text);
-                    assertTrue(text.contains("\"name\":\"grafana\""),
-                            "payload must name the failing app: " + text);
-                    assertTrue(text.contains("github down"),
-                            "payload must carry the failure reason: " + text);
-                    assertTrue(text.contains("\"side\":\"BOTH\""),
-                            "a full-scrape target result must report side BOTH: " + text);
-                })
                 .thenAssertResults();
     }
 
@@ -218,49 +141,6 @@ public class ApplicationMcpServerIT {
                             "description must say the targeted budget is separate from trigger_scrape's: "
                                     + description);
                 })
-                .thenAssertResults();
-    }
-
-    @Test
-    void toolsCall_scrapeApplications_mixedSides_payloadExposesOutcomeTargetResultsAndBudget() {
-        when(applicationVersionPort.targetedScrape(any())).thenReturn(
-                ScrapeStatus.scraped(
-                        List.of(
-                                TargetResult.success("argo-cd", Side.CURRENT),
-                                TargetResult.success("git-tea", Side.LATEST)),
-                        9,
-                        60));
-
-        McpStreamableTestClient client = McpAssured.newStreamableClient()
-                .setMcpPath("/api/mcp")
-                .build()
-                .connect();
-        client.when()
-                .toolsCall(
-                        "scrape_applications",
-                        Map.of(
-                                "targets",
-                                List.of(
-                                        Map.of("name", "argo-cd", "side", "current"),
-                                        Map.of("name", "git-tea", "side", "latest"))),
-                        response -> {
-                            assertFalse(response.isError(), "tool call must succeed");
-                            String text = response.firstContent().asText().text();
-                            assertTrue(text.contains("SCRAPED"),
-                                    "payload must carry the SCRAPED outcome: " + text);
-                            assertTrue(text.contains("\"name\":\"argo-cd\""),
-                                    "payload must name the first target: " + text);
-                            assertTrue(text.contains("\"side\":\"CURRENT\""),
-                                    "payload must report the first target's side: " + text);
-                            assertTrue(text.contains("\"name\":\"git-tea\""),
-                                    "payload must name the second target: " + text);
-                            assertTrue(text.contains("\"side\":\"LATEST\""),
-                                    "payload must report the second target's side: " + text);
-                            assertTrue(text.contains("\"triggersRemaining\":9"),
-                                    "payload must carry the targeted budget's remaining count: " + text);
-                            assertTrue(text.contains("\"windowResetsInSeconds\":60"),
-                                    "payload must carry the targeted budget's window reset: " + text);
-                        })
                 .thenAssertResults();
     }
 
