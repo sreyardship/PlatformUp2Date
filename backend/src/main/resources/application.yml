@@ -1,4 +1,21 @@
 quarkus:
+  native:
+    # A few MINA SSHD areas must initialise at image RUN time, not build time:
+    #  - org.apache.sshd.common.random: JceRandom$Cache's initializer creates a global SecureRandom,
+    #    which GraalVM forbids in the image heap (cached seed). Package scope covers the nested $Cache.
+    #  - Ed25519PublicKeyDecoder: its static initializer references the i2p-eddsa backend we do not
+    #    bundle (ed25519 flows through the JDK/BouncyCastle providers instead).
+    # Scoped narrowly (not the whole org.apache.sshd package) so build-time-instantiated singletons
+    # like RootedFileSystemProvider keep their default init and do not conflict. See docs/adr/0018.
+    additional-build-args:
+      - --initialize-at-run-time=org.apache.sshd.common.random
+      - --initialize-at-run-time=org.apache.sshd.common.util.security.eddsa.Ed25519PublicKeyDecoder
+      # MINA SSHD resolves key/signature entities through the named BouncyCastle provider
+      # (getInstance(algorithm, "BC")). GraalVM requires JCA providers to be registered AND verified
+      # at build time, so register BouncyCastle here; BouncyCastleProviderInstaller then ensures it is
+      # in the runtime provider list by name. Without this the native scrape fails with
+      # "no such provider: BC" / "provider ... not registered at build time". See docs/adr/0018.
+      - -H:AdditionalSecurityProviders=org.bouncycastle.jce.provider.BouncyCastleProvider
   mcp:
     server:
       server-info:

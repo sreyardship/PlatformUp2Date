@@ -109,7 +109,10 @@ public class ValkeyScrapeStateStore implements ScrapeStateStore {
     private record SnapshotDTO(List<AppDTO> applications, long lastAttemptAtEpochMillis) {
     }
 
-    @RegisterForReflection
+    // Register the array type too: Jackson instantiates AppDTO[] reflectively while deserialising
+    // the List<AppDTO>, so without the array registration the snapshot read throws in native and the
+    // cache never populates (the bare record registration does not cover its array class).
+    @RegisterForReflection(targets = {AppDTO.class, AppDTO[].class})
     private record AppDTO(String name, String current, String latest) {
     }
 }

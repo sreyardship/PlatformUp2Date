@@ -42,6 +42,11 @@ dependencies {
     integrationTestImplementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
     integrationTestImplementation 'io.quarkus:quarkus-junit5'
     integrationTestImplementation 'org.wiremock:wiremock:3.13.2'
+    // The ssh-os-release native guard (@QuarkusIntegrationTest) boots an embedded ed25519 MINA SSH
+    // server in the test JVM that the launched native binary connects to, so the test harness needs
+    // the SSHD server classes (+ BouncyCastle for ed25519 key handling, matching the unit/IT classpath).
+    integrationTestImplementation 'org.apache.sshd:sshd-core:2.13.2'
+    integrationTestImplementation 'org.bouncycastle:bcpkix-jdk18on:1.78.1'
 }
 
 group 'org.yardship'
@@ -61,6 +66,23 @@ test {
     jvmArgs '-XX:+EnableDynamicAgentLoading', '-Djdk.instrument.traceUsage'
     useJUnitPlatform {
         excludeTags 'performance'
+    }
+
+    // One-off GraalVM reachability-metadata capture: run a focused test class under the
+    // native-image tracing agent to (re)generate META-INF/native-image config for the SSH path.
+    //   gradle test --tests '*SshOsReleaseCurrentSourceIT' -PnativeAgentDir=<abs-dir> --rerun-tasks
+    // See docs/adr/0018 for when to regenerate (MINA SSHD upgrades).
+    if (project.hasProperty('nativeAgentDir')) {
+        def graalHome = System.getenv('GRAALVM_HOME') ?: System.getProperty('java.home')
+        // The tracing agent must run on a JVM matching its major version (the GraalVM JDK), so fork
+        // the test workers with the GraalVM java rather than the default build toolchain.
+        executable = "${graalHome}/bin/java"
+        def agentOpts = "config-output-dir=${project.property('nativeAgentDir')}"
+        if (project.hasProperty('nativeAgentFilter')) {
+            agentOpts += ",access-filter-file=${project.property('nativeAgentFilter')}"
+        }
+        jvmArgs "-agentpath:${graalHome}/lib/libnative-image-agent.so=${agentOpts}"
+        maxParallelForks = 1
     }
 }
 

@@ -3,6 +3,7 @@ package org.yardship.integration.adapters.out.versionsource.current.ssh;
 import org.apache.sshd.common.config.keys.KeyUtils;
 import org.apache.sshd.common.config.keys.writer.openssh.OpenSSHKeyPairResourceWriter;
 import org.apache.sshd.common.keyprovider.MappedKeyPairProvider;
+import org.apache.sshd.common.util.security.SecurityUtils;
 import org.apache.sshd.server.Environment;
 import org.apache.sshd.server.ExitCallback;
 import org.apache.sshd.server.SshServer;
@@ -20,6 +21,7 @@ import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -148,6 +150,40 @@ class SshOsReleaseCurrentSourceIT {
     static String serverPublicKeyLine;   // host-key config value (correct pinned key)
     static String wrongPublicKeyLine;    // host-key config value (wrong key — mismatch test)
 
+    // ed25519 variants — the PRODUCTION host-key type (ADR-0018). A second embedded server presents
+    // an ed25519 host key and accepts an ed25519 client key, so the SSH client path is exercised
+    // against the prod key type in addition to RSA. Real ssh-keygen ed25519 keys are embedded as
+    // constants and only ever PARSED (never re-serialized): this goes through the exact production
+    // key-loading path and avoids MINA's BouncyCastle OpenSSH-writer quirk, which CCEs when asked to
+    // serialize a JDK-generated ed25519 key while BouncyCastle is registered.
+    static SshServer ed25519Server;
+
+    /** ssh-keygen ed25519 server host key (OpenSSH private key); its public half is pinned below. */
+    private static final String ED25519_SERVER_PRIVATE_KEY = """
+            -----BEGIN OPENSSH PRIVATE KEY-----
+            b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+            QyNTUxOQAAACCkhyuy5aj+qg8v0VIgVLCdSfgSBb3B/8IzlIeArDzj/AAAAJjFcU9lxXFP
+            ZQAAAAtzc2gtZWQyNTUxOQAAACCkhyuy5aj+qg8v0VIgVLCdSfgSBb3B/8IzlIeArDzj/A
+            AAAEADnlvZypZw1v9XsWTzDTzD7A62k4rQS6svXpEqrhVDZaSHK7LlqP6qDy/RUiBUsJ1J
+            +BIFvcH/wjOUh4CsPOP8AAAAFGVtYmVkZGVkLXRlc3Qtc2VydmVyAQ==
+            -----END OPENSSH PRIVATE KEY-----
+            """;
+
+    /** The ed25519 server host-key public line — the {@code host-key} config value (no comment). */
+    private static final String ED25519_SERVER_PUBLIC_LINE =
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKSHK7LlqP6qDy/RUiBUsJ1J+BIFvcH/wjOUh4CsPOP8";
+
+    /** ssh-keygen ed25519 client key (OpenSSH private key) — the inline {@code private-key} config value. */
+    private static final String ED25519_CLIENT_PRIVATE_KEY = """
+            -----BEGIN OPENSSH PRIVATE KEY-----
+            b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+            QyNTUxOQAAACBS31IRyP7DZNZD4ZgZAUAzvmGbTLYdtlG/Pc2PDQ/m+gAAAJg6fer1On3q
+            9QAAAAtzc2gtZWQyNTUxOQAAACBS31IRyP7DZNZD4ZgZAUAzvmGbTLYdtlG/Pc2PDQ/m+g
+            AAAEA4fT5MqyEKjc2T6Hk/D6mbI+HDcTaID31F4dgJ2WTz6VLfUhHI/sNk1kPhmBkBQDO+
+            YZtMth22Ub89zY8ND+b6AAAAFGVtYmVkZGVkLXRlc3QtY2xpZW50AQ==
+            -----END OPENSSH PRIVATE KEY-----
+            """;
+
     /**
      * Mutable fixture body: tests set this before calling {@code source.version()} to control
      * what the command factory returns for that test. Reset to Ubuntu in {@link #resetFixture}.
@@ -206,12 +242,34 @@ class SshOsReleaseCurrentSourceIT {
 
         server.start();
         // server.getPort() is now the bound ephemeral port
+
+        // --- ed25519 server + client (production host-key type, ADR-0018) ---
+        // Parse the embedded ssh-keygen keys via the same loader the production source uses.
+        KeyPair ed25519ServerKeyPair = parseOpenSshKeyPair(ED25519_SERVER_PRIVATE_KEY);
+        KeyPair ed25519ClientKeyPair = parseOpenSshKeyPair(ED25519_CLIENT_PRIVATE_KEY);
+
+        ed25519Server = SshServer.setUpDefaultServer();
+        ed25519Server.setPort(0); // ephemeral
+        ed25519Server.setKeyPairProvider(new MappedKeyPairProvider(ed25519ServerKeyPair));
+        ed25519Server.setPublickeyAuthenticator((username, key, session) ->
+                KeyUtils.compareKeys(ed25519ClientKeyPair.getPublic(), key));
+        ed25519Server.setCommandFactory((channel, command) -> {
+            if (FIXED_READ_COMMAND.equals(command)) {
+                return new FixtureCommand(currentFixture.get());
+            }
+            throw new UnsupportedOperationException(
+                    "Embedded test server received unexpected command: '" + command + "'");
+        });
+        ed25519Server.start();
     }
 
     @AfterAll
     static void stopSshServer() throws Exception {
         if (server != null && server.isOpen()) {
             server.stop();
+        }
+        if (ed25519Server != null && ed25519Server.isOpen()) {
+            ed25519Server.stop();
         }
     }
 
@@ -478,6 +536,59 @@ class SshOsReleaseCurrentSourceIT {
     }
 
     // -----------------------------------------------------------------------
+    // ed25519 (production host-key type, ADR-0018)
+    // -----------------------------------------------------------------------
+
+    @Test
+    void ed25519_inlinePrivateKey_pinnedHostKey_returnsVersionId_24_04() throws Exception {
+        // ed25519 is the production host-key type: exercise the full client connect/auth/exec path
+        // against it, mirroring the RSA happy path.
+        CurrentVersionSource source = FACTORY.create(ed25519SourceBuilder().build(), CALVER_UBUNTU);
+
+        VersionValue result = source.version();
+
+        assertEquals("24.04", result.value(),
+                "ed25519 inline key + pinned ed25519 host-key must authenticate and return VERSION_ID");
+    }
+
+    @Test
+    void ed25519_privateKeyFile_authenticatesSuccessfully(@TempDir Path dir) throws Exception {
+        Path keyFile = dir.resolve("ed25519-client-key");
+        Files.writeString(keyFile, ED25519_CLIENT_PRIVATE_KEY);
+
+        CurrentVersionSource source = FACTORY.create(
+                ed25519SourceBuilder()
+                        .withPrivateKey(Optional.empty())
+                        .withPrivateKeyFile(Optional.of(keyFile.toString()))
+                        .build(),
+                CALVER_UBUNTU);
+
+        VersionValue result = source.version();
+
+        assertEquals("24.04", result.value(),
+                "ed25519 private-key-file form must authenticate and return VERSION_ID");
+    }
+
+    @Test
+    void ed25519_knownHostsFile_correctKey_returnsVersionId(@TempDir Path dir) throws Exception {
+        Path knownHostsFile = dir.resolve("known_hosts");
+        String entry = "[127.0.0.1]:" + ed25519Server.getPort() + " " + ED25519_SERVER_PUBLIC_LINE;
+        Files.writeString(knownHostsFile, entry + System.lineSeparator());
+
+        CurrentVersionSource source = FACTORY.create(
+                ed25519SourceBuilder()
+                        .withHostKey(Optional.empty())
+                        .withKnownHosts(Optional.of(knownHostsFile.toString()))
+                        .build(),
+                CALVER_UBUNTU);
+
+        VersionValue result = source.version();
+
+        assertEquals("24.04", result.value(),
+                "ed25519 known-hosts form must verify the server key and return the version");
+    }
+
+    // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
 
@@ -492,6 +603,32 @@ class SshOsReleaseCurrentSourceIT {
                 .withUser(Optional.of("testuser"))
                 .withPrivateKey(Optional.of(clientPrivateKeyPem))
                 .withHostKey(Optional.of(serverPublicKeyLine));
+    }
+
+    /**
+     * Like {@link #sourceBuilder()} but pointing at the ed25519 embedded server with the ed25519
+     * client key and pinned ed25519 host-key — the production key type (ADR-0018).
+     */
+    private VersionSourceBuilder ed25519SourceBuilder() {
+        return new VersionSourceBuilder()
+                .withHost(Optional.of("127.0.0.1"))
+                .withPort(Optional.of(ed25519Server.getPort()))
+                .withUser(Optional.of("testuser"))
+                .withPrivateKey(Optional.of(ED25519_CLIENT_PRIVATE_KEY))
+                .withHostKey(Optional.of(ED25519_SERVER_PUBLIC_LINE));
+    }
+
+    /** Parse an OpenSSH private-key PEM into a {@link KeyPair} via MINA's loader (production path). */
+    private static KeyPair parseOpenSshKeyPair(String pem) throws Exception {
+        Iterable<KeyPair> pairs = SecurityUtils.loadKeyPairIdentities(
+                null,
+                () -> "embedded-test-key",
+                new ByteArrayInputStream(pem.getBytes(StandardCharsets.UTF_8)),
+                null);
+        for (KeyPair pair : pairs) {
+            return pair;
+        }
+        throw new IllegalStateException("No key pair parsed from embedded ed25519 PEM");
     }
 
     // -----------------------------------------------------------------------

@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * {@code /api/v1/version} stays empty ({@code {}}), which fails this test.
  */
 @QuarkusIntegrationTest
-@QuarkusTestResource(WireMockVersionResource.class)
+@QuarkusTestResource(value = WireMockVersionResource.class, restrictToAnnotatedClass = true)
 class ApplicationVersionResourceIT {
 
     @TestHTTPResource("/api/v1/version")

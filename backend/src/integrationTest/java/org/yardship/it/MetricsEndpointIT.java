@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * good-app current 1.0.0 / latest 2.0.0 — a major drift, so the value must be 3.
  */
 @QuarkusIntegrationTest
-@QuarkusTestResource(WireMockVersionResource.class)
+@QuarkusTestResource(value = WireMockVersionResource.class, restrictToAnnotatedClass = true)
 class MetricsEndpointIT {
 
     @TestHTTPResource("/metrics")

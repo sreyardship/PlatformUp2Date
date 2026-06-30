@@ -1,0 +1,4409 @@
+{
+  "reflection": [
+    {
+      "type": "com.sun.crypto.provider.AESCipher$General",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "com.sun.crypto.provider.ARCFOURCipher",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "com.sun.crypto.provider.ChaCha20Cipher$ChaCha20Poly1305",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "com.sun.crypto.provider.DESCipher",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "com.sun.crypto.provider.DESedeCipher",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "com.sun.crypto.provider.GaloisCounterMode$AESGCM",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.APIGroup"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.APIGroupList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.APIResourceList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.APIService"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.APIServiceList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.APIVersions"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.Binding"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.ComponentStatus"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.ComponentStatusList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.ConfigMap"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.ConfigMapList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.CreateOptions"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.DeleteOptions"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.Endpoints"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.EndpointsList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.Event"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.EventList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.GetOptions"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.KubernetesList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.LimitRange"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.LimitRangeList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.ListOptions"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.Namespace"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.NamespaceList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.Node"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.NodeList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.OwnerReference"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.PatchOptions"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.PersistentVolume"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.PersistentVolumeClaim"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.PersistentVolumeClaimList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.PersistentVolumeList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.Pod"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.PodExecOptions"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.PodList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.PodTemplate"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.PodTemplateList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.ReplicationController"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.ReplicationControllerList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.ResourceQuota"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.ResourceQuotaList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.Secret"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.SecretList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.Service"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.ServiceAccount"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.ServiceAccountList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.ServiceList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.Status"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.TypeMeta"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.UpdateOptions"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admission.v1.AdmissionReview"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admission.v1beta1.AdmissionReview"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1.MutatingWebhookConfiguration"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1.MutatingWebhookConfigurationList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1.ValidatingAdmissionPolicy"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1.ValidatingAdmissionPolicyBinding"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1.ValidatingAdmissionPolicyBindingList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1.ValidatingAdmissionPolicyList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1.ValidatingWebhookConfiguration"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1.ValidatingWebhookConfigurationList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1alpha1.MutatingAdmissionPolicy"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1alpha1.MutatingAdmissionPolicyBinding"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1alpha1.MutatingAdmissionPolicyBindingList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1alpha1.MutatingAdmissionPolicyList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1beta1.MutatingAdmissionPolicy"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1beta1.MutatingAdmissionPolicyBinding"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1beta1.MutatingAdmissionPolicyBindingList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1beta1.MutatingAdmissionPolicyList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1beta1.MutatingWebhookConfiguration"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1beta1.MutatingWebhookConfigurationList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1beta1.ValidatingWebhookConfiguration"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.admissionregistration.v1beta1.ValidatingWebhookConfigurationList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.apiextensions.v1.ConversionReview"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.apiextensions.v1.CustomResourceDefinition"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.apiextensions.v1.CustomResourceDefinitionList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.apiextensions.v1beta1.CustomResourceDefinition"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.apiextensions.v1beta1.CustomResourceDefinitionList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.apps.ControllerRevision"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.apps.ControllerRevisionList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.apps.DaemonSet"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.apps.DaemonSetList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.apps.Deployment"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.apps.DeploymentList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.apps.ReplicaSet"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.apps.ReplicaSetList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.apps.StatefulSet"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.apps.StatefulSetList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.authentication.SelfSubjectReview"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.authentication.TokenRequest"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.authentication.TokenReview"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.authentication.v1beta1.TokenReview"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.authorization.v1.LocalSubjectAccessReview"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.authorization.v1.SelfSubjectAccessReview"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.authorization.v1.SelfSubjectRulesReview"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.authorization.v1.SubjectAccessReview"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.authorization.v1beta1.LocalSubjectAccessReview"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.authorization.v1beta1.SelfSubjectAccessReview"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.authorization.v1beta1.SelfSubjectRulesReview"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.authorization.v1beta1.SubjectAccessReview"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.autoscaling.v1.HorizontalPodAutoscaler"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.autoscaling.v1.HorizontalPodAutoscalerList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.autoscaling.v1.Scale"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.autoscaling.v2.HorizontalPodAutoscaler"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.autoscaling.v2.HorizontalPodAutoscalerList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.autoscaling.v2beta1.HorizontalPodAutoscaler"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.autoscaling.v2beta1.HorizontalPodAutoscalerList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.autoscaling.v2beta2.HorizontalPodAutoscaler"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.autoscaling.v2beta2.HorizontalPodAutoscalerList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.batch.v1.CronJob"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.batch.v1.CronJobList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.batch.v1.Job"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.batch.v1.JobList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.batch.v1beta1.CronJob"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.batch.v1beta1.CronJobList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.certificates.v1.CertificateSigningRequest"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.certificates.v1.CertificateSigningRequestList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.certificates.v1alpha1.ClusterTrustBundle"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.certificates.v1alpha1.ClusterTrustBundleList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.certificates.v1alpha1.PodCertificateRequest"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.certificates.v1alpha1.PodCertificateRequestList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.certificates.v1beta1.CertificateSigningRequest"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.certificates.v1beta1.CertificateSigningRequestList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.certificates.v1beta1.ClusterTrustBundle"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.certificates.v1beta1.ClusterTrustBundleList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.coordination.v1.Lease"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.coordination.v1.LeaseList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.coordination.v1alpha2.LeaseCandidate"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.coordination.v1alpha2.LeaseCandidateList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.coordination.v1beta1.LeaseCandidate"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.coordination.v1beta1.LeaseCandidateList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.discovery.v1.EndpointSlice"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.discovery.v1.EndpointSliceList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.discovery.v1beta1.EndpointSlice"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.discovery.v1beta1.EndpointSliceList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.events.v1.Event"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.events.v1.EventList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.events.v1beta1.Event"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.events.v1beta1.EventList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.extensions.DaemonSet"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.extensions.DaemonSetList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.extensions.Deployment"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.extensions.DeploymentList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.extensions.Ingress"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.extensions.IngressList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicy"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.extensions.PodSecurityPolicy"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.extensions.PodSecurityPolicyList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.extensions.ReplicaSet"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.extensions.ReplicaSetList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.extensions.Scale"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.flowcontrol.v1.FlowSchema"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.flowcontrol.v1.FlowSchemaList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.flowcontrol.v1.PriorityLevelConfiguration"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.flowcontrol.v1.PriorityLevelConfigurationList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.flowcontrol.v1beta1.FlowSchema"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.flowcontrol.v1beta1.FlowSchemaList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.flowcontrol.v1beta1.PriorityLevelConfiguration"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.flowcontrol.v1beta1.PriorityLevelConfigurationList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.flowcontrol.v1beta2.FlowSchema"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.flowcontrol.v1beta2.FlowSchemaList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.flowcontrol.v1beta2.PriorityLevelConfiguration"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.flowcontrol.v1beta2.PriorityLevelConfigurationList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.flowcontrol.v1beta3.FlowSchema"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.flowcontrol.v1beta3.FlowSchemaList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.flowcontrol.v1beta3.PriorityLevelConfiguration"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.flowcontrol.v1beta3.PriorityLevelConfigurationList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1.BackendTLSPolicy"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1.BackendTLSPolicyList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1.GRPCRoute"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1.GRPCRouteList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1.Gateway"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1.GatewayClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1.GatewayClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1.GatewayList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1.HTTPRoute"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1.HTTPRouteList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1alpha2.GRPCRoute"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1alpha2.GRPCRouteList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1alpha2.ReferenceGrant"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1alpha2.ReferenceGrantList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1alpha2.TCPRoute"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1alpha2.TCPRouteList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1alpha2.TLSRoute"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1alpha2.TLSRouteList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1alpha2.UDPRoute"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1alpha2.UDPRouteList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1alpha3.BackendTLSPolicy"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1alpha3.BackendTLSPolicyList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1alpha3.TLSRoute"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1alpha3.TLSRouteList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1beta1.Gateway"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1beta1.GatewayClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1beta1.GatewayClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1beta1.GatewayList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1beta1.HTTPRoute"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1beta1.HTTPRouteList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1beta1.ReferenceGrant"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.gatewayapi.v1beta1.ReferenceGrantList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.metrics.v1beta1.NodeMetrics"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.metrics.v1beta1.NodeMetricsList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.metrics.v1beta1.PodMetrics"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.metrics.v1beta1.PodMetricsList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.networking.v1.IPAddress"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.networking.v1.IPAddressList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.networking.v1.Ingress"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.networking.v1.IngressClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.networking.v1.IngressClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.networking.v1.IngressList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.networking.v1.NetworkPolicy"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.networking.v1.NetworkPolicyList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.networking.v1.ServiceCIDR"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.networking.v1.ServiceCIDRList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.networking.v1beta1.IPAddress"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.networking.v1beta1.IPAddressList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.networking.v1beta1.Ingress"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.networking.v1beta1.IngressClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.networking.v1beta1.IngressClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.networking.v1beta1.IngressList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.networking.v1beta1.ServiceCIDR"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.networking.v1beta1.ServiceCIDRList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.node.v1.RuntimeClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.node.v1.RuntimeClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.node.v1alpha1.RuntimeClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.node.v1alpha1.RuntimeClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.node.v1beta1.RuntimeClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.node.v1beta1.RuntimeClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.policy.v1.Eviction"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.policy.v1.PodDisruptionBudget"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.policy.v1.PodDisruptionBudgetList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.policy.v1beta1.Eviction"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.policy.v1beta1.PodDisruptionBudget"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.policy.v1beta1.PodDisruptionBudgetList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.policy.v1beta1.PodSecurityPolicy"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.policy.v1beta1.PodSecurityPolicyList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.rbac.ClusterRole"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.rbac.ClusterRoleBinding"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.rbac.ClusterRoleBindingList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.rbac.ClusterRoleList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.rbac.Role"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.rbac.RoleBinding"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.rbac.RoleBindingList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.rbac.RoleList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1.DeviceClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1.DeviceClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1.ResourceClaim"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1.ResourceClaimList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1.ResourceClaimTemplate"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1.ResourceClaimTemplateList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1.ResourceSlice"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1.ResourceSliceList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1alpha2.PodSchedulingContext"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1alpha2.PodSchedulingContextList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1alpha2.ResourceClaim"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1alpha2.ResourceClaimList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1alpha2.ResourceClaimParameters"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1alpha2.ResourceClaimParametersList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1alpha2.ResourceClaimTemplate"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1alpha2.ResourceClaimTemplateList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1alpha2.ResourceClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1alpha2.ResourceClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1alpha2.ResourceClassParameters"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1alpha2.ResourceClassParametersList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1alpha2.ResourceSlice"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1alpha2.ResourceSliceList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1alpha3.DeviceTaintRule"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1alpha3.DeviceTaintRuleList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1beta1.DeviceClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1beta1.DeviceClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1beta1.ResourceClaim"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1beta1.ResourceClaimList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1beta1.ResourceClaimTemplate"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1beta1.ResourceClaimTemplateList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1beta1.ResourceSlice"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1beta1.ResourceSliceList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1beta2.DeviceClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1beta2.DeviceClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1beta2.ResourceClaim"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1beta2.ResourceClaimList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1beta2.ResourceClaimTemplate"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1beta2.ResourceClaimTemplateList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1beta2.ResourceSlice"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.resource.v1beta2.ResourceSliceList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.scheduling.v1.PriorityClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.scheduling.v1.PriorityClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.scheduling.v1alpha1.PriorityClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.scheduling.v1alpha1.PriorityClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.scheduling.v1beta1.PriorityClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.scheduling.v1beta1.PriorityClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.CSIDriver"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.CSIDriverList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.CSINode"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.CSINodeList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.CSIStorageCapacity"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.CSIStorageCapacityList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.StorageClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.StorageClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.VolumeAttachment"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.VolumeAttachmentList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.VolumeAttributesClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.VolumeAttributesClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.v1alpha1.CSIStorageCapacity"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.v1alpha1.CSIStorageCapacityList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.v1alpha1.VolumeAttachment"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.v1alpha1.VolumeAttachmentList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.v1alpha1.VolumeAttributesClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.v1alpha1.VolumeAttributesClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.v1beta1.CSIDriver"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.v1beta1.CSIDriverList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.v1beta1.CSINode"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.v1beta1.CSINodeList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.v1beta1.CSIStorageCapacity"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.v1beta1.CSIStorageCapacityList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.v1beta1.StorageClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.v1beta1.StorageClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.v1beta1.VolumeAttachment"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.v1beta1.VolumeAttachmentList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.v1beta1.VolumeAttributesClass"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storage.v1beta1.VolumeAttributesClassList"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storagemigration.v1alpha1.StorageVersionMigration"
+    },
+    {
+      "type": "io.fabric8.kubernetes.api.model.storagemigration.v1alpha1.StorageVersionMigrationList"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.deployment.JsonSchemaGeneratorProcessor",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "provideSchemaGeneratorAndOptionalModules",
+          "parameterTypes": [
+            "io.quarkus.deployment.pkg.builditem.CurateOutcomeBuildItem",
+            "io.quarkus.deployment.annotations.BuildProducer"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.deployment.McpServerProcessor",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "addBeans",
+          "parameterTypes": [
+            "io.quarkus.deployment.annotations.BuildProducer"
+          ]
+        },
+        {
+          "name": "addMetricsSupport",
+          "parameterTypes": [
+            "io.quarkus.deployment.annotations.BuildProducer",
+            "java.util.Optional"
+          ]
+        },
+        {
+          "name": "addTracingSupport",
+          "parameterTypes": [
+            "io.quarkus.deployment.annotations.BuildProducer",
+            "java.util.Optional"
+          ]
+        },
+        {
+          "name": "autoScopes",
+          "parameterTypes": [
+            "io.quarkus.deployment.annotations.BuildProducer",
+            "io.quarkiverse.mcp.server.deployment.FeatureAnnotationsBuildItem"
+          ]
+        },
+        {
+          "name": "collectDefaultValueConverters",
+          "parameterTypes": [
+            "io.quarkus.deployment.builditem.CombinedIndexBuildItem",
+            "io.quarkus.deployment.annotations.BuildProducer"
+          ]
+        },
+        {
+          "name": "collectFeatureMethods",
+          "parameterTypes": [
+            "io.quarkiverse.mcp.server.runtime.config.McpServersBuildTimeConfig",
+            "io.quarkus.arc.deployment.BeanDiscoveryFinishedBuildItem",
+            "io.quarkus.arc.deployment.InvokerFactoryBuildItem",
+            "java.util.List",
+            "io.quarkus.arc.deployment.BeanArchiveIndexBuildItem",
+            "io.quarkus.arc.deployment.TransformedAnnotationsBuildItem",
+            "io.quarkiverse.mcp.server.deployment.FeatureAnnotationsBuildItem",
+            "io.quarkus.deployment.annotations.BuildProducer",
+            "io.quarkus.deployment.annotations.BuildProducer"
+          ]
+        },
+        {
+          "name": "executionModelAnnotations",
+          "parameterTypes": [
+            "io.quarkiverse.mcp.server.deployment.FeatureAnnotationsBuildItem",
+            "io.quarkus.arc.deployment.TransformedAnnotationsBuildItem"
+          ]
+        },
+        {
+          "name": "featureAnnotations",
+          "parameterTypes": [
+            "io.quarkiverse.mcp.server.runtime.config.McpServersBuildTimeConfig"
+          ]
+        },
+        {
+          "name": "generateMetadata",
+          "parameterTypes": [
+            "io.quarkiverse.mcp.server.runtime.McpServerRecorder",
+            "io.quarkus.deployment.recording.RecorderContext",
+            "io.quarkus.arc.deployment.BeanDiscoveryFinishedBuildItem",
+            "java.util.List",
+            "java.util.List",
+            "java.util.List",
+            "io.quarkus.arc.deployment.BeanArchiveIndexBuildItem",
+            "io.quarkus.deployment.annotations.BuildProducer",
+            "io.quarkus.deployment.annotations.BuildProducer",
+            "io.quarkus.deployment.annotations.BuildProducer",
+            "io.quarkus.deployment.annotations.BuildProducer"
+          ]
+        },
+        {
+          "name": "indexBuiltinDefaultValueConverters",
+          "parameterTypes": []
+        },
+        {
+          "name": "registerForReflection",
+          "parameterTypes": [
+            "java.util.List",
+            "java.util.List",
+            "io.quarkus.deployment.annotations.BuildProducer",
+            "io.quarkus.deployment.annotations.BuildProducer",
+            "io.quarkus.deployment.annotations.BuildProducer"
+          ]
+        },
+        {
+          "name": "serverNames",
+          "parameterTypes": [
+            "io.quarkus.deployment.annotations.BuildProducer"
+          ]
+        },
+        {
+          "name": "validateGuardrailsAndIconProviders",
+          "parameterTypes": [
+            "io.quarkus.arc.deployment.BeanArchiveIndexBuildItem",
+            "java.util.List",
+            "io.quarkus.arc.deployment.ValidationPhaseBuildItem",
+            "io.quarkus.deployment.annotations.BuildProducer",
+            "io.quarkus.deployment.annotations.BuildProducer"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.deployment.HttpMcpServerProcessor",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "addBeans",
+          "parameterTypes": [
+            "io.quarkus.deployment.annotations.BuildProducer"
+          ]
+        },
+        {
+          "name": "collectMcpServerEndpoints",
+          "parameterTypes": [
+            "io.quarkiverse.mcp.server.http.runtime.config.McpHttpServersBuildTimeConfig",
+            "io.quarkus.vertx.http.deployment.HttpRootPathBuildItem"
+          ]
+        },
+        {
+          "name": "feature",
+          "parameterTypes": []
+        },
+        {
+          "name": "registerEndpoints",
+          "parameterTypes": [
+            "io.quarkiverse.mcp.server.http.deployment.McpServerEndpointsBuildItem",
+            "io.quarkiverse.mcp.server.http.runtime.HttpMcpServerRecorder",
+            "io.quarkus.vertx.http.deployment.BodyHandlerBuildItem",
+            "io.quarkus.deployment.annotations.BuildProducer"
+          ]
+        },
+        {
+          "name": "registerMcpEndpointsBean",
+          "parameterTypes": [
+            "io.quarkiverse.mcp.server.http.deployment.McpServerEndpointsBuildItem",
+            "io.quarkiverse.mcp.server.http.runtime.HttpMcpServerRecorder",
+            "io.quarkus.deployment.annotations.BuildProducer"
+          ]
+        },
+        {
+          "name": "serverNames",
+          "parameterTypes": [
+            "io.quarkiverse.mcp.server.http.runtime.config.McpHttpServersBuildTimeConfig",
+            "io.quarkus.deployment.annotations.BuildProducer"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.deployment.devui.HttpMcpDevUIProcessor",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "footerLog",
+          "parameterTypes": [
+            "io.quarkus.deployment.annotations.BuildProducer"
+          ]
+        },
+        {
+          "name": "page",
+          "parameterTypes": [
+            "io.quarkus.deployment.annotations.BuildProducer"
+          ]
+        },
+        {
+          "name": "rpcProvider",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.HttpMcpServerRecorder"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.McpServerEndpoints$McpServerEndpoint",
+      "fields": [
+        {
+          "name": "mcpPath"
+        },
+        {
+          "name": "serverName"
+        },
+        {
+          "name": "ssePath"
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.config.McpHttpConfigBuilderCustomizer"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.config.McpHttpServerBuildTimeConfig"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.config.McpHttpServerBuildTimeConfig$$CMImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.smallrye.config.ConfigMappingContext"
+          ]
+        },
+        {
+          "name": "getProperties",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSecrets",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.config.McpHttpServerBuildTimeConfig$Http"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.config.McpHttpServerBuildTimeConfig$Http$$CMImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.smallrye.config.ConfigMappingContext"
+          ]
+        },
+        {
+          "name": "getProperties",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSecrets",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.config.McpHttpServerBuildTimeConfig$Http$MessageEndpoint"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.config.McpHttpServerBuildTimeConfig$Http$MessageEndpoint$$CMImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.smallrye.config.ConfigMappingContext"
+          ]
+        },
+        {
+          "name": "getProperties",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSecrets",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.config.McpHttpServerRuntimeConfig"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.config.McpHttpServerRuntimeConfig$$CMImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.smallrye.config.ConfigMappingContext"
+          ]
+        },
+        {
+          "name": "getProperties",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSecrets",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.config.McpHttpServerRuntimeConfig$Http"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.config.McpHttpServerRuntimeConfig$Http$$CMImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.smallrye.config.ConfigMappingContext"
+          ]
+        },
+        {
+          "name": "getProperties",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSecrets",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.config.McpHttpServerRuntimeConfig$Http$Streamable"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.config.McpHttpServerRuntimeConfig$Http$Streamable$$CMImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.smallrye.config.ConfigMappingContext"
+          ]
+        },
+        {
+          "name": "getProperties",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSecrets",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.config.McpHttpServersBuildTimeConfig"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.config.McpHttpServersBuildTimeConfig$$CMImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.smallrye.config.ConfigMappingContext"
+          ]
+        },
+        {
+          "name": "getProperties",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSecrets",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.config.McpHttpServersRuntimeConfig"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.http.runtime.config.McpHttpServersRuntimeConfig$$CMImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.smallrye.config.ConfigMappingContext"
+          ]
+        },
+        {
+          "name": "getProperties",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSecrets",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.McpServerRecorder"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerBuildTimeConfig"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerBuildTimeConfig$$CMImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.smallrye.config.ConfigMappingContext"
+          ]
+        },
+        {
+          "name": "getProperties",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSecrets",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerBuildTimeConfig$Tools"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerBuildTimeConfig$Tools$$CMImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.smallrye.config.ConfigMappingContext"
+          ]
+        },
+        {
+          "name": "getProperties",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSecrets",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerRuntimeConfig"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerRuntimeConfig$ClientLogging"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerRuntimeConfig$DevMode"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerRuntimeConfig$Elicitation"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerRuntimeConfig$Icon"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerRuntimeConfig$Prompts"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerRuntimeConfig$ResourceTemplates"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerRuntimeConfig$Resources"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerRuntimeConfig$Roots"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerRuntimeConfig$Sampling"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerRuntimeConfig$ServerInfo"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerRuntimeConfig$StructuredContent"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerRuntimeConfig$Tools"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerRuntimeConfig$TrafficLogging"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerSchemaGeneratorJacksonRuntimeConfig"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerSchemaGeneratorJacksonRuntimeConfig$$CMImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.smallrye.config.ConfigMappingContext"
+          ]
+        },
+        {
+          "name": "getProperties",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSecrets",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerSchemaGeneratorJakartaValidationRuntimeConfig"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerSchemaGeneratorJakartaValidationRuntimeConfig$$CMImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.smallrye.config.ConfigMappingContext"
+          ]
+        },
+        {
+          "name": "getProperties",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSecrets",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerSchemaGeneratorSwagger2RuntimeConfig"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServerSchemaGeneratorSwagger2RuntimeConfig$$CMImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.smallrye.config.ConfigMappingContext"
+          ]
+        },
+        {
+          "name": "getProperties",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSecrets",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServersBuildTimeConfig"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServersBuildTimeConfig$$CMImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.smallrye.config.ConfigMappingContext"
+          ]
+        },
+        {
+          "name": "getProperties",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSecrets",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServersRuntimeConfig"
+    },
+    {
+      "type": "io.quarkiverse.mcp.server.runtime.config.McpServersRuntimeConfig$$CMImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.smallrye.config.ConfigMappingContext"
+          ]
+        },
+        {
+          "name": "getProperties",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSecrets",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.openapi.server.generator.deployment.CodegenConfig"
+    },
+    {
+      "type": "io.quarkiverse.openapi.server.generator.deployment.CodegenConfig$$CMImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.smallrye.config.ConfigMappingContext"
+          ]
+        },
+        {
+          "name": "getProperties",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSecrets",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.quarkiverse.openapi.server.generator.deployment.ServerCodegenConfig"
+    },
+    {
+      "type": "io.quarkiverse.openapi.server.generator.deployment.ServerCodegenConfig$ServerConfig"
+    },
+    {
+      "type": "io.quarkiverse.openapi.server.generator.deployment.ServerCodegenConfig$ServerConfig$$CMImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.smallrye.config.ConfigMappingContext"
+          ]
+        },
+        {
+          "name": "getProperties",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSecrets",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "jakarta.enterprise.inject.literal.InjectLiteral"
+    },
+    {
+      "type": "jakarta.ws.rs.core.MediaType"
+    },
+    {
+      "type": "java.beans.Introspector"
+    },
+    {
+      "type": "java.io.Serializable"
+    },
+    {
+      "type": "java.lang.Boolean",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "getBoolean",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "java.lang.Class"
+    },
+    {
+      "type": "java.lang.ClassLoader",
+      "fields": [
+        {
+          "name": "classLoaderValueMap"
+        }
+      ],
+      "methods": [
+        {
+          "name": "getPlatformClassLoader",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "java.lang.Enum",
+      "serializable": true
+    },
+    {
+      "type": "java.lang.IllegalStateException"
+    },
+    {
+      "type": "java.lang.Module",
+      "methods": [
+        {
+          "name": "implAddOpens",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.Module"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "java.lang.Object"
+    },
+    {
+      "type": "java.lang.Object[]",
+      "serializable": true
+    },
+    {
+      "type": "java.lang.Runtime",
+      "methods": [
+        {
+          "name": "version",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "java.lang.Runtime$Version",
+      "methods": [
+        {
+          "name": "version",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "java.lang.RuntimeException"
+    },
+    {
+      "type": "java.lang.String[]"
+    },
+    {
+      "type": "java.lang.ThreadBuilders"
+    },
+    {
+      "type": "java.lang.invoke.MethodHandle"
+    },
+    {
+      "type": "java.lang.invoke.MethodHandles$Lookup",
+      "fields": [
+        {
+          "name": "IMPL_LOOKUP"
+        }
+      ]
+    },
+    {
+      "type": "java.net.UnixDomainSocketAddress",
+      "methods": [
+        {
+          "name": "of",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "java.security.AlgorithmParameters",
+      "methods": [
+        {
+          "name": "getInstance",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "java.security.AlgorithmParametersSpi"
+    },
+    {
+      "type": "java.security.KeyFactory",
+      "methods": [
+        {
+          "name": "getInstance",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "java.security.KeyPairGenerator",
+      "methods": [
+        {
+          "name": "getInstance",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "java.security.KeyStoreSpi"
+    },
+    {
+      "type": "java.security.MessageDigest",
+      "methods": [
+        {
+          "name": "getInstance",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "java.security.MessageDigestSpi"
+    },
+    {
+      "type": "java.security.Signature",
+      "methods": [
+        {
+          "name": "getInstance",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "java.security.cert.PKIXRevocationChecker"
+    },
+    {
+      "type": "java.security.interfaces.RSAPrivateKey"
+    },
+    {
+      "type": "java.security.interfaces.RSAPublicKey"
+    },
+    {
+      "type": "java.sql.Date"
+    },
+    {
+      "type": "java.sql.Timestamp"
+    },
+    {
+      "type": "java.time.Clock"
+    },
+    {
+      "type": "java.time.Instant"
+    },
+    {
+      "type": "java.time.InstantSource"
+    },
+    {
+      "type": "java.time.ZoneOffset"
+    },
+    {
+      "type": "java.time.ZoneRegion"
+    },
+    {
+      "type": "java.util.ArrayList"
+    },
+    {
+      "type": "java.util.Collections$UnmodifiableMap"
+    },
+    {
+      "type": "java.util.HashMap"
+    },
+    {
+      "type": "java.util.HashSet",
+      "serializable": true
+    },
+    {
+      "type": "java.util.ImmutableCollections$ListN"
+    },
+    {
+      "type": "java.util.LinkedHashSet",
+      "serializable": true
+    },
+    {
+      "type": "java.util.Optional"
+    },
+    {
+      "type": "java.util.Set"
+    },
+    {
+      "type": "java.util.concurrent.ArrayBlockingQueue",
+      "serializable": true
+    },
+    {
+      "type": "java.util.concurrent.Executor"
+    },
+    {
+      "type": "java.util.concurrent.ExecutorService"
+    },
+    {
+      "type": "java.util.concurrent.ScheduledExecutorService"
+    },
+    {
+      "type": "java.util.concurrent.ThreadFactory"
+    },
+    {
+      "type": "java.util.concurrent.locks.AbstractOwnableSynchronizer",
+      "serializable": true
+    },
+    {
+      "type": "java.util.concurrent.locks.AbstractQueuedSynchronizer",
+      "serializable": true
+    },
+    {
+      "type": "java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject",
+      "serializable": true
+    },
+    {
+      "type": "java.util.concurrent.locks.ReentrantLock",
+      "serializable": true
+    },
+    {
+      "type": "java.util.concurrent.locks.ReentrantLock$NonfairSync",
+      "serializable": true
+    },
+    {
+      "type": "java.util.concurrent.locks.ReentrantLock$Sync",
+      "serializable": true
+    },
+    {
+      "type": "java.util.function.BiConsumer"
+    },
+    {
+      "type": "java.util.function.BooleanSupplier[]"
+    },
+    {
+      "type": "java.util.function.Consumer"
+    },
+    {
+      "type": "java.util.function.Function"
+    },
+    {
+      "type": "java.util.function.Supplier"
+    },
+    {
+      "type": "java.util.logging.Level",
+      "methods": [
+        {
+          "name": "parse",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "javax.crypto.KeyAgreement",
+      "methods": [
+        {
+          "name": "getInstance",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "jdk.internal.jrtfs.JrtFileSystemProvider"
+    },
+    {
+      "type": "jdk.internal.misc.Unsafe"
+    },
+    {
+      "type": "jdk.jfr.FlightRecorder"
+    },
+    {
+      "type": "kotlin.Metadata"
+    },
+    {
+      "type": "org.aesh.command.impl.completer.BooleanOptionCompleter",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.aesh.command.impl.parser.AeshOptionParser",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.sshd.common.SshConstants",
+      "fields": [
+        {
+          "name": "SSH2_DISCONNECT_AUTH_CANCELLED_BY_USER"
+        },
+        {
+          "name": "SSH2_DISCONNECT_BY_APPLICATION"
+        },
+        {
+          "name": "SSH2_DISCONNECT_COMPRESSION_ERROR"
+        },
+        {
+          "name": "SSH2_DISCONNECT_CONNECTION_LOST"
+        },
+        {
+          "name": "SSH2_DISCONNECT_HOST_AUTHENTICATION_FAILED"
+        },
+        {
+          "name": "SSH2_DISCONNECT_HOST_KEY_NOT_VERIFIABLE"
+        },
+        {
+          "name": "SSH2_DISCONNECT_HOST_NOT_ALLOWED_TO_CONNECT"
+        },
+        {
+          "name": "SSH2_DISCONNECT_ILLEGAL_USER_NAME"
+        },
+        {
+          "name": "SSH2_DISCONNECT_KEY_EXCHANGE_FAILED"
+        },
+        {
+          "name": "SSH2_DISCONNECT_MAC_ERROR"
+        },
+        {
+          "name": "SSH2_DISCONNECT_NO_MORE_AUTH_METHODS_AVAILABLE"
+        },
+        {
+          "name": "SSH2_DISCONNECT_PROTOCOL_ERROR"
+        },
+        {
+          "name": "SSH2_DISCONNECT_PROTOCOL_VERSION_NOT_SUPPORTED"
+        },
+        {
+          "name": "SSH2_DISCONNECT_RESERVED"
+        },
+        {
+          "name": "SSH2_DISCONNECT_SERVICE_NOT_AVAILABLE"
+        },
+        {
+          "name": "SSH2_DISCONNECT_TOO_MANY_CONNECTIONS"
+        }
+      ]
+    },
+    {
+      "type": "org.apache.sshd.common.channel.ChannelListener",
+      "methods": [
+        {
+          "name": "channelClosed",
+          "parameterTypes": [
+            "org.apache.sshd.common.channel.Channel",
+            "java.lang.Throwable"
+          ]
+        },
+        {
+          "name": "channelOpenSuccess",
+          "parameterTypes": [
+            "org.apache.sshd.common.channel.Channel"
+          ]
+        },
+        {
+          "name": "channelStateChanged",
+          "parameterTypes": [
+            "org.apache.sshd.common.channel.Channel",
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "org.apache.sshd.common.file.root.RootedFileSystemProvider"
+    },
+    {
+      "type": "org.apache.sshd.common.io.nio2.Nio2ServiceFactoryFactory",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.sshd.common.session.SessionListener",
+      "methods": [
+        {
+          "name": "sessionClosed",
+          "parameterTypes": [
+            "org.apache.sshd.common.session.Session"
+          ]
+        },
+        {
+          "name": "sessionCreated",
+          "parameterTypes": [
+            "org.apache.sshd.common.session.Session"
+          ]
+        },
+        {
+          "name": "sessionEstablished",
+          "parameterTypes": [
+            "org.apache.sshd.common.session.Session"
+          ]
+        },
+        {
+          "name": "sessionEvent",
+          "parameterTypes": [
+            "org.apache.sshd.common.session.Session",
+            "org.apache.sshd.common.session.SessionListener$Event"
+          ]
+        },
+        {
+          "name": "sessionException",
+          "parameterTypes": [
+            "org.apache.sshd.common.session.Session",
+            "java.lang.Throwable"
+          ]
+        },
+        {
+          "name": "sessionNegotiationEnd",
+          "parameterTypes": [
+            "org.apache.sshd.common.session.Session",
+            "java.util.Map",
+            "java.util.Map",
+            "java.util.Map",
+            "java.lang.Throwable"
+          ]
+        },
+        {
+          "name": "sessionNegotiationOptionsCreated",
+          "parameterTypes": [
+            "org.apache.sshd.common.session.Session",
+            "java.util.Map"
+          ]
+        },
+        {
+          "name": "sessionNegotiationStart",
+          "parameterTypes": [
+            "org.apache.sshd.common.session.Session",
+            "java.util.Map",
+            "java.util.Map"
+          ]
+        },
+        {
+          "name": "sessionPeerIdentificationLine",
+          "parameterTypes": [
+            "org.apache.sshd.common.session.Session",
+            "java.lang.String",
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "sessionPeerIdentificationReceived",
+          "parameterTypes": [
+            "org.apache.sshd.common.session.Session",
+            "java.lang.String",
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "sessionPeerIdentificationSend",
+          "parameterTypes": [
+            "org.apache.sshd.common.session.Session",
+            "java.lang.String",
+            "java.util.List"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "org.apache.sshd.common.util.security.SunJCESecurityProviderRegistrar",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.sshd.common.util.security.bouncycastle.BouncyCastleSecurityProviderRegistrar",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.interfaces.EdDSAKey"
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.COMPOSITE$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.CONTEXT$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.CompositeSignatures$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.DH$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.DSA$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.DSTU4145$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.Dilithium$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.EC$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.ECGOST$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.EXTERNAL$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.EdEC$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.ElGamal$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.Falcon$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.GM$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.GOST$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.IES$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.LMS$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.MLDSA$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.MLKEM$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.NTRU$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.NoSig$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.RSA$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.SLHDSA$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.SPHINCSPlus$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.X509$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.dh.KeyPairGeneratorSpi",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.ec.AlgorithmParametersSpi",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.ec.KeyPairGeneratorSpi$EC",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.edec.KeyAgreementSpi$X25519",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.edec.KeyAgreementSpi$X448",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.edec.KeyFactorySpi$Ed25519",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.edec.KeyFactorySpi$X25519",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.edec.KeyFactorySpi$X448",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.edec.KeyPairGeneratorSpi$X25519",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.edec.KeyPairGeneratorSpi$X448",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.edec.SignatureSpi$EdDSA",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.rsa.DigestSignatureSpi$SHA512",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.asymmetric.rsa.KeyFactorySpi",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.Blake2b$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.Blake2s$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.Blake3$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.DSTU7564$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.GOST3411$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.Haraka$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.Keccak$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.MD2$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.MD4$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.MD5$Digest",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.MD5$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.RIPEMD128$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.RIPEMD160$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.RIPEMD256$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.RIPEMD320$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.SHA1$Digest",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.SHA1$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.SHA224$Digest",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.SHA224$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.SHA256$Digest",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.SHA256$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.SHA3$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.SHA384$Digest",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.SHA384$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.SHA512$Digest",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.SHA512$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.SM3$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.Skein$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.Tiger$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.digest.Whirlpool$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.drbg.DRBG$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.kdf.HKDF$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.kdf.PBKDF2$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.kdf.SCRYPT$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.keystore.BC$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.keystore.BCFKS$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.keystore.PKCS12$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.AES$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.ARC4$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.ARIA$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.Blowfish$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.CAST5$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.CAST6$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.Camellia$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.ChaCha$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.DES$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.DESede$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.DSTU7624$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.GOST28147$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.GOST3412_2015$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.Grain128$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.Grainv1$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.HC128$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.HC256$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.HKDF$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.IDEA$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.Noekeon$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.OpenSSLPBKDF$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.PBEPBKDF1$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.PBEPBKDF2$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.PBEPKCS12$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.Poly1305$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.RC2$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.RC5$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.RC6$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.Rijndael$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.SCRYPT$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.SEED$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.SM4$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.Salsa20$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.Serpent$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.Shacal2$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.SipHash$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.SipHash128$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.Skipjack$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.TEA$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.TLSKDF$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.Threefish$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.Twofish$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.VMPC$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.VMPCKSA3$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.XSalsa20$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.XTEA$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jcajce.provider.symmetric.Zuc$Mappings",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.bouncycastle.jce.provider.BouncyCastleProvider",
+      "fields": [
+        {
+          "name": "PROVIDER_NAME"
+        }
+      ],
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.brotli.dec.BrotliInputStream"
+    },
+    {
+      "type": "org.jboss.jandex.AnnotationInstance[]"
+    },
+    {
+      "type": "org.jboss.jandex.ClassInfo[]"
+    },
+    {
+      "type": "org.slf4j.impl.JBossSlf4jServiceProvider"
+    },
+    {
+      "type": "org.testcontainers.shaded.com.fasterxml.jackson.databind.deser.BeanDeserializerModifier[]"
+    },
+    {
+      "type": "org.yardship.V1Resource"
+    },
+    {
+      "type": "org.yardship.adapters.out.versionsource.ApplicationConfigLoader"
+    },
+    {
+      "type": "org.yardship.adapters.out.versionsource.ApplicationConfigLoader$$CMImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.smallrye.config.ConfigMappingContext"
+          ]
+        },
+        {
+          "name": "getProperties",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSecrets",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.yardship.adapters.out.versionsource.ApplicationConfigLoader$AppConfig"
+    },
+    {
+      "type": "org.yardship.adapters.out.versionsource.ApplicationConfigLoader$Github"
+    },
+    {
+      "type": "org.yardship.adapters.out.versionsource.ApplicationConfigLoader$ScrapeTrigger"
+    },
+    {
+      "type": "org.yardship.adapters.out.versionsource.ApplicationConfigLoader$TargetedScrapeTrigger"
+    },
+    {
+      "type": "org.yardship.adapters.out.versionsource.ApplicationConfigLoader$VersionSource"
+    },
+    {
+      "type": "org.yardship.adapters.out.versionsource.ApplicationConfigLoader$VersionSource$Auth"
+    },
+    {
+      "type": "org.yardship.adapters.out.versionsource.current.CurrentVersionSourceFactory"
+    },
+    {
+      "type": "org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClientFactory"
+    },
+    {
+      "type": "org.yardship.adapters.out.versionsource.latest.LatestVersionSourceFactory"
+    },
+    {
+      "type": "org.yardship.beans.Application"
+    },
+    {
+      "type": "org.yardship.core.ports.out.ScrapeLock"
+    },
+    {
+      "type": "org.yardship.core.ports.out.ScrapeRateLimiter"
+    },
+    {
+      "type": "org.yardship.core.ports.out.ScrapeStateStore"
+    },
+    {
+      "type": "org.yardship.core.ports.out.VersionSources"
+    },
+    {
+      "type": "sun.management.VMManagementImpl",
+      "jniAccessible": true,
+      "fields": [
+        {
+          "name": "compTimeMonitoringSupport"
+        },
+        {
+          "name": "currentThreadCpuTimeSupport"
+        },
+        {
+          "name": "objectMonitorUsageSupport"
+        },
+        {
+          "name": "otherThreadCpuTimeSupport"
+        },
+        {
+          "name": "remoteDiagnosticCommandsSupport"
+        },
+        {
+          "name": "synchronizerUsageSupport"
+        },
+        {
+          "name": "threadAllocatedMemorySupport"
+        },
+        {
+          "name": "threadContentionMonitoringSupport"
+        }
+      ]
+    },
+    {
+      "type": "sun.misc.Unsafe",
+      "methods": [
+        {
+          "name": "trySetMemoryAccessWarned",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.pkcs12.PKCS12KeyStore",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.pkcs12.PKCS12KeyStore$DualFormatPKCS12",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.provider.NativePRNG",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.security.SecureRandomParameters"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.provider.NativePRNG$NonBlocking",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.security.SecureRandomParameters"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.provider.SHA",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.provider.SHA2$SHA256",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.provider.X509Factory",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.rsa.RSAKeyFactory$Legacy",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.rsa.RSAKeyPairGenerator$Legacy",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.rsa.RSASignature$SHA256withRSA",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.ssl.KeyManagerFactoryImpl$SunX509",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.ssl.SSLContextImpl$DefaultSSLContext",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.ssl.TrustManagerFactoryImpl$PKIXFactory",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.AuthorityInfoAccessExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.AuthorityKeyIdentifierExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.BasicConstraintsExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.CRLDistributionPointsExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.CertificatePoliciesExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.ExtendedKeyUsageExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.KeyUsageExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.NetscapeCertTypeExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.PrivateKeyUsageExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.SubjectKeyIdentifierExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.text.resources.cldr.FormatData"
+    },
+    {
+      "type": "sun.text.resources.cldr.FormatData_en"
+    },
+    {
+      "type": "sun.text.resources.cldr.FormatData_en_US"
+    },
+    {
+      "type": "sun.util.resources.cldr.CalendarData"
+    },
+    {
+      "type": "sun.util.resources.cldr.TimeZoneNames"
+    },
+    {
+      "type": "sun.util.resources.cldr.TimeZoneNames_en"
+    },
+    {
+      "type": "sun.util.resources.cldr.TimeZoneNames_en_US"
+    },
+    {
+      "type": {
+        "proxy": [
+          "org.apache.sshd.common.channel.ChannelListener"
+        ]
+      }
+    },
+    {
+      "type": {
+        "proxy": [
+          "org.apache.sshd.common.forward.PortForwardingEventListener"
+        ]
+      }
+    },
+    {
+      "type": {
+        "proxy": [
+          "org.apache.sshd.common.session.SessionListener"
+        ]
+      }
+    }
+  ],
+  "resources": [
+    {
+      "glob": "META-INF/branding/smallrye-health-ui.ico"
+    },
+    {
+      "glob": "META-INF/branding/smallrye-health-ui.png"
+    },
+    {
+      "glob": "META-INF/microprofile-config.properties"
+    },
+    {
+      "glob": "META-INF/microprofile-config.yaml"
+    },
+    {
+      "glob": "META-INF/microprofile-config.yml"
+    },
+    {
+      "glob": "META-INF/services/io.quarkus.test.common.FacadeClassLoaderProvider"
+    },
+    {
+      "glob": "META-INF/services/io.smallrye.config.ConfigSourceFactory"
+    },
+    {
+      "glob": "META-INF/services/io.smallrye.config.ConfigSourceInterceptor"
+    },
+    {
+      "glob": "META-INF/services/io.smallrye.config.ConfigSourceInterceptorFactory"
+    },
+    {
+      "glob": "META-INF/services/io.smallrye.config.SecretKeysHandler"
+    },
+    {
+      "glob": "META-INF/services/io.smallrye.config.SecretKeysHandlerFactory"
+    },
+    {
+      "glob": "META-INF/services/io.smallrye.config.SmallRyeConfigBuilderCustomizer"
+    },
+    {
+      "glob": "META-INF/services/java.net.spi.InetAddressResolverProvider"
+    },
+    {
+      "glob": "META-INF/services/java.net.spi.URLStreamHandlerProvider"
+    },
+    {
+      "glob": "META-INF/services/java.nio.channels.spi.AsynchronousChannelProvider"
+    },
+    {
+      "glob": "META-INF/services/java.nio.channels.spi.SelectorProvider"
+    },
+    {
+      "glob": "META-INF/services/java.nio.file.spi.FileSystemProvider"
+    },
+    {
+      "glob": "META-INF/services/java.time.zone.ZoneRulesProvider"
+    },
+    {
+      "glob": "META-INF/services/org.apache.sshd.common.io.IoServiceFactoryFactory"
+    },
+    {
+      "glob": "META-INF/services/org.eclipse.microprofile.config.spi.ConfigProviderResolver"
+    },
+    {
+      "glob": "META-INF/services/org.eclipse.microprofile.config.spi.ConfigSource"
+    },
+    {
+      "glob": "META-INF/services/org.eclipse.microprofile.config.spi.ConfigSourceProvider"
+    },
+    {
+      "glob": "META-INF/services/org.eclipse.microprofile.config.spi.Converter"
+    },
+    {
+      "glob": "META-INF/services/org.jboss.logging.LoggerProvider"
+    },
+    {
+      "glob": "META-INF/services/org.jboss.logmanager.ConfiguratorFactory"
+    },
+    {
+      "glob": "META-INF/services/org.jboss.logmanager.LogContextInitializer"
+    },
+    {
+      "glob": "META-INF/services/org.jboss.logmanager.MDCProvider"
+    },
+    {
+      "glob": "META-INF/services/org.jboss.logmanager.NDCProvider"
+    },
+    {
+      "glob": "META-INF/services/org.junit.jupiter.api.extension.Extension"
+    },
+    {
+      "glob": "META-INF/services/org.junit.platform.commons.support.scanning.ClasspathScanner"
+    },
+    {
+      "glob": "META-INF/services/org.junit.platform.engine.TestEngine"
+    },
+    {
+      "glob": "META-INF/services/org.junit.platform.launcher.LauncherDiscoveryListener"
+    },
+    {
+      "glob": "META-INF/services/org.junit.platform.launcher.LauncherSessionListener"
+    },
+    {
+      "glob": "META-INF/services/org.junit.platform.launcher.PostDiscoveryFilter"
+    },
+    {
+      "glob": "META-INF/services/org.junit.platform.launcher.TestExecutionListener"
+    },
+    {
+      "glob": "META-INF/services/org.slf4j.spi.SLF4JServiceProvider"
+    },
+    {
+      "glob": "META-INF/validation.xml"
+    },
+    {
+      "glob": "application-.properties"
+    },
+    {
+      "glob": "application-test.properties"
+    },
+    {
+      "glob": "application-test.yaml"
+    },
+    {
+      "glob": "application-test.yml"
+    },
+    {
+      "glob": "application.properties"
+    },
+    {
+      "glob": "application.yaml"
+    },
+    {
+      "glob": "application.yml"
+    },
+    {
+      "glob": "docker-java.properties"
+    },
+    {
+      "glob": "java/io/Closeable.class"
+    },
+    {
+      "glob": "java/io/InputStream.class"
+    },
+    {
+      "glob": "java/io/OutputStream.class"
+    },
+    {
+      "glob": "java/io/Serializable.class"
+    },
+    {
+      "glob": "java/lang/AbstractStringBuilder.class"
+    },
+    {
+      "glob": "java/lang/Appendable.class"
+    },
+    {
+      "glob": "java/lang/AutoCloseable.class"
+    },
+    {
+      "glob": "java/lang/Boolean.class"
+    },
+    {
+      "glob": "java/lang/Byte.class"
+    },
+    {
+      "glob": "java/lang/CharSequence.class"
+    },
+    {
+      "glob": "java/lang/Character.class"
+    },
+    {
+      "glob": "java/lang/Class.class"
+    },
+    {
+      "glob": "java/lang/Comparable.class"
+    },
+    {
+      "glob": "java/lang/Double.class"
+    },
+    {
+      "glob": "java/lang/Enum.class"
+    },
+    {
+      "glob": "java/lang/Exception.class"
+    },
+    {
+      "glob": "java/lang/Float.class"
+    },
+    {
+      "glob": "java/lang/Integer.class"
+    },
+    {
+      "glob": "java/lang/Iterable.class"
+    },
+    {
+      "glob": "java/lang/Long.class"
+    },
+    {
+      "glob": "java/lang/Number.class"
+    },
+    {
+      "glob": "java/lang/Object.class"
+    },
+    {
+      "glob": "java/lang/Record.class"
+    },
+    {
+      "glob": "java/lang/RuntimeException.class"
+    },
+    {
+      "glob": "java/lang/SafeVarargs.class"
+    },
+    {
+      "glob": "java/lang/Short.class"
+    },
+    {
+      "glob": "java/lang/String.class"
+    },
+    {
+      "glob": "java/lang/StringBuilder.class"
+    },
+    {
+      "glob": "java/lang/Throwable.class"
+    },
+    {
+      "glob": "java/lang/Void.class"
+    },
+    {
+      "glob": "java/lang/annotation/Annotation.class"
+    },
+    {
+      "glob": "java/lang/annotation/Documented.class"
+    },
+    {
+      "glob": "java/lang/annotation/Inherited.class"
+    },
+    {
+      "glob": "java/lang/annotation/Repeatable.class"
+    },
+    {
+      "glob": "java/lang/annotation/Retention.class"
+    },
+    {
+      "glob": "java/lang/annotation/Target.class"
+    },
+    {
+      "glob": "java/lang/constant/Constable.class"
+    },
+    {
+      "glob": "java/lang/constant/ConstantDesc.class"
+    },
+    {
+      "glob": "java/lang/reflect/Type.class"
+    },
+    {
+      "glob": "java/nio/file/Path.class"
+    },
+    {
+      "glob": "java/time/Clock.class"
+    },
+    {
+      "glob": "java/time/Duration.class"
+    },
+    {
+      "glob": "java/time/Instant.class"
+    },
+    {
+      "glob": "java/util/Collection.class"
+    },
+    {
+      "glob": "java/util/Iterator.class"
+    },
+    {
+      "glob": "java/util/List.class"
+    },
+    {
+      "glob": "java/util/Map.class"
+    },
+    {
+      "glob": "java/util/Optional.class"
+    },
+    {
+      "glob": "java/util/OptionalDouble.class"
+    },
+    {
+      "glob": "java/util/OptionalInt.class"
+    },
+    {
+      "glob": "java/util/OptionalLong.class"
+    },
+    {
+      "glob": "java/util/SequencedCollection.class"
+    },
+    {
+      "glob": "java/util/Set.class"
+    },
+    {
+      "glob": "java/util/concurrent/Callable.class"
+    },
+    {
+      "glob": "java/util/concurrent/CompletableFuture.class"
+    },
+    {
+      "glob": "java/util/concurrent/Executor.class"
+    },
+    {
+      "glob": "java/util/concurrent/ExecutorService.class"
+    },
+    {
+      "glob": "java/util/concurrent/ScheduledExecutorService.class"
+    },
+    {
+      "glob": "java/util/function/Consumer.class"
+    },
+    {
+      "glob": "java/util/function/Function.class"
+    },
+    {
+      "glob": "java/util/function/Predicate.class"
+    },
+    {
+      "glob": "java/util/function/Supplier.class"
+    },
+    {
+      "glob": "java/util/stream/Stream.class"
+    },
+    {
+      "glob": "junit-platform.properties"
+    },
+    {
+      "glob": "org/apache/sshd/sshd-version.properties"
+    },
+    {
+      "glob": "org/osgi/annotation/bundle/Requirements.class"
+    },
+    {
+      "glob": "org/publicsuffix/list/effective_tld_names.dat"
+    },
+    {
+      "glob": "org/slf4j/impl/StaticLoggerBinder.class"
+    },
+    {
+      "glob": "org/yardship/integration/adapters/in/http/ScrapeControllerIT.class"
+    },
+    {
+      "glob": "org/yardship/integration/adapters/in/http/TargetedScrapeControllerIT.class"
+    },
+    {
+      "glob": "org/yardship/integration/adapters/in/http/VersionControllerIT.class"
+    },
+    {
+      "glob": "org/yardship/integration/adapters/in/mcp/ApplicationMcpServerIT.class"
+    },
+    {
+      "glob": "org/yardship/integration/adapters/out/scrapestate/valkey/TargetedBudgetIndependenceIT.class"
+    },
+    {
+      "glob": "org/yardship/integration/adapters/out/scrapestate/valkey/ValkeyScrapeLockIT.class"
+    },
+    {
+      "glob": "org/yardship/integration/adapters/out/scrapestate/valkey/ValkeyScrapeRateLimiterIT.class"
+    },
+    {
+      "glob": "org/yardship/integration/adapters/out/scrapestate/valkey/ValkeyScrapeStateStoreIT.class"
+    },
+    {
+      "glob": "org/yardship/integration/adapters/out/versionsource/current/http/HttpCurrentSourceIT.class"
+    },
+    {
+      "glob": "org/yardship/integration/adapters/out/versionsource/current/http/HttpCurrentSourceK8sShapeIT.class"
+    },
+    {
+      "glob": "org/yardship/integration/adapters/out/versionsource/current/http/HttpCurrentSourceTlsIT.class"
+    },
+    {
+      "glob": "org/yardship/integration/adapters/out/versionsource/current/http/HttpCurrentVersionClientFactoryIT.class"
+    },
+    {
+      "glob": "org/yardship/integration/adapters/out/versionsource/current/k8simage/K8sImageCurrentSourceIT.class"
+    },
+    {
+      "glob": "org/yardship/integration/adapters/out/versionsource/latest/githubrelease/GithubReleaseLatestSourceIT.class"
+    },
+    {
+      "glob": "org/yardship/integration/adapters/out/versionsource/latest/ociregistry/OciRegistryLatestSourceAuthIT.class"
+    },
+    {
+      "glob": "org/yardship/integration/adapters/out/versionsource/latest/ociregistry/OciRegistryLatestSourceIT.class"
+    },
+    {
+      "glob": "org/yardship/integration/adapters/out/versionsource/latest/ociregistry/OciRegistryLatestSourcePaginationIT.class"
+    },
+    {
+      "glob": "org/yardship/integration/adapters/out/versionsource/latest/ociregistry/OciRegistryLatestSourcePrereleaseFilterIT.class"
+    },
+    {
+      "glob": "org/yardship/unit/adapters/in/mcp/ApplicationMcpToolsTests.class"
+    },
+    {
+      "glob": "org/yardship/unit/adapters/in/metrics/MetricsControllerTests.class"
+    },
+    {
+      "glob": "org/yardship/unit/adapters/out/versionsource/ApplicationConfigLoaderTests.class"
+    },
+    {
+      "glob": "org/yardship/unit/core/domain/primitives/DomainValidatorTests.class"
+    },
+    {
+      "glob": "org/yardship/unit/core/domain/primitives/VersionApplicationTests.class"
+    },
+    {
+      "glob": "testcontainers.properties"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/io/Closeable.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/io/InputStream.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/io/OutputStream.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/io/Serializable.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/AbstractStringBuilder.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Appendable.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/AutoCloseable.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Boolean.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Byte.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/CharSequence.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Character.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Class.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Comparable.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Double.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Enum.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Exception.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Float.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Integer.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Iterable.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Long.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Number.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Object.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Record.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/RuntimeException.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/SafeVarargs.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Short.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/String.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/StringBuilder.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Throwable.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/Void.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/annotation/Annotation.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/annotation/Documented.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/annotation/Inherited.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/annotation/Repeatable.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/annotation/Retention.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/annotation/Target.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/constant/Constable.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/constant/ConstantDesc.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/lang/reflect/Type.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/nio/file/Path.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/time/Clock.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/time/Duration.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/time/Instant.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/Collection.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/Iterator.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/List.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/Map.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/Optional.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/OptionalDouble.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/OptionalInt.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/OptionalLong.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/SequencedCollection.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/Set.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/concurrent/Callable.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/concurrent/CompletableFuture.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/concurrent/Executor.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/concurrent/ExecutorService.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/concurrent/ScheduledExecutorService.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/function/Consumer.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/function/Function.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/function/Predicate.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/function/Supplier.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "java/util/stream/Stream.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "jdk/internal/icu/impl/data/icudt76b/nfkc.nrm"
+    },
+    {
+      "module": "jdk.jfr",
+      "glob": "jdk/jfr/internal/types/metadata.bin"
+    }
+  ]
+}

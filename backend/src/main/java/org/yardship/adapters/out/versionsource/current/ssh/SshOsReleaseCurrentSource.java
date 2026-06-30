@@ -39,8 +39,11 @@ import java.util.EnumSet;
  * mutually exclusive. Private-key authentication is required; exactly one of {@code private-key}
  * (inline PEM) or {@code private-key-file} (path, read at connect time) must be configured.
  *
- * <p>Implements {@link Closeable} so the resolver can release the underlying {@link SshClient}
- * on shutdown.
+ * <p>The {@link SshClient} is built, started, connected, and closed per {@link #version()} call
+ * (try-with-resources), so the constructor is side-effect-free and an environmental failure is
+ * isolated to a single app's scrape rather than aborting the fleet at resolver-build time.
+ * {@link Closeable} is implemented as a no-op {@link #close()} purely to honor the lifecycle
+ * contract the resolver relies on when shutting sources down.
  */
 public class SshOsReleaseCurrentSource implements CurrentVersionSource, Closeable {
 
@@ -51,11 +54,11 @@ public class SshOsReleaseCurrentSource implements CurrentVersionSource, Closeabl
     private static final Duration AUTH_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration CHANNEL_TIMEOUT = Duration.ofSeconds(30);
 
-    private final SshClient client;
     private final String host;
     private final int port;
     private final String user;
     private final KeyLoader keyLoader;
+    private final ServerKeyVerifier serverKeyVerifier;
     private final String releaseField;
     private final VersionParser parser;
 
@@ -71,19 +74,16 @@ public class SshOsReleaseCurrentSource implements CurrentVersionSource, Closeabl
         this.port = port;
         this.user = user;
         this.keyLoader = keyLoader;
+        this.serverKeyVerifier = serverKeyVerifier;
         this.releaseField = releaseField;
         this.parser = parser;
-
-        this.client = SshClient.setUpDefaultClient();
-        this.client.setServerKeyVerifier(serverKeyVerifier);
-        this.client.start();
     }
 
     @Override
     public VersionValue version() {
-        try {
+        try (SshClient client = buildAndStartClient()) {
             KeyPair keyPair = keyLoader.load();
-            try (ClientSession session = openAuthenticatedSession(keyPair)) {
+            try (ClientSession session = openAuthenticatedSession(client, keyPair)) {
                 String osReleaseContent = execReadCommand(session);
                 String rawValue = extractField(osReleaseContent, releaseField);
                 return parser.parse(rawValue);
@@ -96,7 +96,14 @@ public class SshOsReleaseCurrentSource implements CurrentVersionSource, Closeabl
         }
     }
 
-    private ClientSession openAuthenticatedSession(KeyPair keyPair) throws Exception {
+    private SshClient buildAndStartClient() {
+        SshClient client = SshClient.setUpDefaultClient();
+        client.setServerKeyVerifier(serverKeyVerifier);
+        client.start();
+        return client;
+    }
+
+    private ClientSession openAuthenticatedSession(SshClient client, KeyPair keyPair) throws Exception {
         ClientSession session = client.connect(user, host, port)
                 .verify(CONNECT_TIMEOUT)
                 .getSession();
@@ -140,8 +147,10 @@ public class SshOsReleaseCurrentSource implements CurrentVersionSource, Closeabl
     }
 
     @Override
-    public void close() throws IOException {
-        client.stop();
+    public void close() {
+        // No-op: the SshClient is built, started, and released per version() call (try-with-resources),
+        // so there is no long-lived client to stop here. Kept to honor the Closeable contract the
+        // resolver relies on when shutting sources down.
     }
 
     // -----------------------------------------------------------------------
