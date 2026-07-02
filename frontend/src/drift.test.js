@@ -1,16 +1,18 @@
 import { compareVersions, driftCounts } from './drift'
 
 // Contract: driftCounts(versions) takes the version payload shape
-//   { "<name>": { current, latest, outdated, drift } }
-// (drift is one of 'NONE' | 'PATCH' | 'MINOR' | 'MAJOR') and returns
-//   { total, upToDate, patch, minor, major }
+//   { "<name>": { current, latest, outdated, drift, resolution } }
+// (drift is one of 'NONE' | 'PATCH' | 'MINOR' | 'MAJOR' | null for Unresolved) and returns
+//   { total, upToDate, patch, minor, major, unknown }
 // where:
 //   - total    = number of apps in the payload
 //   - upToDate = number of apps with drift === 'NONE'
 //   - patch    = number of apps with drift === 'PATCH'
 //   - minor    = number of apps with drift === 'MINOR'
 //   - major    = number of apps with drift === 'MAJOR'
+//   - unknown  = number of apps with drift === null (Unresolved, issue 03)
 // An empty payload ({} or undefined/null) yields all-zero counts.
+// Invariant: upToDate + patch + minor + major + unknown === total
 
 test('counts a mixed payload by drift level', () => {
   const versions = {
@@ -29,6 +31,7 @@ test('counts a mixed payload by drift level', () => {
     patch: 2,
     minor: 1,
     major: 3,
+    unknown: 0,
   })
 })
 
@@ -39,6 +42,7 @@ test('returns all-zero counts for an empty payload', () => {
     patch: 0,
     minor: 0,
     major: 0,
+    unknown: 0,
   })
 })
 
@@ -49,6 +53,7 @@ test('returns all-zero counts when versions is undefined', () => {
     patch: 0,
     minor: 0,
     major: 0,
+    unknown: 0,
   })
 })
 
@@ -59,6 +64,7 @@ test('returns all-zero counts when versions is null', () => {
     patch: 0,
     minor: 0,
     major: 0,
+    unknown: 0,
   })
 })
 
@@ -74,7 +80,69 @@ test('counts an all-up-to-date payload', () => {
     patch: 0,
     minor: 0,
     major: 0,
+    unknown: 0,
   })
+})
+
+// --- Issue 03: Unknown (Unresolved) apps in driftCounts ------------------------------------
+//
+// Apps with drift === null (Unresolved) must be counted in `unknown`, not silently dropped.
+// The totals invariant must hold: upToDate + patch + minor + major + unknown === total.
+
+test('counts an Unresolved app (drift: null) in the unknown bucket', () => {
+  const versions = {
+    'resolved-app': { current: { version: '1.0.0' }, latest: { version: '1.0.0' }, drift: 'NONE', resolution: 'Resolved' },
+    'unresolved-app': { current: { version: null }, latest: { version: '1.0.0' }, drift: null, resolution: 'Unresolved' },
+  }
+
+  const counts = driftCounts(versions)
+  expect(counts.unknown).toBe(1)
+  expect(counts.upToDate).toBe(1)
+  expect(counts.total).toBe(2)
+})
+
+test('driftCounts totals reconcile: upToDate+patch+minor+major+unknown === total', () => {
+  const versions = {
+    'app-none': { drift: 'NONE' },
+    'app-patch': { drift: 'PATCH' },
+    'app-minor': { drift: 'MINOR' },
+    'app-major': { drift: 'MAJOR' },
+    'app-unknown-1': { drift: null, resolution: 'Unresolved' },
+    'app-unknown-2': { drift: null, resolution: 'Unresolved' },
+  }
+
+  const counts = driftCounts(versions)
+  expect(counts.total).toBe(6)
+  expect(counts.unknown).toBe(2)
+  const sumBuckets = counts.upToDate + counts.patch + counts.minor + counts.major + counts.unknown
+  expect(sumBuckets).toBe(counts.total)
+})
+
+test('driftCounts unknown is zero when no Unresolved apps present', () => {
+  const versions = {
+    a: { drift: 'NONE' },
+    b: { drift: 'MAJOR' },
+  }
+
+  const counts = driftCounts(versions)
+  expect(counts.unknown).toBe(0)
+  expect(counts.upToDate + counts.patch + counts.minor + counts.major + counts.unknown).toBe(counts.total)
+})
+
+test('all-unknown payload: total equals unknown, all other buckets zero', () => {
+  const versions = {
+    a: { drift: null, resolution: 'Unresolved' },
+    b: { drift: null, resolution: 'Unresolved' },
+    c: { drift: null, resolution: 'Unresolved' },
+  }
+
+  const counts = driftCounts(versions)
+  expect(counts.total).toBe(3)
+  expect(counts.unknown).toBe(3)
+  expect(counts.upToDate).toBe(0)
+  expect(counts.patch).toBe(0)
+  expect(counts.minor).toBe(0)
+  expect(counts.major).toBe(0)
 })
 
 // Contract: compareVersions(a, b) compares two version strings SEMVER-aware

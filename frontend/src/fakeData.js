@@ -1,68 +1,20 @@
+// Slice 01: each side is now a { version, readAt } object rather than a bare string.
+// readAt is an absolute ISO instant; the component renders relative "read Xm ago" client-side.
+const now = new Date().toISOString()
+
 const fakeData = {
   'git-tea': {
-    current: '1.21.7',
-    latest: '1.22.1',
+    current: { version: '1.21.7', readAt: now },
+    latest: { version: '1.22.1', readAt: now },
   },
   'argo-cd': {
-    current: '2.10.7+b060053',
-    latest: '2.11.7',
+    current: { version: '2.10.7+b060053', readAt: now },
+    latest: { version: '2.11.7', readAt: now },
   },
   sharry: {
-    current: '1.14.0',
-    latest: '1.14.0',
+    current: { version: '1.14.0', readAt: now },
+    latest: { version: '1.14.0', readAt: now },
   },
-  // 'git-tea-2': {
-  //   current: '1.21.7',
-  //   latest: '1.22.1',
-  // },
-  // 'argo-cd-2': {
-  //   current: '2.10.7+b060053',
-  //   latest: '2.11.7',
-  // },
-  // 'sharry-2': {
-  //   current: '1.14.0',
-  //   latest: '1.14.0',
-  // },
-  // 'git-tea-3': {
-  //   current: '1.21.7',
-  //   latest: '1.22.1',
-  // },
-  // 'argo-cd-3': {
-  //   current: '2.10.7+b060053',
-  //   latest: '2.11.7',
-  // },
-  // 'sharry-3': {
-  //   current: '1.14.0',
-  //   latest: '1.14.0',
-  // },
-  // 'git-tea-4': {
-  //   current: '1.21.7',
-  //   latest: '1.22.1',
-  // },
-  // 'argo-cd-4': {
-  //   current: '2.10.7+b060053',
-  //   latest: '2.11.7',
-  // },
-  // 'sharry-4': {
-  //   current: '1.14.0',
-  //   latest: '1.14.0',
-  // },
-  // 'sharry-5': {
-  //   current: '1.14.0',
-  //   latest: '1.14.0',
-  // },
-  // 'sharry-6': {
-  //   current: '1.14.0',
-  //   latest: '1.14.0',
-  // },
-  // 'sharry-7': {
-  //   current: '1.14.0',
-  //   latest: '1.14.0',
-  // },
-  // 'sharry-8': {
-  //   current: '1.14.0',
-  //   latest: '1.14.0',
-  // },
 }
 
 export default fakeData

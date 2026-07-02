@@ -11,7 +11,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.yardship.core.domain.primitives.ScrapeSnapshot;
 import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
+import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.ScrapeStateStore;
 
 import java.time.Duration;
@@ -26,7 +28,8 @@ import java.util.Optional;
  *
  * <p>The snapshot is mapped to a plain-string DTO before serialisation so the domain
  * {@link org.yardship.core.domain.primitives.VersionValue} wrapper round-trips cleanly, and back to
- * the domain on read.
+ * the domain on read. Slice 01 adds per-side {@code lastSuccessAt} (stored as epoch millis, nullable)
+ * and reserves {@code lastFailureAt} (always null in this slice, populated in slice 02).
  */
 @ApplicationScoped
 public class ValkeyScrapeStateStore implements ScrapeStateStore {
@@ -73,7 +76,14 @@ public class ValkeyScrapeStateStore implements ScrapeStateStore {
 
     private List<AppDTO> toAppDtos(List<VersionApplication> applications) {
         return applications.stream()
-                .map(app -> new AppDTO(app.name(), app.current().value(), app.latest().value()))
+                .map(app -> new AppDTO(
+                        app.name(),
+                        app.current().value().map(VersionValue::value).orElse(null),
+                        app.current().lastSuccessAt().map(Instant::toEpochMilli).orElse(null),
+                        app.current().lastFailureAt().map(Instant::toEpochMilli).orElse(null),
+                        app.latest().value().map(VersionValue::value).orElse(null),
+                        app.latest().lastSuccessAt().map(Instant::toEpochMilli).orElse(null),
+                        app.latest().lastFailureAt().map(Instant::toEpochMilli).orElse(null)))
                 .toList();
     }
 
@@ -90,9 +100,18 @@ public class ValkeyScrapeStateStore implements ScrapeStateStore {
         // and rehydrated through a per-app VersionParser here.
         List<VersionApplication> applications = dto.applications().stream()
                 .map(app -> new VersionApplication(
-                        app.name(), new SemverVersion(app.current()), new SemverVersion(app.latest())))
+                        app.name(),
+                        toSideObservation(app.currentValue(), app.currentLastSuccessAtEpochMillis(), app.currentLastFailureAtEpochMillis()),
+                        toSideObservation(app.latestValue(), app.latestLastSuccessAtEpochMillis(), app.latestLastFailureAtEpochMillis())))
                 .toList();
         return new ScrapeSnapshot(applications, Instant.ofEpochMilli(dto.lastAttemptAtEpochMillis()));
+    }
+
+    private SideObservation toSideObservation(String value, Long lastSuccessMillis, Long lastFailureMillis) {
+        Optional<VersionValue> vv = value != null ? Optional.of(new SemverVersion(value)) : Optional.empty();
+        Optional<Instant> lastSuccess = lastSuccessMillis != null ? Optional.of(Instant.ofEpochMilli(lastSuccessMillis)) : Optional.empty();
+        Optional<Instant> lastFailure = lastFailureMillis != null ? Optional.of(Instant.ofEpochMilli(lastFailureMillis)) : Optional.empty();
+        return new SideObservation(vv, lastSuccess, lastFailure);
     }
 
     private String serialise(SnapshotDTO dto) {
@@ -113,6 +132,13 @@ public class ValkeyScrapeStateStore implements ScrapeStateStore {
     // the List<AppDTO>, so without the array registration the snapshot read throws in native and the
     // cache never populates (the bare record registration does not cover its array class).
     @RegisterForReflection(targets = {AppDTO.class, AppDTO[].class})
-    private record AppDTO(String name, String current, String latest) {
+    private record AppDTO(
+            String name,
+            String currentValue,
+            Long currentLastSuccessAtEpochMillis,
+            Long currentLastFailureAtEpochMillis,
+            String latestValue,
+            Long latestLastSuccessAtEpochMillis,
+            Long latestLastFailureAtEpochMillis) {
     }
 }

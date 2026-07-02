@@ -6,7 +6,12 @@ import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
+
+import java.util.Optional;
+
+import java.time.Instant;
 import org.yardship.core.ports.in.ApplicationVersionPort;
 import org.yardship.core.ports.in.ScrapeStatus;
 
@@ -46,11 +51,15 @@ public class ApplicationMcpServerIT {
     @InjectMock
     ApplicationVersionPort applicationVersionPort;
 
+    private static final Instant NOW = Instant.parse("2026-07-01T10:00:00Z");
+
     private void stubMixedApplications() {
         VersionApplication majorBehind = new VersionApplication("argo-cd",
-                new SemverVersion("1.1.1"), new SemverVersion("2.2.2"));
+                SideObservation.resolved(new SemverVersion("1.1.1"), NOW),
+                SideObservation.resolved(new SemverVersion("2.2.2"), NOW));
         VersionApplication current = new VersionApplication("gitea",
-                new SemverVersion("2.0.0"), new SemverVersion("2.0.0"));
+                SideObservation.resolved(new SemverVersion("2.0.0"), NOW),
+                SideObservation.resolved(new SemverVersion("2.0.0"), NOW));
         when(applicationVersionPort.getApplications())
                 .thenReturn(List.of(majorBehind, current));
     }
@@ -142,6 +151,137 @@ public class ApplicationMcpServerIT {
                                     + description);
                 })
                 .thenAssertResults();
+    }
+
+    // === Issue 05: list_applications_with_failed_scrapes + get_application freshness fields ======
+
+    /** A side with a prior success that was then followed by a newer failure. */
+    private SideObservation failedRefreshSide(String version) {
+        Instant successAt = NOW.minusSeconds(60);
+        Instant failureAt = NOW;
+        return new SideObservation(
+                Optional.of(new SemverVersion(version)),
+                Optional.of(successAt),
+                Optional.of(failureAt));
+    }
+
+    /** Never-succeeded-failed: no value, no prior success, has a failure stamp. */
+    private SideObservation neverSucceededFailedSide() {
+        return new SideObservation(Optional.empty(), Optional.empty(), Optional.of(NOW));
+    }
+
+    @Test
+    void toolsList_exposesListApplicationsWithFailedScrapesTool() {
+        McpStreamableTestClient client = McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
+                .build()
+                .connect();
+        client.when()
+                .toolsList(page -> assertNotNull(page.findByName("list_applications_with_failed_scrapes"),
+                        "list_applications_with_failed_scrapes tool must be registered"))
+                .thenAssertResults();
+    }
+
+    @Test
+    void toolsList_listApplicationsWithFailedScrapesDescription_attributesFailureToScrapeNotApp() {
+        McpStreamableTestClient client = McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
+                .build()
+                .connect();
+        client.when()
+                .toolsList(page -> {
+                    String description = page.findByName("list_applications_with_failed_scrapes")
+                            .description().toLowerCase();
+                    assertTrue(description.contains("scrape") || description.contains("read"),
+                            "description must attribute failure to the scrape, not the app: " + description);
+                    assertFalse(description.contains("unhealthy") || description.contains("down"),
+                            "description must not call the application unhealthy or down: " + description);
+                })
+                .thenAssertResults();
+    }
+
+    @Test
+    void toolsCall_listApplicationsWithFailedScrapes_returnsFailedApp() {
+        // Only the failed-refresh app must appear — the fresh (current) app must be excluded.
+        VersionApplication failedApp = new VersionApplication("vault",
+                failedRefreshSide("1.0.0"),
+                SideObservation.resolved(new SemverVersion("1.1.0"), NOW));
+        when(applicationVersionPort.getApplications())
+                .thenReturn(List.of(failedApp, stubMixedApplications_justCurrentApp()));
+
+        McpStreamableTestClient client = McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
+                .build()
+                .connect();
+        client.when()
+                .toolsCall("list_applications_with_failed_scrapes", response -> {
+                    assertFalse(response.isError(),
+                            "list_applications_with_failed_scrapes must not error for a normal call");
+                    String text = response.firstContent().asText().text();
+                    assertTrue(text.contains("vault"),
+                            "failed-refresh app 'vault' must appear in the result: " + text);
+                    assertFalse(text.contains("gitea"),
+                            "fresh app 'gitea' must not appear in the failed-scrapes list: " + text);
+                })
+                .thenAssertResults();
+    }
+
+    @Test
+    void toolsCall_getApplication_resolvedApp_exposesFreshnessFields() {
+        stubMixedApplications();
+
+        McpStreamableTestClient client = McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
+                .build()
+                .connect();
+        client.when()
+                .toolsCall("get_application", Map.of("name", "argo-cd"), response -> {
+                    assertFalse(response.isError(), "get_application must not error for a known app");
+                    String text = response.firstContent().asText().text();
+                    // resolution field must be present
+                    assertTrue(text.contains("\"resolution\""),
+                            "get_application response must include the 'resolution' field: " + text);
+                    assertTrue(text.contains("Resolved"),
+                            "get_application response must carry resolution=Resolved for a resolved app: " + text);
+                    // per-side read instants must be present
+                    assertTrue(text.contains("currentReadAt") || text.contains("\"currentReadAt\""),
+                            "get_application response must include currentReadAt: " + text);
+                    assertTrue(text.contains("latestReadAt") || text.contains("\"latestReadAt\""),
+                            "get_application response must include latestReadAt: " + text);
+                })
+                .thenAssertResults();
+    }
+
+    @Test
+    void toolsCall_getApplication_failedRefreshApp_exposesFailedAt() {
+        VersionApplication failedApp = new VersionApplication("vault",
+                failedRefreshSide("1.0.0"),
+                SideObservation.resolved(new SemverVersion("1.1.0"), NOW));
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(failedApp));
+
+        McpStreamableTestClient client = McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
+                .build()
+                .connect();
+        client.when()
+                .toolsCall("get_application", Map.of("name", "vault"), response -> {
+                    assertFalse(response.isError());
+                    String text = response.firstContent().asText().text();
+                    assertTrue(text.contains("currentFailedAt") || text.contains("\"currentFailedAt\""),
+                            "get_application response must include currentFailedAt for a failed-refresh side: "
+                                    + text);
+                    // must NOT carry a reason field
+                    assertFalse(text.toLowerCase().contains("\"reason\""),
+                            "get_application response must not carry a reason field — reason stays in logs: " + text);
+                })
+                .thenAssertResults();
+    }
+
+    /** Returns the 'gitea' (fresh/current) app from the standard stub — used for isolation. */
+    private VersionApplication stubMixedApplications_justCurrentApp() {
+        return new VersionApplication("gitea",
+                SideObservation.resolved(new SemverVersion("2.0.0"), NOW),
+                SideObservation.resolved(new SemverVersion("2.0.0"), NOW));
     }
 
     @Test

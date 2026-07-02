@@ -6,8 +6,11 @@ import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.in.metrics.MetricsController;
 import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.domain.primitives.VersionApplication;
+
+import java.time.Instant;
 import org.yardship.core.ports.in.ApplicationVersionPort;
 
 import java.util.List;
@@ -24,12 +27,16 @@ public class MetricsControllerTests {
     @Inject
     private MetricsController sut;
 
+    private static final Instant NOW = Instant.parse("2026-07-01T10:00:00Z");
+
     @Test
     void getMetrics_delegatesPortApplicationsToRenderer() {
         VersionApplication majorBehind = new VersionApplication("argo-cd",
-                new SemverVersion("1.1.1"), new SemverVersion("2.2.2"));
+                SideObservation.resolved(new SemverVersion("1.1.1"), NOW),
+                SideObservation.resolved(new SemverVersion("2.2.2"), NOW));
         VersionApplication current = new VersionApplication("grafana",
-                new SemverVersion("2.0.0"), new SemverVersion("2.0.0"));
+                SideObservation.resolved(new SemverVersion("2.0.0"), NOW),
+                SideObservation.resolved(new SemverVersion("2.0.0"), NOW));
         when(applicationVersionPort.getApplications())
                 .thenReturn(List.of(majorBehind, current));
 

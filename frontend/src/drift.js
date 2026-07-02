@@ -1,16 +1,21 @@
 // Shared drift-severity logic. Slices 04/05 reuse driftCounts/severityColor
 // for the table and status badges, so keep this module framework-free.
 
-export const DRIFT_LEVELS = ['NONE', 'PATCH', 'MINOR', 'MAJOR']
+// UNKNOWN is at the end so indexOf maps it to the highest numeric position, placing
+// it at the TOP of the default descending status sort (most-important-first) and at
+// the BOTTOM of the ascending sort.
+export const DRIFT_LEVELS = ['NONE', 'PATCH', 'MINOR', 'MAJOR', 'UNKNOWN']
 
 // Severity colors taken from the rendered reference (style-reference/code.html).
 // MINOR's orange (#fb923c) has no theme palette slot, so it lives here as a
 // literal alongside the others for a single source of truth.
+// UNKNOWN is a neutral grey — an unresolved app is neither good nor bad.
 export const severityColor = {
   NONE: '#4ade80',
   PATCH: '#fbbf24',
   MINOR: '#fb923c',
   MAJOR: '#f87171',
+  UNKNOWN: '#9e9e9e',
 }
 
 // Status label shown on the per-row drift badge (slice 04 ApplicationRow).
@@ -19,9 +24,10 @@ export const driftStatusLabel = {
   PATCH: 'Patch Available',
   MINOR: 'Minor Available',
   MAJOR: 'Major Available',
+  UNKNOWN: 'Unknown',
 }
 
-const emptyCounts = () => ({ total: 0, upToDate: 0, patch: 0, minor: 0, major: 0 })
+const emptyCounts = () => ({ total: 0, upToDate: 0, patch: 0, minor: 0, major: 0, unknown: 0 })
 
 export function driftCounts(versions) {
   if (!versions) return emptyCounts()
@@ -35,6 +41,7 @@ export function driftCounts(versions) {
     else if (drift === 'PATCH') counts.patch += 1
     else if (drift === 'MINOR') counts.minor += 1
     else if (drift === 'MAJOR') counts.major += 1
+    else if (drift === null || drift === undefined) counts.unknown += 1
   }
 
   return counts

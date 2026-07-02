@@ -41,14 +41,26 @@ public class WireMockVersionResource implements QuarkusTestResourceLifecycleMana
                 .willReturn(json("[{\"tag_name\":\"v2.0.0\",\"prerelease\":false,\"draft\":false},"
                         + "{\"tag_name\":\"v1.5.0\",\"prerelease\":false,\"draft\":false}]")));
 
-        return Map.of(
-                "platform-config.scrape-interval", "1s",
-                "platform-config.github.api-base-url", "http://localhost:" + PORT,
-                "platform-config.apps[0].name", "good-app",
-                "platform-config.apps[0].current.type", "http",
-                "platform-config.apps[0].current.url", "http://localhost:" + PORT + "/good/current",
-                "platform-config.apps[0].latest.type", "github-release",
-                "platform-config.apps[0].latest.repo", "good/latest");
+        // bad-app: both sides fail — current returns 500, latest releases returns empty list.
+        // After one scrape cycle both sides are Unresolved → no drift series should appear.
+        wireMockServer.stubFor(get(urlEqualTo("/bad/current"))
+                .willReturn(aResponse().withStatus(500)));
+        wireMockServer.stubFor(get(urlPathEqualTo("/repos/bad/latest/releases"))
+                .willReturn(json("[]")));
+
+        return Map.ofEntries(
+                Map.entry("platform-config.scrape-interval", "1s"),
+                Map.entry("platform-config.github.api-base-url", "http://localhost:" + PORT),
+                Map.entry("platform-config.apps[0].name", "good-app"),
+                Map.entry("platform-config.apps[0].current.type", "http"),
+                Map.entry("platform-config.apps[0].current.url", "http://localhost:" + PORT + "/good/current"),
+                Map.entry("platform-config.apps[0].latest.type", "github-release"),
+                Map.entry("platform-config.apps[0].latest.repo", "good/latest"),
+                Map.entry("platform-config.apps[1].name", "bad-app"),
+                Map.entry("platform-config.apps[1].current.type", "http"),
+                Map.entry("platform-config.apps[1].current.url", "http://localhost:" + PORT + "/bad/current"),
+                Map.entry("platform-config.apps[1].latest.type", "github-release"),
+                Map.entry("platform-config.apps[1].latest.repo", "bad/latest"));
     }
 
     @Override

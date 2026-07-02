@@ -86,10 +86,11 @@ const SummaryCards = ({ versions }) => {
           label="Updates Available"
           icon={<SystemUpdateAltIcon sx={{ color: severityColor.PATCH }} />}
         />
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, mt: 0.5 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, mt: 0.5 }}>
           <SeverityStat label="Patch" count={counts.patch} color={severityColor.PATCH} />
           <SeverityStat label="Minor" count={counts.minor} color={severityColor.MINOR} />
           <SeverityStat label="Major" count={counts.major} color={severityColor.MAJOR} />
+          <SeverityStat label="Unknown" count={counts.unknown} color={severityColor.UNKNOWN} />
         </Box>
       </Paper>
     </Box>

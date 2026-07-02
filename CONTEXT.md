@@ -86,9 +86,11 @@ separately. See `docs/adr/0006`.
 _Avoid_: Quota, rate cap, throttle
 
 **Scrape state**:
-The shared, cluster-wide snapshot a scrape produces — the cached Applications,
-the time of the last scrape attempt, and the scrape budget. See
-`docs/adr/0003`.
+The shared, cluster-wide snapshot a scrape produces — the observed Applications
+(per (app, side): last-known value, last-success time and last-failure time; see
+*Side freshness*), the time of the last scrape attempt, and the scrape budget. See
+`docs/adr/0003` (state lives in Valkey) and `docs/adr/0019` (it records observation
+state, not successes only).
 _Avoid_: Cache (the state is more than a cache)
 
 **Outcome**:
@@ -104,6 +106,45 @@ Application's read succeeded or FAILED, with a reason and the side(s) read. Both
 full and targeted scrapes report these, so a caller learns exactly which app
 fell out — not just how many. Distinct from Outcome, which is the whole call.
 _Avoid_: Per-target outcome, app status
+
+**Resolution** (**Resolved** / **Unresolved**):
+Whether a monitored Application currently has a known version on *both* sides. An
+Application is *Resolved* when both `current` and `latest` have at least one past
+successful read, so the two are comparable and *Drift* is defined. It is
+*Unresolved* when at least one side has never been read successfully — so there is
+no version to show on that side ("—") and Drift is *undefined*, not `NONE`.
+Unresolved is a first-class board state (shown as "Unknown"), orthogonal to Drift:
+a status is *either* a Drift grade *or* Unknown, never both. See `docs/adr/0001`
+for what an Application is; contrast *Side freshness*, which is about how current a
+value is, not whether one exists.
+_Avoid_: Unknown drift (Drift is undefined, not a drift grade), missing, N/A,
+never-scraped (that is one cause of Unresolved, not the state itself)
+
+**Side freshness**:
+What the UI shows about *how current each side of an Application's version pair
+is*, tracked independently for every (Application, side) pair — each app's
+`current` and `latest` age separately, and so do two different apps' `current`
+sides — because a targeted scrape can refresh one (app, side) without the others. Two facts per side: the *read time* — when
+that side's displayed value was last *successfully* read (its "as-of"), which
+moves only when a new value is written — and, if the most recent attempt for that
+side *failed*, a *failed-refresh* marker carrying when that failure happened. A
+side can therefore show a value that succeeded long ago together with a recent
+failure. Distinct from the fleet-wide last-scrape-attempt clock in *Scrape
+state*, which governs staleness for the whole fleet, not one side.
+_Avoid_: Last scrape (ambiguous — fleet clock vs. per-side), timestamp,
+freshness (unqualified)
+
+**Failed scrape**:
+A scrape attempt on a *side* whose read did not resolve — the newest thing that
+happened to that side was a failure. It is a property of the *read*, never of the
+Application: the app itself may be perfectly healthy and reachable by everyone
+else; what failed is *our attempt to observe its version*. Surfaces as the
+*failed-refresh* marker in *Side freshness* and as the `list_applications_with_
+failed_scrapes` MCP tool. Note this is narrower than *Unresolved*: an Unresolved
+app can be either *failed* (a read was tried and failed) or merely *pending* (no
+read attempted yet) — only the former is a Failed scrape.
+_Avoid_: Failing/unhealthy application (the app is not what failed), broken app,
+down
 
 **Surface**:
 A client-facing entry point that reads scrape state or requests a manual scrape —

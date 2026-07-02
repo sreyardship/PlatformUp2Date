@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.yardship.core.domain.primitives.ScrapeSnapshot;
 import org.yardship.core.domain.primitives.ScrapeTarget;
 import org.yardship.core.domain.primitives.Side;
+import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.TargetResult;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.VersionValue;
@@ -66,8 +67,8 @@ class TargetedScrapeServiceTests {
     @Test
     void targetedScrape_validTargets_returnsScrapedWithOneTargetResultPerTarget() {
         store.seed(snapshotOf(
-                new VersionApplication("argo-cd", new SemverVersion("1.0.0"), new SemverVersion("1.0.0")),
-                new VersionApplication("grafana", new SemverVersion("2.0.0"), new SemverVersion("2.0.0"))));
+                new VersionApplication("argo-cd", SideObservation.resolved(new SemverVersion("1.0.0"), START), SideObservation.resolved(new SemverVersion("1.0.0"), START)),
+                new VersionApplication("grafana", SideObservation.resolved(new SemverVersion("2.0.0"), START), SideObservation.resolved(new SemverVersion("2.0.0"), START))));
         sources.seed(
                 appSources("argo-cd", "1.1.0", "1.1.0"),
                 appSources("grafana", "2.0.0", "2.1.0"));
@@ -85,49 +86,49 @@ class TargetedScrapeServiceTests {
     @Test
     void targetedScrape_currentOnlyTarget_updatesCurrent_leavesLatestUnchanged() {
         store.seed(snapshotOf(
-                new VersionApplication("argo-cd", new SemverVersion("1.0.0"), new SemverVersion("9.9.9"))));
+                new VersionApplication("argo-cd", SideObservation.resolved(new SemverVersion("1.0.0"), START), SideObservation.resolved(new SemverVersion("9.9.9"), START))));
         sources.seed(appSources("argo-cd", "1.5.0", "9.9.9"));
         lock.willAcquire(true);
 
         sut.targetedScrape(List.of(new ScrapeTarget("argo-cd", Side.CURRENT)));
 
         VersionApplication written = onlyApp(store.lastWrittenApps, "argo-cd");
-        assertEquals("1.5.0", written.current().value());
-        assertEquals("9.9.9", written.latest().value(), "latest must be left exactly as the snapshot had it");
+        assertEquals("1.5.0", written.current().value().orElseThrow().value());
+        assertEquals("9.9.9", written.latest().value().orElseThrow().value(), "latest must be left exactly as the snapshot had it");
     }
 
     @Test
     void targetedScrape_latestOnlyTarget_updatesLatest_leavesCurrentUnchanged() {
         store.seed(snapshotOf(
-                new VersionApplication("argo-cd", new SemverVersion("1.0.0"), new SemverVersion("1.0.0"))));
+                new VersionApplication("argo-cd", SideObservation.resolved(new SemverVersion("1.0.0"), START), SideObservation.resolved(new SemverVersion("1.0.0"), START))));
         sources.seed(appSources("argo-cd", "1.0.0", "2.0.0"));
         lock.willAcquire(true);
 
         sut.targetedScrape(List.of(new ScrapeTarget("argo-cd", Side.LATEST)));
 
         VersionApplication written = onlyApp(store.lastWrittenApps, "argo-cd");
-        assertEquals("1.0.0", written.current().value(), "current must be left exactly as the snapshot had it");
-        assertEquals("2.0.0", written.latest().value());
+        assertEquals("1.0.0", written.current().value().orElseThrow().value(), "current must be left exactly as the snapshot had it");
+        assertEquals("2.0.0", written.latest().value().orElseThrow().value());
     }
 
     @Test
     void targetedScrape_bothTarget_updatesBothSides() {
         store.seed(snapshotOf(
-                new VersionApplication("argo-cd", new SemverVersion("1.0.0"), new SemverVersion("1.0.0"))));
+                new VersionApplication("argo-cd", SideObservation.resolved(new SemverVersion("1.0.0"), START), SideObservation.resolved(new SemverVersion("1.0.0"), START))));
         sources.seed(appSources("argo-cd", "1.5.0", "2.0.0"));
         lock.willAcquire(true);
 
         sut.targetedScrape(List.of(new ScrapeTarget("argo-cd", Side.BOTH)));
 
         VersionApplication written = onlyApp(store.lastWrittenApps, "argo-cd");
-        assertEquals("1.5.0", written.current().value());
-        assertEquals("2.0.0", written.latest().value());
+        assertEquals("1.5.0", written.current().value().orElseThrow().value());
+        assertEquals("2.0.0", written.latest().value().orElseThrow().value());
     }
 
     @Test
     void targetedScrape_overExistingSnapshot_doesNotAdvanceLastAttemptAt() {
         store.seed(new ScrapeSnapshot(
-                List.of(new VersionApplication("argo-cd", new SemverVersion("1.0.0"), new SemverVersion("1.0.0"))),
+                List.of(new VersionApplication("argo-cd", SideObservation.resolved(new SemverVersion("1.0.0"), START), SideObservation.resolved(new SemverVersion("1.0.0"), START))),
                 START.minus(Duration.ofMinutes(10))));
         sources.seed(appSources("argo-cd", "1.1.0", "1.0.0"));
         lock.willAcquire(true);
@@ -141,9 +142,12 @@ class TargetedScrapeServiceTests {
     }
 
     @Test
-    void targetedScrape_singleSideTarget_appAbsentFromSnapshot_readsBothSides_reportsSideBoth() {
+    void targetedScrape_singleSideTarget_appAbsentFromSnapshot_readsOnlyRequestedSide_otherSidePending() {
+        // Issue 03: DROP the effectiveSide upgrade workaround. A cold single-side target no longer
+        // upgrades to BOTH. Instead it reads only the requested side and persists the app with the
+        // other side as pending (no value). The VersionApplication is Unresolved.
         store.seed(snapshotOf(
-                new VersionApplication("grafana", new SemverVersion("2.0.0"), new SemverVersion("2.0.0"))));
+                new VersionApplication("grafana", SideObservation.resolved(new SemverVersion("2.0.0"), START), SideObservation.resolved(new SemverVersion("2.0.0"), START))));
         sources.seed(
                 appSources("grafana", "2.0.0", "2.0.0"),
                 appSources("argo-cd", "1.0.0", "1.2.0")); // cold-start: not yet in the snapshot
@@ -152,12 +156,34 @@ class TargetedScrapeServiceTests {
         ScrapeStatus status = sut.targetedScrape(List.of(new ScrapeTarget("argo-cd", Side.CURRENT)));
 
         TargetResult result = onlyResult(status.targetResults(), "argo-cd");
-        assertTrue(result.succeeded());
-        assertEquals(Side.BOTH, result.side(), "cold-start must report BOTH even though CURRENT was requested");
+        assertTrue(result.succeeded(), "the CURRENT side was requested and resolved successfully");
+        assertEquals(Side.CURRENT, result.side(),
+                "cold-start must report the REQUESTED side (CURRENT), not upgrade to BOTH");
 
         VersionApplication written = onlyApp(store.lastWrittenApps, "argo-cd");
-        assertEquals("1.0.0", written.current().value());
-        assertEquals("1.2.0", written.latest().value());
+        assertEquals("1.0.0", written.current().value().orElseThrow().value(),
+                "current side (the requested one) must be resolved");
+        assertTrue(written.latest().value().isEmpty(),
+                "latest side was not requested and has no prior → must remain pending (no value)");
+        assertFalse(written.latest().isResolved(),
+                "the latest side must be Unresolved (no value) because it was never requested or prior-known");
+    }
+
+    @Test
+    void targetedScrape_singleSideTarget_appAbsentFromSnapshot_latestSide_currentRemainsPending() {
+        // Symmetric: targeting LATEST for a cold app → current remains pending.
+        store.seedEmpty();
+        sources.seed(appSources("new-app", "1.0.0", "2.0.0"));
+        lock.willAcquire(true);
+
+        sut.targetedScrape(List.of(new ScrapeTarget("new-app", Side.LATEST)));
+
+        VersionApplication written = onlyApp(store.lastWrittenApps, "new-app");
+        assertEquals("2.0.0", written.latest().value().orElseThrow().value(),
+                "latest side (the requested one) must be resolved");
+        assertTrue(written.current().value().isEmpty(),
+                "current side was not requested and has no prior → must remain pending");
+        assertFalse(written.current().isResolved(), "the current side must be Unresolved (no value)");
     }
 
     @Test

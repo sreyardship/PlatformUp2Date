@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.yardship.core.domain.primitives.ScrapeSnapshot;
 import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.out.ApplicationSources;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -123,7 +125,10 @@ class VersionServiceTests {
         clock.advance(SCRAPE_INTERVAL);
         List<VersionApplication> result = sut.getApplications();
 
-        assertEquals(List.of(createOldApplication()), result);
+        assertEquals(1, result.size());
+        assertEquals("Some-App", result.getFirst().name());
+        assertEquals("1.1.1", result.getFirst().current().value().orElseThrow().value());
+        assertEquals("2.2.2", result.getFirst().latest().value().orElseThrow().value());
         assertEquals(1, sources.readCount());
         assertEquals(1, store.writeCount);
         assertEquals(START.plus(SCRAPE_INTERVAL), store.lastWrittenAttemptAt);
@@ -168,8 +173,8 @@ class VersionServiceTests {
 
     @Test
     void getApplications_isolatesPerAppFailure_oneBrokenSourceDoesNotAbortTheScrape() {
-        // Three apps; the middle one's latest source throws. The loop completes, the broken app is
-        // counted in failed and excluded, the survivors are returned, and the lock is released.
+        // Three apps; the middle one's latest source throws (no prior). Issue 03: the broken app
+        // is persisted as Unresolved rather than excluded, and the lock is released.
         sources.seed(
                 appSources("alpha", "1.0.0", "2.0.0"),
                 new ApplicationSources("beta", okCurrent("1.0.0"), throwingLatest("github down")),
@@ -177,35 +182,50 @@ class VersionServiceTests {
 
         List<VersionApplication> result = sut.getApplications();
 
-        assertEquals(2, result.size(), "only the survivors are returned");
-        assertEquals("alpha", result.get(0).name());
-        assertEquals("gamma", result.get(1).name());
-        assertEquals(1, store.writeCount, "the survivors are still persisted");
+        // Issue 03: beta is persisted as Unresolved, so all three apps are returned.
+        assertEquals(3, result.size(),
+                "issue 03: all apps including Unresolved ones are returned (beta is Unresolved, not dropped)");
+        assertTrue(result.stream().anyMatch(a -> a.name().equals("beta")),
+                "beta must appear in results (as Unresolved)");
+        VersionApplication beta = result.stream().filter(a -> a.name().equals("beta")).findFirst().orElseThrow();
+        assertFalse(beta.latest().isResolved(), "beta's latest side must be Unresolved (source threw with no prior)");
+        assertEquals(1, store.writeCount, "the snapshot is still written");
         assertEquals(1, lock.releaseCount, "an isolated per-app failure must NOT leak the lock");
     }
 
     @Test
-    void getApplications_brokenCurrentSource_isAlsoIsolatedAndCounted() {
+    void getApplications_brokenCurrentSource_persistsAsUnresolved() {
+        // Issue 03: a broken current source (no prior) produces an Unresolved app in the snapshot.
         sources.seed(
                 new ApplicationSources("alpha", throwingCurrent("endpoint 503"), okLatest("2.0.0")),
                 appSources("beta", "1.0.0", "2.0.0"));
 
         List<VersionApplication> result = sut.getApplications();
 
-        assertEquals(1, result.size());
-        assertEquals("beta", result.get(0).name());
+        // Issue 03: both apps returned (alpha as Unresolved, beta as Resolved).
+        assertEquals(2, result.size(),
+                "issue 03: alpha is persisted as Unresolved and still appears in results");
+        VersionApplication alpha = result.stream().filter(a -> a.name().equals("alpha")).findFirst().orElseThrow();
+        assertFalse(alpha.current().isResolved(), "alpha's current side must be Unresolved (source threw with no prior)");
+        VersionApplication beta = result.stream().filter(a -> a.name().equals("beta")).findFirst().orElseThrow();
+        assertTrue(beta.current().isResolved() && beta.latest().isResolved(), "beta must be fully Resolved (both sources succeeded)");
     }
 
     @Test
-    void getApplications_allSourcesBroken_writesEmptyAndReleasesLock() {
+    void getApplications_allSourcesBroken_persistsAllAsUnresolvedAndReleasesLock() {
+        // Issue 03: when all sources throw with no prior, all apps are persisted as Unresolved.
         sources.seed(
                 new ApplicationSources("alpha", throwingCurrent("down"), okLatest("2.0.0")),
                 new ApplicationSources("beta", okCurrent("1.0.0"), throwingLatest("down")));
 
         List<VersionApplication> result = sut.getApplications();
 
-        assertTrue(result.isEmpty());
-        assertEquals(1, store.writeCount, "an all-failed scrape still records an (empty) attempt");
+        // Issue 03: both apps persisted as Unresolved (not empty).
+        assertEquals(2, result.size(),
+                "issue 03: apps with failing sides are persisted as Unresolved, not excluded");
+        assertTrue(result.stream().noneMatch(a -> a.current().isResolved() && a.latest().isResolved()),
+                "all apps must be Unresolved since each has a failing side with no prior");
+        assertEquals(1, store.writeCount, "the snapshot is still written (with Unresolved apps)");
         assertEquals(1, lock.releaseCount);
     }
 
@@ -236,7 +256,10 @@ class VersionServiceTests {
 
         List<VersionApplication> result = sut.getApplications();
 
-        assertEquals(List.of(createOldApplication()), result, "the lock winner returns the freshly scraped apps");
+        assertEquals(1, result.size(), "the lock winner returns the freshly scraped apps");
+        assertEquals("Some-App", result.getFirst().name(), "the lock winner returns the freshly scraped apps");
+        assertEquals("1.1.1", result.getFirst().current().value().orElseThrow().value());
+        assertEquals("2.2.2", result.getFirst().latest().value().orElseThrow().value());
         assertEquals(1, lock.acquireCount, "the winner must try to acquire exactly once");
         assertEquals(1, sources.readCount());
         assertEquals(1, store.writeCount, "the winner must write the new snapshot");
@@ -323,11 +346,15 @@ class VersionServiceTests {
     // --- helpers ------------------------------------------------------------------------------
 
     private VersionApplication createOldApplication() {
-        return new VersionApplication("Some-App", new SemverVersion("1.1.1"), new SemverVersion("2.2.2"));
+        return new VersionApplication("Some-App",
+                SideObservation.resolved(new SemverVersion("1.1.1"), START),
+                SideObservation.resolved(new SemverVersion("2.2.2"), START));
     }
 
     private VersionApplication createUp2DateApplication() {
-        return new VersionApplication("Another-app", new SemverVersion("2.2.2"), new SemverVersion("2.2.2"));
+        return new VersionApplication("Another-app",
+                SideObservation.resolved(new SemverVersion("2.2.2"), START),
+                SideObservation.resolved(new SemverVersion("2.2.2"), START));
     }
 
     private ApplicationSources appSources(String name, String current, String latest) {

@@ -13,6 +13,7 @@ import org.yardship.core.domain.primitives.ScrapeSnapshot;
 import org.yardship.core.domain.primitives.ScrapeTarget;
 import org.yardship.core.domain.primitives.Side;
 import org.yardship.core.domain.primitives.TargetResult;
+import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.in.ApplicationVersionPort;
@@ -32,6 +33,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.function.Supplier;
 
 @ApplicationScoped
 public class ApplicationVersionService implements ApplicationVersionPort {
@@ -209,36 +211,39 @@ public class ApplicationVersionService implements ApplicationVersionPort {
 
         try {
             Optional<VersionApplication> existing = findByName(merged, target.name());
-            Side effectiveSide = effectiveSide(target.side(), existing.isPresent());
-            VersionApplication resolved = resolveVersionApplication(app, existing, effectiveSide);
+            VersionApplication resolved = resolveVersionApplication(app, existing, target.side());
             spliceApplication(merged, resolved);
-            return TargetResult.success(target.name(), effectiveSide);
+            return TargetResult.success(target.name(), target.side());
         } catch (Exception e) {
             logger.warn("Skipping target '{}' this targeted scrape: {}", target.name(), e.getMessage());
             return TargetResult.failure(target.name(), target.side(), e.getMessage());
         }
     }
 
-    // A single-side target for an app not yet in the snapshot is upgraded to BOTH: half a
-    // VersionApplication cannot be persisted.
-    private Side effectiveSide(Side requested, boolean appExistsInSnapshot) {
-        if (!appExistsInSnapshot && requested != Side.BOTH) {
-            return Side.BOTH;
-        }
-        return requested;
-    }
-
+    /**
+     * Resolves the requested side(s) of an app from its sources. For the untouched side, falls
+     * back to the existing snapshot value when present, or a pending (all-empty) {@link SideObservation}
+     * when the app is cold (not yet in the snapshot). This allows single-side targeted scrapes to
+     * persist a partially-Unresolved {@link VersionApplication} without requiring both sides.
+     */
     private VersionApplication resolveVersionApplication(
             ApplicationSources app, Optional<VersionApplication> existing, Side side) {
-        VersionValue current = switch (side) {
-            case CURRENT, BOTH -> app.current().version();
-            case LATEST -> existing.orElseThrow().current();
+        Instant now = clock.instant();
+        SideObservation pendingIfAbsent = pendingSideObservation();
+        SideObservation current = switch (side) {
+            case CURRENT, BOTH -> SideObservation.resolved(app.current().version(), now);
+            case LATEST -> existing.map(VersionApplication::current).orElse(pendingIfAbsent);
         };
-        VersionValue latest = switch (side) {
-            case LATEST, BOTH -> app.latest().version();
-            case CURRENT -> existing.orElseThrow().latest();
+        SideObservation latest = switch (side) {
+            case LATEST, BOTH -> SideObservation.resolved(app.latest().version(), now);
+            case CURRENT -> existing.map(VersionApplication::latest).orElse(pendingIfAbsent);
         };
         return new VersionApplication(app.name(), current, latest);
+    }
+
+    /** A never-attempted, all-empty {@link SideObservation} used as a placeholder for an unread side. */
+    private static SideObservation pendingSideObservation() {
+        return new SideObservation(Optional.empty(), Optional.empty(), Optional.empty());
     }
 
     private Optional<VersionApplication> findByName(List<VersionApplication> apps, String name) {
@@ -295,15 +300,25 @@ public class ApplicationVersionService implements ApplicationVersionPort {
     }
 
     /**
-     * The scrape loop: reads both sources for every configured app in BOUNDED PARALLEL using virtual
-     * threads, gated by a {@link Semaphore} so at most {@code concurrencyCap} reads are in flight
-     * simultaneously. Results are assembled in CONFIG ORDER (index-positioned slots) regardless of
-     * completion order.
+     * The scrape loop: resolves each side of every configured app independently in BOUNDED PARALLEL
+     * using virtual threads, gated by a {@link Semaphore} so at most {@code concurrencyCap} reads
+     * are in flight simultaneously. Results are assembled in CONFIG ORDER (index-positioned slots)
+     * regardless of completion order.
      *
-     * <p>Per-app failures are isolated: one app throwing never aborts the scrape. The invariant
-     * {@code applications.size() + failed == attempted} holds.
+     * <p>Per-app per-side failures are isolated and merged over the prior snapshot: when a side's
+     * source throws and a prior value exists for that side, the prior value + lastSuccessAt are
+     * preserved and {@code lastFailureAt} is stamped to now. When a side's source throws and no
+     * prior value exists, the side becomes a value-less failed {@link SideObservation} and the app
+     * is persisted as Unresolved (not dropped). The invariant {@code applications.size() == attempted}
+     * holds; {@code failed} counts apps where at least one side has no value (Unresolved).
+     *
+     * <p>Fleet {@code lastAttemptAt} is set by the caller ({@link #scrapeAndWrite()}) from the
+     * clock, so it always advances on a full scrape regardless of per-side outcomes.
      */
     private ScrapeResult scrape() {
+        Optional<ScrapeSnapshot> priorSnapshot = scrapeStateStore.read();
+        Map<String, VersionApplication> priorByName = indexApplicationsByName(priorSnapshot);
+
         List<ApplicationSources> apps = versionSources.applicationSources();
         int attempted = apps.size();
 
@@ -319,24 +334,45 @@ public class ApplicationVersionService implements ApplicationVersionPort {
             for (int i = 0; i < attempted; i++) {
                 final int idx = i;
                 final ApplicationSources app = apps.get(i);
+                final VersionApplication prior = priorByName.get(app.name());
                 executor.submit(() -> {
                     try {
                         sem.acquire();
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
-                        slots[idx] = new Slot(null,
+                        SideObservation pending = pendingSideObservation();
+                        slots[idx] = new Slot(
+                                new VersionApplication(app.name(), pending, pending),
                                 TargetResult.failure(app.name(), Side.BOTH, "interrupted"));
                         return;
                     }
                     try {
+                        Instant now = clock.instant();
+                        SideResolution currentRes = tryResolveSide(
+                                app.current()::version,
+                                prior != null ? prior.current() : null,
+                                now);
+                        SideResolution latestRes = tryResolveSide(
+                                app.latest()::version,
+                                prior != null ? prior.latest() : null,
+                                now);
                         VersionApplication resolved = new VersionApplication(
-                                app.name(),
-                                app.current().version(),
-                                app.latest().version());
-                        slots[idx] = new Slot(resolved, TargetResult.success(app.name(), Side.BOTH));
+                                app.name(), currentRes.observation(), latestRes.observation());
+                        // An app is Unresolved (and counts as failed) when at least one side has no
+                        // value — that only happens when a source threw with no prior to fall back on.
+                        String failReason = currentRes.failureReason() != null
+                                ? currentRes.failureReason()
+                                : latestRes.failureReason();
+                        TargetResult targetResult = failReason != null
+                                ? TargetResult.failure(app.name(), Side.BOTH, failReason)
+                                : TargetResult.success(app.name(), Side.BOTH);
+                        slots[idx] = new Slot(resolved, targetResult);
                     } catch (Exception e) {
-                        logger.warn("Skipping app '{}' this scrape: {}", app.name(), e.getMessage());
-                        slots[idx] = new Slot(null,
+                        // Unexpected failure (not a source error): persist as fully-pending Unresolved.
+                        logger.warn("Unexpected error scraping app '{}': {}", app.name(), e.getMessage());
+                        SideObservation pending = pendingSideObservation();
+                        slots[idx] = new Slot(
+                                new VersionApplication(app.name(), pending, pending),
                                 TargetResult.failure(app.name(), Side.BOTH, failureReason(e)));
                     } finally {
                         sem.release();
@@ -345,21 +381,71 @@ public class ApplicationVersionService implements ApplicationVersionPort {
             }
         } // close() awaits all submitted tasks
 
-        // Assemble in config order from the index-positioned slots.
+        // Assemble in config order. ALL apps are always persisted (including Unresolved ones).
+        // failed counts apps whose TargetResult is not succeeded (at least one side has no value).
         List<VersionApplication> resolved = new ArrayList<>();
         List<TargetResult> targetResults = new ArrayList<>();
         int failed = 0;
 
         for (Slot slot : slots) {
-            if (slot.app() != null) {
-                resolved.add(slot.app());
-            } else {
+            resolved.add(slot.app());
+            if (!slot.result().succeeded()) {
                 failed++;
             }
             targetResults.add(slot.result());
         }
 
         return new ScrapeResult(resolved, attempted, failed, targetResults);
+    }
+
+    /**
+     * A lightweight result type carrying a resolved {@link SideObservation} and an optional
+     * failure reason. {@code failureReason} is non-null only when the source threw AND there was
+     * no prior value to fall back on — meaning the side is value-less (Unresolved).
+     */
+    private record SideResolution(SideObservation observation, String failureReason) {}
+
+    /**
+     * Attempts to resolve a side's version from the given {@code source}. On success returns a
+     * fresh {@link SideObservation}. On failure:
+     * <ul>
+     *   <li>If a {@code prior} observation with a value exists, returns a merged observation that
+     *       preserves the prior value + lastSuccessAt and stamps {@code lastFailureAt = now}.
+     *       The {@code failureReason} is {@code null} — the app is still considered Resolved.</li>
+     *   <li>If there is no prior value, returns a value-less failed {@link SideObservation} with
+     *       a non-null {@code failureReason} — the app will be Unresolved.</li>
+     * </ul>
+     */
+    private SideResolution tryResolveSide(
+            Supplier<VersionValue> source, SideObservation prior, Instant now) {
+        try {
+            return new SideResolution(SideObservation.resolved(source.get(), now), null);
+        } catch (Exception e) {
+            if (prior != null && prior.value().isPresent()) {
+                // Merge with prior: prior value is kept, app remains Resolved, failure is stamped.
+                return new SideResolution(
+                        new SideObservation(prior.value(), prior.lastSuccessAt(), Optional.of(now)),
+                        null);
+            }
+            // No prior: value-less failed observation — the side (and app) will be Unresolved.
+            return new SideResolution(
+                    new SideObservation(Optional.empty(), Optional.empty(), Optional.of(now)),
+                    failureReason(e));
+        }
+    }
+
+    /**
+     * Builds a name → {@link VersionApplication} index from the prior snapshot so the full-scrape
+     * loop can look up each app's last-known per-side observations in O(1).
+     */
+    private Map<String, VersionApplication> indexApplicationsByName(Optional<ScrapeSnapshot> snapshot) {
+        Map<String, VersionApplication> byName = new HashMap<>();
+        snapshot.ifPresent(s -> {
+            for (VersionApplication app : s.applications()) {
+                byName.put(app.name(), app);
+            }
+        });
+        return byName;
     }
 
     private String failureReason(Exception e) {

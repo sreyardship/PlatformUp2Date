@@ -41,8 +41,11 @@ public class ApplicationMcpTools {
                             + "(i.e. at least a PATCH behind).")
             VersionValue.Diff minSeverity) {
         VersionValue.Diff threshold = minSeverity == null ? VersionValue.Diff.PATCH : minSeverity;
+        // Guard: Unresolved apps have no drift — hasDriftAtLeast() would throw for them.
+        // Exclude them here; this list is about drift, not freshness. An Unresolved or
+        // failed-scrape app surfaces via get_application / list_applications_with_failed_scrapes.
         return applicationVersionPort.getApplications().stream()
-                .filter(app -> app.hasDriftAtLeast(threshold))
+                .filter(app -> app.isResolved() && app.hasDriftAtLeast(threshold))
                 .map(ApplicationView::from)
                 .toList();
     }
@@ -60,6 +63,20 @@ public class ApplicationMcpTools {
                 .findFirst()
                 .map(ApplicationView::from)
                 .orElse(null);
+    }
+
+    @Tool(
+            name = "list_applications_with_failed_scrapes",
+            description = "List monitored applications whose most recent scrape of a side FAILED "
+                    + "(the current or latest read errored). This reports a failed SCRAPE/read, "
+                    + "not a broken or malfunctioning application — the application itself may be "
+                    + "perfectly fine. Excludes apps that are merely pending (never yet attempted). "
+                    + "Use this to diagnose connectivity or configuration problems with the scrape targets.")
+    public List<ApplicationView> list_applications_with_failed_scrapes() {
+        return applicationVersionPort.getApplications().stream()
+                .filter(app -> app.hasFailedScrape())
+                .map(ApplicationView::from)
+                .toList();
     }
 
     @Tool(

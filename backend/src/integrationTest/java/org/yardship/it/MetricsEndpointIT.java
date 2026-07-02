@@ -12,6 +12,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -50,5 +51,45 @@ class MetricsEndpointIT {
             Thread.sleep(500);
         }
         fail("Timed out waiting for /metrics to expose pu2d_version_drift_level. Last body: " + body);
+    }
+
+    /**
+     * Issue 04 — confirms the two new per-side timestamp gauges are wired end-to-end, and
+     * that an Unresolved app (bad-app, whose endpoints always fail) is absent from drift.
+     *
+     * <p>Strategy: poll until good-app's success gauge appears (proves at least one complete
+     * scrape cycle ran). At that point bad-app has also been attempted and is Unresolved.
+     * Assert presence/type-header of the new gauge families and absence of bad-app from drift.
+     */
+    @Test
+    void metricsEndpoint_exposesPerSideTimestampGauges_andUnresolvedAppAbsentFromDrift()
+            throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder(metricsUrl.toURI()).GET().build();
+
+        Instant deadline = Instant.now().plus(Duration.ofSeconds(30));
+        String body = "";
+        while (Instant.now().isBefore(deadline)) {
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            body = response.body();
+            // Wait until good-app's per-side success gauge is visible — that proves a full scrape
+            // cycle has completed and bad-app has been attempted too.
+            if (response.statusCode() == 200
+                    && body.contains("pu2d_scrape_last_success_timestamp_seconds{app=\"good-app\",side=\"current\"}")) {
+                // Both sides of good-app must have a success gauge
+                assertTrue(body.contains(
+                        "pu2d_scrape_last_success_timestamp_seconds{app=\"good-app\",side=\"latest\"}"),
+                        "expected latest-side success gauge for good-app in: " + body);
+                // The new gauge family header must be present
+                assertTrue(body.contains("# TYPE pu2d_scrape_last_success_timestamp_seconds gauge"),
+                        "expected TYPE line for success gauge in: " + body);
+                // Unresolved bad-app must not appear in drift — drift is undefined without both values
+                assertFalse(body.contains("pu2d_version_drift_level{app=\"bad-app\""),
+                        "Unresolved bad-app must NOT appear in drift gauge; body: " + body);
+                return;
+            }
+            Thread.sleep(500);
+        }
+        fail("Timed out waiting for per-side timestamp gauges. Last body: " + body);
     }
 }

@@ -37,15 +37,25 @@ const columns = {
   },
   status: {
     defaultDirection: 'asc',
-    compare: ([, a], [, b]) => DRIFT_LEVELS.indexOf(a.drift) - DRIFT_LEVELS.indexOf(b.drift),
+    // Map null drift (Unresolved) to 'UNKNOWN' so it participates in DRIFT_LEVELS ordering.
+    // UNKNOWN is the last entry in DRIFT_LEVELS, giving it the highest index (4), which places
+    // it at the TOP in the default descending sort (most-severe-first) and BOTTOM in ascending.
+    compare: ([, a], [, b]) => {
+      const aDrift = a.drift ?? 'UNKNOWN'
+      const bDrift = b.drift ?? 'UNKNOWN'
+      return DRIFT_LEVELS.indexOf(aDrift) - DRIFT_LEVELS.indexOf(bDrift)
+    },
   },
   current: {
     defaultDirection: 'asc',
-    compare: ([, a], [, b]) => compareVersions(a.current, b.current),
+    // Null/missing versions always sink to the BOTTOM regardless of sort direction.
+    // The directional compare is applied only to non-null versions; the null-last
+    // partition is applied AFTER sorting in the sortedEntries memo below.
+    compare: ([, a], [, b]) => compareVersions(a.current.version, b.current.version),
   },
   latest: {
     defaultDirection: 'asc',
-    compare: ([, a], [, b]) => compareVersions(a.latest, b.latest),
+    compare: ([, a], [, b]) => compareVersions(a.latest.version, b.latest.version),
   },
 }
 
@@ -67,7 +77,19 @@ const ApplicationTable = ({ versions, onRefreshed }) => {
 
   const sortedEntries = useMemo(() => {
     const { compare } = columns[sort.column]
-    return [...filteredEntries].sort(applyDirection(compare, sort.direction))
+    const directed = applyDirection(compare, sort.direction)
+
+    // For version columns, null/missing versions always sink to the BOTTOM regardless of
+    // sort direction — a missing version is not "oldest", it is simply unknown. Stable
+    // partition the entries so non-null versions sort normally and nulls trail at the end.
+    if (sort.column === 'current' || sort.column === 'latest') {
+      const sideKey = sort.column
+      const nonNull = filteredEntries.filter(([, v]) => v[sideKey]?.version != null)
+      const nulls = filteredEntries.filter(([, v]) => v[sideKey]?.version == null)
+      return [...nonNull.sort(directed), ...nulls]
+    }
+
+    return [...filteredEntries].sort(directed)
   }, [filteredEntries, sort])
 
   const toggleSort = (column) => () => {

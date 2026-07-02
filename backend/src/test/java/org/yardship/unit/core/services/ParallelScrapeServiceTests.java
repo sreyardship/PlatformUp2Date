@@ -190,20 +190,21 @@ class ParallelScrapeServiceTests {
         assertEquals(Outcome.SCRAPED, status.outcome(),
                 "a per-app failure must be isolated and must not abort the scrape");
 
-        // Count invariant: 5 attempted, 2 failed, 3 succeeded
+        // Count invariant (issue 03): 5 attempted, 2 failed (Unresolved), 3 succeeded.
+        // ALL apps are persisted — the new invariant is applications.size() == attempted.
         assertEquals(5, status.appsAttempted());
         assertEquals(2, status.appsFailed());
         assertEquals(3, status.appsSucceeded());
         assertEquals(
                 status.appsAttempted(),
-                store.lastWrittenApps.size() + status.appsFailed(),
-                "ScrapeResult invariant: applications.size() + failed == attempted");
+                store.lastWrittenApps.size(),
+                "issue 03 ScrapeResult invariant: applications.size() == attempted (all apps persisted)");
 
-        // Survivors written to store must be in config order: app-00, app-02, app-04
+        // ALL apps (including Unresolved ones) written to store must be in config order.
         List<String> writtenNames = store.lastWrittenApps.stream()
                 .map(VersionApplication::name).toList();
-        assertEquals(List.of("app-00", "app-02", "app-04"), writtenNames,
-                "surviving applications must follow config order, not completion order");
+        assertEquals(List.of("app-00", "app-01", "app-02", "app-03", "app-04"), writtenNames,
+                "all applications (including Unresolved) must follow config order, not completion order");
 
         // targetResults must carry ALL 5 apps in config order
         assertEquals(5, status.targetResults().size(),

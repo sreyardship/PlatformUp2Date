@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.yardship.core.ports.in.Outcome;
 import org.yardship.core.domain.primitives.ScrapeSnapshot;
 import org.yardship.core.domain.primitives.Side;
+import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.TargetResult;
 import org.yardship.core.ports.in.ScrapeStatus;
 import org.yardship.core.domain.primitives.SemverVersion;
@@ -79,7 +80,8 @@ class ScrapeServiceTests {
 
     @Test
     void triggerScrape_lockWon_scrapesWritesAndReturnsScrapedWithCountsFromTheLoop() {
-        // Three apps; one latest source throws → attempted=3, failed=1, succeeded=2.
+        // Three apps; one latest source throws and has no prior → issue 03: beta is persisted as
+        // Unresolved (not dropped). attempted=3, failed=1 (beta is Unresolved), apps.size()=3.
         sources.seed(
                 appSources("alpha", "1.0.0", "2.0.0"),
                 new ApplicationSources("beta", okCurrent("1.0.0"), throwingLatest("github down")),
@@ -90,17 +92,28 @@ class ScrapeServiceTests {
 
         assertEquals(Outcome.SCRAPED, status.outcome());
         assertEquals(3, status.appsAttempted());
-        assertEquals(1, status.appsFailed());
+        assertEquals(1, status.appsFailed(), "a side-failed app (no prior) still counts as failed even though persisted");
         assertEquals(2, status.appsSucceeded(), "succeeded == attempted - failed");
 
-        assertEquals(2, store.lastWrittenApps.size(), "the winner persists only the survivors");
+        // Issue 03: beta is now PERSISTED as Unresolved rather than dropped.
+        assertEquals(3, store.lastWrittenApps.size(),
+                "issue 03: all apps including Unresolved ones must be persisted (not dropped)");
+        assertTrue(store.lastWrittenApps.stream().anyMatch(a -> a.name().equals("beta")),
+                "beta must appear in the persisted snapshot even though its latest source threw");
+        VersionApplication persistedBeta = store.lastWrittenApps.stream()
+                .filter(a -> a.name().equals("beta")).findFirst().orElseThrow();
+        assertFalse(persistedBeta.latest().isResolved(),
+                "beta must be persisted as Unresolved (latest side has no value)");
         assertEquals(1, store.writeCount, "the winner must write a fresh snapshot");
         assertEquals(1, lock.acquireCount, "trigger must acquire the lock exactly once");
         assertEquals(1, lock.releaseCount, "the winner must release the lock");
     }
 
     @Test
-    void triggerScrape_scrapeResultInvariant_holds_survivorsPlusFailedEqualsAttempted() {
+    void triggerScrape_scrapeResultInvariant_allAppsPersistedRegardlessOfFailures() {
+        // Issue 03 changes the invariant: ALL attempted apps land in the snapshot (including
+        // Unresolved ones). The OLD invariant `apps.size() + failed == attempted` no longer holds
+        // because apps are never dropped. The NEW invariant is `apps.size() == attempted`.
         sources.seed(
                 appSources("a", "1.0.0", "2.0.0"),
                 new ApplicationSources("b", throwingCurrent("503"), okLatest("2.0.0")),
@@ -111,10 +124,18 @@ class ScrapeServiceTests {
         ScrapeStatus status = sut.triggerScrape();
 
         assertEquals(4, status.appsAttempted());
-        assertEquals(2, status.appsFailed());
-        assertEquals(2, store.lastWrittenApps.size());
-        assertEquals(status.appsAttempted(), store.lastWrittenApps.size() + status.appsFailed(),
-                "ScrapeResult invariant: applications.size() + failed == attempted");
+        assertEquals(2, status.appsFailed(), "b and c each have a side failure → counted as failed");
+        // Issue 03 new invariant: all apps are persisted (including Unresolved b and c).
+        assertEquals(4, store.lastWrittenApps.size(),
+                "new ScrapeResult invariant (issue 03): applications.size() == attempted; all apps persisted");
+        // The old invariant apps.size() + failed == attempted (4 + 2 == 4) no longer holds.
+        // Instead: apps.size() == attempted (4 == 4) and failed == count of Unresolved apps.
+        // b: current threw (no prior), so current side has no value.
+        // c: latest threw (no prior), so latest side has no value.
+        VersionApplication b = store.lastWrittenApps.stream().filter(a -> a.name().equals("b")).findFirst().orElseThrow();
+        VersionApplication c = store.lastWrittenApps.stream().filter(a -> a.name().equals("c")).findFirst().orElseThrow();
+        assertFalse(b.current().isResolved(), "b's current side (source threw, no prior) must have no value");
+        assertFalse(c.latest().isResolved(), "c's latest side (source threw, no prior) must have no value");
     }
 
     @Test
@@ -203,8 +224,9 @@ class ScrapeServiceTests {
 
     @Test
     void triggerScrape_lockWon_isolatesPerAppFailure_doesNotPropagate() {
-        // Reframed: a per-app source failure is isolated inside the loop, so triggerScrape still
-        // returns SCRAPED (with failed counted) — it does NOT throw. The lock is still released.
+        // A per-app source failure is isolated inside the loop: triggerScrape returns SCRAPED (with
+        // failed counted) — it does NOT throw. The lock is still released. Issue 03: the failed app
+        // is persisted as Unresolved rather than dropped.
         sources.seed(
                 new ApplicationSources("alpha", okCurrent("1.0.0"), throwingLatest("boom")),
                 appSources("beta", "1.0.0", "2.0.0"));
@@ -214,8 +236,90 @@ class ScrapeServiceTests {
 
         assertEquals(Outcome.SCRAPED, status.outcome());
         assertEquals(2, status.appsAttempted());
-        assertEquals(1, status.appsFailed());
+        assertEquals(1, status.appsFailed(), "alpha has a failing latest side → counted as failed");
         assertEquals(1, lock.releaseCount, "an isolated per-app failure must not leak the lock");
+        // Issue 03: alpha is persisted as Unresolved, not dropped.
+        assertEquals(2, store.lastWrittenApps.size(),
+                "issue 03: alpha must be persisted as Unresolved (not dropped from the snapshot)");
+    }
+
+    // --- Issue 03: Unresolved app persistence ------------------------------------------------
+    //
+    // When a side's source throws and there is NO prior value for that side, the app must still
+    // be persisted (as Unresolved) rather than dropped. This replaces the previous "re-throw and
+    // drop" behaviour with "persist-as-Unresolved".
+
+    @Test
+    void triggerScrape_firstScrape_bothSourcesThrow_persistsFullyPendingApp_noPrior() {
+        // First scrape ever (no prior): BOTH sides throw. Previously the app was dropped; after
+        // issue 03 it must be persisted as Unresolved (both sides pending/value-less).
+        sources.seed(
+                new ApplicationSources("cold-app", throwingCurrent("endpoint offline"), throwingLatest("github down")),
+                appSources("ok-app", "1.0.0", "2.0.0"));
+        lock.willAcquire(true);
+
+        ScrapeStatus status = sut.triggerScrape();
+
+        assertEquals(Outcome.SCRAPED, status.outcome());
+        assertEquals(2, status.appsAttempted());
+        // cold-app persisted as Unresolved, not dropped → apps.size() == attempted
+        assertEquals(2, store.lastWrittenApps.size(),
+                "a first-scrape app with both sides failing must be persisted as Unresolved, not dropped");
+        VersionApplication coldApp = store.lastWrittenApps.stream()
+                .filter(a -> a.name().equals("cold-app")).findFirst()
+                .orElseThrow(() -> new AssertionError("cold-app must be in the persisted snapshot"));
+        assertFalse(coldApp.current().isResolved() && coldApp.latest().isResolved(),
+                "a first-scrape app with throwing sources must be Unresolved (at least one side has no value)");
+        assertTrue(coldApp.current().value().isEmpty(),
+                "current side must have no value (source threw, no prior)");
+        assertTrue(coldApp.latest().value().isEmpty(),
+                "latest side must have no value (source threw, no prior)");
+    }
+
+    @Test
+    void triggerScrape_firstScrape_oneSideThrows_persistsPartiallyUnresolvedApp() {
+        // First scrape: current resolves, latest throws with no prior. The app must be persisted
+        // with current resolved and latest Unresolved (pending or failed-never-succeeded).
+        Instant priorNone = null; // no prior for latest
+        sources.seed(
+                new ApplicationSources("cold-app", okCurrent("1.0.0"), throwingLatest("github down")));
+        lock.willAcquire(true);
+
+        sut.triggerScrape();
+
+        VersionApplication app = store.lastWrittenApps.stream()
+                .filter(a -> a.name().equals("cold-app")).findFirst()
+                .orElseThrow(() -> new AssertionError("cold-app must be persisted"));
+        assertFalse(app.latest().isResolved(), "the latest side must have no value (source threw, no prior)");
+        assertEquals("1.0.0", app.current().value().orElseThrow().value(),
+                "current side must carry the resolved value");
+        assertTrue(app.latest().value().isEmpty(),
+                "latest side must have no value (source threw, no prior)");
+        assertTrue(app.latest().lastFailureAt().isPresent(),
+                "latest side must carry a lastFailureAt stamp (it attempted and failed)");
+        assertEquals(START, app.latest().lastFailureAt().orElseThrow(),
+                "lastFailureAt must equal clock.instant() at scrape time");
+    }
+
+    @Test
+    void triggerScrape_firstScrape_oneSideThrows_isCountedAsFailed_butStillPersisted() {
+        // An Unresolved app (side threw with no prior) is counted in appsFailed (partial failure)
+        // AND is persisted in the snapshot. The new invariant: apps.size() == attempted.
+        sources.seed(
+                new ApplicationSources("cold-app", okCurrent("1.0.0"), throwingLatest("down")),
+                appSources("good-app", "2.0.0", "3.0.0"));
+        lock.willAcquire(true);
+
+        ScrapeStatus status = sut.triggerScrape();
+
+        assertEquals(2, status.appsAttempted());
+        assertEquals(1, status.appsFailed(),
+                "cold-app has a failing side → counts in appsFailed");
+        assertEquals(1, status.appsSucceeded(),
+                "only good-app is fully Resolved → counts as succeeded");
+        // New invariant: ALL apps are persisted.
+        assertEquals(2, store.lastWrittenApps.size(),
+                "new invariant (issue 03): all attempted apps are persisted including Unresolved ones");
     }
 
     @Test
@@ -395,10 +499,186 @@ class ScrapeServiceTests {
                 "the budget must be evaluated against clock.instant(), not a wall clock");
     }
 
+    // --- Scrape stamps lastSuccessAt from the clock (slice 01) --------------------------------
+    //
+    // Each side of every successfully scraped app must carry lastSuccessAt == clock.instant()
+    // at the moment the scrape executes. lastFailureAt must be absent for successful reads.
+    // This covers acceptance criterion: "A successful scrape stamps each side's last-success
+    // time from the injected Clock."
+
+    @Test
+    void triggerScrape_stampsLastSuccessAt_fromClock_onBothSides() {
+        sources.seed(appSources("my-app", "1.0.0", "2.0.0"));
+        lock.willAcquire(true);
+
+        sut.triggerScrape();
+
+        VersionApplication written = store.lastWrittenApps.getFirst();
+        assertEquals(START, written.current().lastSuccessAt().orElseThrow(),
+                "current side's lastSuccessAt must be clock.instant() at scrape time");
+        assertEquals(START, written.latest().lastSuccessAt().orElseThrow(),
+                "latest side's lastSuccessAt must be clock.instant() at scrape time");
+        assertTrue(written.current().lastFailureAt().isEmpty(),
+                "a successful current read must not set lastFailureAt (slice 01)");
+        assertTrue(written.latest().lastFailureAt().isEmpty(),
+                "a successful latest read must not set lastFailureAt (slice 01)");
+    }
+
+    @Test
+    void triggerScrape_stampUsesClockInstantAtScrapeTime_notAtObjectConstruction() {
+        // Verify that the stamp comes from the injected clock at the moment the scrape runs,
+        // not from some static initialiser or construction time.
+        sources.seed(appSources("my-app", "1.0.0", "2.0.0"));
+        lock.willAcquire(true);
+        // Advance the clock before scraping; the stamp must reflect the advanced instant.
+        clock.advance(Duration.ofHours(3));
+        Instant expectedStamp = START.plus(Duration.ofHours(3));
+
+        sut.triggerScrape();
+
+        VersionApplication written = store.lastWrittenApps.getFirst();
+        assertEquals(expectedStamp, written.current().lastSuccessAt().orElseThrow(),
+                "lastSuccessAt must be the clock instant at the moment the scrape ran");
+        assertEquals(expectedStamp, written.latest().lastSuccessAt().orElseThrow());
+    }
+
+    // --- Slice 02: full-scrape merge-over-prior with per-side failure stamps ------------------
+    //
+    // Issue 02 changes the full-scrape path from "write fresh / drop failed apps" to per-side
+    // resolve + merge-over-prior + failure-stamp (same model as the targeted-scrape path).
+    // Specifically:
+    //   - When one side's source throws the side keeps its prior value + lastSuccessAt and gains
+    //     lastFailureAt == clock.instant().
+    //   - The other side (whose source succeeded) updates normally (new value + lastSuccessAt,
+    //     lastFailureAt absent).
+    //   - The failed app is STILL written to the snapshot (not dropped); it carries a valid
+    //     SideObservation with value + lastSuccessAt from the prior snapshot and a new lastFailureAt.
+    //   - Fleet lastAttemptAt still advances (full scrape behaviour, unchanged).
+
+    @Test
+    void triggerScrape_overPriorSnapshot_oneSourceThrows_failedSideKeepsPriorValueAndLastSuccessAt() {
+        // Seed a prior snapshot for "alpha" with a known lastSuccessAt.
+        Instant priorSuccessAt = START.minusSeconds(3600);
+        VersionApplication priorAlpha = new VersionApplication("alpha",
+                SideObservation.resolved(new SemverVersion("1.0.0"), priorSuccessAt),
+                SideObservation.resolved(new SemverVersion("2.0.0"), priorSuccessAt));
+        store.seed(new ScrapeSnapshot(List.of(priorAlpha), priorSuccessAt));
+
+        // alpha's latest source will throw; current source returns a value.
+        sources.seed(new ApplicationSources("alpha",
+                okCurrent("1.1.0"),
+                throwingLatest("github down")));
+        lock.willAcquire(true);
+
+        sut.triggerScrape();
+
+        // alpha must still be in the written snapshot (not dropped).
+        VersionApplication written = store.lastWrittenApps.stream()
+                .filter(a -> a.name().equals("alpha"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("alpha must remain in the snapshot after a partial failure"));
+
+        // The latest side (which threw) must keep the prior value.
+        assertEquals("2.0.0", written.latest().value().orElseThrow().value(),
+                "the failed latest side must keep the prior value");
+
+        // The latest side must keep the prior lastSuccessAt.
+        assertEquals(priorSuccessAt, written.latest().lastSuccessAt().orElseThrow(),
+                "the failed latest side must keep the prior lastSuccessAt");
+
+        // The latest side must gain a lastFailureAt == clock.instant().
+        assertTrue(written.latest().lastFailureAt().isPresent(),
+                "the failed latest side must have a lastFailureAt stamp");
+        assertEquals(START, written.latest().lastFailureAt().orElseThrow(),
+                "lastFailureAt must equal clock.instant() at scrape time");
+
+        // The current side (which succeeded) must update normally.
+        assertEquals("1.1.0", written.current().value().orElseThrow().value(),
+                "the successful current side must update to the new value");
+        assertEquals(START, written.current().lastSuccessAt().orElseThrow(),
+                "the successful current side must get a new lastSuccessAt");
+        assertTrue(written.current().lastFailureAt().isEmpty(),
+                "the successful current side must not get a lastFailureAt");
+    }
+
+    @Test
+    void triggerScrape_overPriorSnapshot_oneSourceThrows_otherAppUpdatesNormally() {
+        // Two-app snapshot; one app partial-fails, the other must be unaffected.
+        Instant priorAt = START.minusSeconds(3600);
+        store.seed(new ScrapeSnapshot(List.of(
+                new VersionApplication("alpha",
+                        SideObservation.resolved(new SemverVersion("1.0.0"), priorAt),
+                        SideObservation.resolved(new SemverVersion("2.0.0"), priorAt)),
+                new VersionApplication("beta",
+                        SideObservation.resolved(new SemverVersion("3.0.0"), priorAt),
+                        SideObservation.resolved(new SemverVersion("4.0.0"), priorAt))), priorAt));
+
+        sources.seed(
+                new ApplicationSources("alpha", okCurrent("1.1.0"), throwingLatest("down")),
+                appSources("beta", "3.1.0", "4.1.0"));
+        lock.willAcquire(true);
+
+        sut.triggerScrape();
+
+        // beta must be updated with fresh values.
+        VersionApplication beta = store.lastWrittenApps.stream()
+                .filter(a -> a.name().equals("beta"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("3.1.0", beta.current().value().orElseThrow().value());
+        assertEquals("4.1.0", beta.latest().value().orElseThrow().value());
+        assertEquals(START, beta.current().lastSuccessAt().orElseThrow());
+        assertTrue(beta.current().lastFailureAt().isEmpty());
+        assertTrue(beta.latest().lastFailureAt().isEmpty());
+    }
+
+    @Test
+    void triggerScrape_overPriorSnapshot_failedSide_marksFailedRefresh() {
+        // failedRefresh() on the written side must return true after a per-side failure.
+        Instant priorAt = START.minusSeconds(3600);
+        store.seed(new ScrapeSnapshot(List.of(
+                new VersionApplication("alpha",
+                        SideObservation.resolved(new SemverVersion("1.0.0"), priorAt),
+                        SideObservation.resolved(new SemverVersion("2.0.0"), priorAt))), priorAt));
+
+        sources.seed(new ApplicationSources("alpha", okCurrent("1.1.0"), throwingLatest("down")));
+        lock.willAcquire(true);
+
+        sut.triggerScrape();
+
+        VersionApplication written = store.lastWrittenApps.getFirst();
+        assertTrue(written.latest().failedRefresh(),
+                "the failed latest side must report failedRefresh() == true after a per-side failure");
+        assertFalse(written.current().failedRefresh(),
+                "the successful current side must NOT report failedRefresh()");
+    }
+
+    @Test
+    void triggerScrape_overPriorSnapshot_fleetLastAttemptAt_advances() {
+        // Fleet-wide lastAttemptAt must still advance on a full scrape even in the new
+        // per-side merge model (regression guard).
+        Instant priorAt = START.minusSeconds(3600);
+        store.seed(new ScrapeSnapshot(List.of(
+                new VersionApplication("alpha",
+                        SideObservation.resolved(new SemverVersion("1.0.0"), priorAt),
+                        SideObservation.resolved(new SemverVersion("2.0.0"), priorAt))), priorAt));
+
+        sources.seed(new ApplicationSources("alpha", okCurrent("1.1.0"), throwingLatest("down")));
+        lock.willAcquire(true);
+
+        sut.triggerScrape();
+
+        assertEquals(START, store.lastWrittenAttemptAt,
+                "a full scrape must advance lastAttemptAt to clock.instant()");
+    }
+
     // --- helpers ------------------------------------------------------------------------------
 
     private VersionApplication createUp2DateApplication() {
-        return new VersionApplication("Another-app", new SemverVersion("2.2.2"), new SemverVersion("2.2.2"));
+        // Updated to slice 01 shape: each side is a SideObservation with a fixed stamp.
+        return new VersionApplication("Another-app",
+                SideObservation.resolved(new SemverVersion("2.2.2"), START),
+                SideObservation.resolved(new SemverVersion("2.2.2"), START));
     }
 
     private ApplicationSources appSources(String name, String current, String latest) {

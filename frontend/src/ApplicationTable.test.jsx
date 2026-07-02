@@ -5,7 +5,8 @@ import ApplicationTable from './ApplicationTable'
 import versionClient from './api/versionClient'
 
 // Contract: <ApplicationTable versions={versionsObject} onRefreshed={fn} />
-// versionsObject is the payload shape { "<name>": { current, latest, outdated, drift } }.
+// versionsObject is the payload shape
+// { "<name>": { current: { version, readAt }, latest: { version, readAt }, outdated, drift } }.
 //
 // Filter:
 //   - A textbox (locator: screen.getByPlaceholderText('Filter applications…'))
@@ -43,10 +44,14 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+const READ_AT = '2026-07-01T10:00:00Z'
+const side = (version) => ({ version, readAt: READ_AT })
+const pendingSide = () => ({ version: null, readAt: null })
+
 const versions = {
-  'git-tea': { current: '1.21.7', latest: '1.22.1', outdated: true, drift: 'MINOR' },
-  'argo-cd': { current: '2.10.7', latest: '2.11.7', outdated: true, drift: 'PATCH' },
-  sharry: { current: '1.14.0', latest: '1.14.0', outdated: false, drift: 'NONE' },
+  'git-tea': { current: side('1.21.7'), latest: side('1.22.1'), outdated: true, drift: 'MINOR' },
+  'argo-cd': { current: side('2.10.7'), latest: side('2.11.7'), outdated: true, drift: 'PATCH' },
+  sharry: { current: side('1.14.0'), latest: side('1.14.0'), outdated: false, drift: 'NONE' },
 }
 
 function rowNames() {
@@ -64,10 +69,10 @@ test('renders one row per application in the versions object', () => {
 
 test('default render order is most-outdated-first by drift severity (MAJOR > MINOR > PATCH > NONE)', () => {
   const mixed = {
-    'zeta-none': { current: '1.0.0', latest: '1.0.0', outdated: false, drift: 'NONE' },
-    'beta-patch': { current: '1.0.0', latest: '1.0.1', outdated: true, drift: 'PATCH' },
-    'omega-minor': { current: '1.0.0', latest: '1.2.0', outdated: true, drift: 'MINOR' },
-    'alpha-major': { current: '1.0.0', latest: '2.0.0', outdated: true, drift: 'MAJOR' },
+    'zeta-none': { current: side('1.0.0'), latest: side('1.0.0'), outdated: false, drift: 'NONE' },
+    'beta-patch': { current: side('1.0.0'), latest: side('1.0.1'), outdated: true, drift: 'PATCH' },
+    'omega-minor': { current: side('1.0.0'), latest: side('1.2.0'), outdated: true, drift: 'MINOR' },
+    'alpha-major': { current: side('1.0.0'), latest: side('2.0.0'), outdated: true, drift: 'MAJOR' },
   }
 
   render(<ApplicationTable versions={mixed} onRefreshed={vi.fn()} />)
@@ -148,10 +153,10 @@ describe('sort', () => {
     // ascending severity; 'app-z' (NONE) comes alphabetically last but
     // should sort FIRST in ascending severity.
     const mixed = {
-      'app-a': { current: '1.0.0', latest: '2.0.0', outdated: true, drift: 'MAJOR' },
-      'app-m': { current: '1.0.0', latest: '1.1.0', outdated: true, drift: 'MINOR' },
-      'app-p': { current: '1.0.0', latest: '1.0.1', outdated: true, drift: 'PATCH' },
-      'app-z': { current: '1.0.0', latest: '1.0.0', outdated: false, drift: 'NONE' },
+      'app-a': { current: side('1.0.0'), latest: side('2.0.0'), outdated: true, drift: 'MAJOR' },
+      'app-m': { current: side('1.0.0'), latest: side('1.1.0'), outdated: true, drift: 'MINOR' },
+      'app-p': { current: side('1.0.0'), latest: side('1.0.1'), outdated: true, drift: 'PATCH' },
+      'app-z': { current: side('1.0.0'), latest: side('1.0.0'), outdated: false, drift: 'NONE' },
     }
     const user = userEvent.setup()
     render(<ApplicationTable versions={mixed} onRefreshed={vi.fn()} />)
@@ -177,8 +182,8 @@ describe('sort', () => {
     // Lexicographic order would put '2.10.0' before '2.9.0' (since '1' < '9'
     // as characters); semver-aware order must put 2.9.0 before 2.10.0.
     const mixed = {
-      'app-high': { current: '2.10.0', latest: '2.10.0', outdated: false, drift: 'NONE' },
-      'app-low': { current: '2.9.0', latest: '2.9.0', outdated: false, drift: 'NONE' },
+      'app-high': { current: side('2.10.0'), latest: side('2.10.0'), outdated: false, drift: 'NONE' },
+      'app-low': { current: side('2.9.0'), latest: side('2.9.0'), outdated: false, drift: 'NONE' },
     }
     const user = userEvent.setup()
     render(<ApplicationTable versions={mixed} onRefreshed={vi.fn()} />)
@@ -194,6 +199,125 @@ describe('sort', () => {
     names = rowNames()
     expect(names[0]).toContain('app-high') // 2.10.0
     expect(names[1]).toContain('app-low') // 2.9.0
+  })
+})
+
+// --- Issue 03: Unknown (Unresolved) app sort behaviour ------------------------------------
+//
+// Default status sort (desc): Unknown ranks ABOVE MAJOR (at the very top of the list).
+// Version-column sort: null/missing versions sink to the BOTTOM in BOTH directions
+// (ascending and descending) — missing is not "oldest".
+
+describe('Unknown (Unresolved) sort behaviour', () => {
+  test('default sort: Unknown app appears above MAJOR (at the very top)', () => {
+    const mixed = {
+      'alpha-major': { current: side('1.0.0'), latest: side('2.0.0'), outdated: true, drift: 'MAJOR', resolution: 'Resolved' },
+      'beta-unknown': { current: pendingSide(), latest: pendingSide(), outdated: false, drift: null, resolution: 'Unresolved' },
+      'gamma-none':  { current: side('1.0.0'), latest: side('1.0.0'), outdated: false, drift: 'NONE', resolution: 'Resolved' },
+    }
+
+    render(<ApplicationTable versions={mixed} onRefreshed={vi.fn()} />)
+
+    const names = rowNames()
+    // Unknown must come before MAJOR in the default desc sort.
+    const unknownIdx = names.findIndex((n) => n.includes('beta-unknown'))
+    const majorIdx   = names.findIndex((n) => n.includes('alpha-major'))
+    expect(unknownIdx).toBeLessThan(majorIdx)
+    expect(names[0]).toContain('beta-unknown')
+  })
+
+  test('default sort: all Unknown apps appear before all Resolved apps', () => {
+    const mixed = {
+      'a-major': { current: side('1.0.0'), latest: side('2.0.0'), outdated: true, drift: 'MAJOR', resolution: 'Resolved' },
+      'b-unknown-1': { current: pendingSide(), latest: pendingSide(), drift: null, resolution: 'Unresolved' },
+      'c-minor': { current: side('1.0.0'), latest: side('1.2.0'), outdated: true, drift: 'MINOR', resolution: 'Resolved' },
+      'd-unknown-2': { current: pendingSide(), latest: pendingSide(), drift: null, resolution: 'Unresolved' },
+    }
+
+    render(<ApplicationTable versions={mixed} onRefreshed={vi.fn()} />)
+
+    const names = rowNames()
+    // Both unknown apps must come before both resolved apps.
+    const unknownIndices = [
+      names.findIndex((n) => n.includes('b-unknown-1')),
+      names.findIndex((n) => n.includes('d-unknown-2')),
+    ]
+    const resolvedIndices = [
+      names.findIndex((n) => n.includes('a-major')),
+      names.findIndex((n) => n.includes('c-minor')),
+    ]
+    expect(Math.max(...unknownIndices)).toBeLessThan(Math.min(...resolvedIndices))
+  })
+
+  test('status sort ascending: Unknown apps appear at the BOTTOM (below NONE)', async () => {
+    const mixed = {
+      'a-none': { current: side('1.0.0'), latest: side('1.0.0'), outdated: false, drift: 'NONE', resolution: 'Resolved' },
+      'b-major': { current: side('1.0.0'), latest: side('2.0.0'), outdated: true, drift: 'MAJOR', resolution: 'Resolved' },
+      'c-unknown': { current: pendingSide(), latest: pendingSide(), drift: null, resolution: 'Unresolved' },
+    }
+    const user = userEvent.setup()
+    render(<ApplicationTable versions={mixed} onRefreshed={vi.fn()} />)
+
+    // Click once to activate ascending sort (first click on status toggles away from the default desc).
+    await user.click(screen.getByRole('button', { name: /status/i }))
+
+    const names = rowNames()
+    const unknownIdx = names.findIndex((n) => n.includes('c-unknown'))
+    expect(unknownIdx).toBe(names.length - 1)
+  })
+
+  test('version column sort ascending: null versions appear at the BOTTOM', async () => {
+    // When sorting by current version ascending, apps with null version must go to the bottom.
+    const mixed = {
+      'a-high': { current: side('2.10.0'), latest: side('2.10.0'), drift: 'NONE', resolution: 'Resolved' },
+      'b-low':  { current: side('1.0.0'),  latest: side('1.0.0'),  drift: 'NONE', resolution: 'Resolved' },
+      'c-null': { current: pendingSide(),   latest: pendingSide(),  drift: null,   resolution: 'Unresolved' },
+    }
+    const user = userEvent.setup()
+    render(<ApplicationTable versions={mixed} onRefreshed={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: /current version/i }))
+
+    const names = rowNames()
+    // Ascending: 1.0.0, 2.10.0, then null at bottom.
+    expect(names[0]).toContain('b-low')
+    expect(names[1]).toContain('a-high')
+    expect(names[2]).toContain('c-null')
+  })
+
+  test('version column sort descending: null versions still appear at the BOTTOM', async () => {
+    // Descending: 2.10.0, 1.0.0, then null at bottom — not at the "top" as if it were "oldest".
+    const mixed = {
+      'a-high': { current: side('2.10.0'), latest: side('2.10.0'), drift: 'NONE', resolution: 'Resolved' },
+      'b-low':  { current: side('1.0.0'),  latest: side('1.0.0'),  drift: 'NONE', resolution: 'Resolved' },
+      'c-null': { current: pendingSide(),   latest: pendingSide(),  drift: null,   resolution: 'Unresolved' },
+    }
+    const user = userEvent.setup()
+    render(<ApplicationTable versions={mixed} onRefreshed={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: /current version/i }))
+    await user.click(screen.getByRole('button', { name: /current version/i }))
+
+    const names = rowNames()
+    // Descending: 2.10.0, 1.0.0, null still at bottom.
+    expect(names[0]).toContain('a-high')
+    expect(names[1]).toContain('b-low')
+    expect(names[2]).toContain('c-null')
+  })
+
+  test('latest version sort ascending: null versions appear at the BOTTOM', async () => {
+    const mixed = {
+      'a-high': { current: side('1.0.0'), latest: side('3.0.0'), drift: 'MAJOR', resolution: 'Resolved' },
+      'b-low':  { current: side('1.0.0'), latest: side('2.0.0'), drift: 'MAJOR', resolution: 'Resolved' },
+      'c-null': { current: pendingSide(),  latest: pendingSide(), drift: null,    resolution: 'Unresolved' },
+    }
+    const user = userEvent.setup()
+    render(<ApplicationTable versions={mixed} onRefreshed={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: /latest version/i }))
+
+    const names = rowNames()
+    expect(names[names.length - 1]).toContain('c-null')
   })
 })
 
