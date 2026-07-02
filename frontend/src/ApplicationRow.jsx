@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { Avatar, Box, IconButton, Stack, TableCell, TableRow, Tooltip, Typography } from '@mui/material'
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
+import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 
 import RescrapeButton from './RescrapeButton'
 import versionClient from './api/versionClient'
 import { driftStatusLabel, severityColor } from './drift'
+import { formatFreshnessLine } from './freshness'
 
 const hexToRgba = (hex, alpha) => {
   const value = hex.replace('#', '')
@@ -27,38 +29,28 @@ const StatusBadge = ({ drift }) => {
 }
 
 /**
- * Renders a muted relative "read Xm ago" label under the version string, with the
- * absolute local time in a hover tooltip. Only rendered when a readAt instant is present.
- * Minutes are used for durations under one hour (slice 01 contract).
+ * Renders the version string as a hover target. When readAt is present, hovering
+ * reveals a tooltip with "read <relative> ago — <absolute local time>", using
+ * formatFreshnessLine from freshness.js. A side without readAt shows "—" (when
+ * version is null) and exposes no hover interaction.
  *
  * The tooltip uses controlled React state (not MUI Tooltip's internal timer) so it
  * appears synchronously on hover in both production and test environments.
  */
-const ReadAtLabel = ({ readAt }) => {
+const VersionString = ({ version, readAt }) => {
   const [tooltipVisible, setTooltipVisible] = useState(false)
 
-  if (!readAt) return null
-
-  const readAtDate = new Date(readAt)
-  const diffMs = Date.now() - readAtDate.getTime()
-  const diffMinutes = Math.floor(diffMs / 60_000)
-  const relativeLabel = `read ${diffMinutes}m ago`
-  const absoluteLabel = readAtDate.toLocaleTimeString()
+  if (!readAt) return <>{version ?? '—'}</>
 
   return (
-    <Box
-      component="span"
-      sx={{ display: 'block', position: 'relative' }}
-      onMouseEnter={() => setTooltipVisible(true)}
-      onMouseLeave={() => setTooltipVisible(false)}
-    >
+    <Box component="span" sx={{ position: 'relative', display: 'inline-block' }}>
       <Typography
         component="span"
-        display="block"
-        variant="caption"
-        sx={{ color: 'text.disabled', cursor: 'default', userSelect: 'none' }}
+        onMouseEnter={() => setTooltipVisible(true)}
+        onMouseLeave={() => setTooltipVisible(false)}
+        sx={{ cursor: 'default' }}
       >
-        {relativeLabel}
+        {version ?? '—'}
       </Typography>
       {tooltipVisible && (
         <Box
@@ -78,7 +70,7 @@ const ReadAtLabel = ({ readAt }) => {
             pointerEvents: 'none',
           }}
         >
-          {absoluteLabel}
+          {formatFreshnessLine('read', readAt)}
         </Box>
       )}
     </Box>
@@ -86,36 +78,33 @@ const ReadAtLabel = ({ readAt }) => {
 }
 
 /**
- * Renders a muted relative "refresh failed Xm ago" marker under the readAt label when a
- * side's most recent refresh attempt failed. Mirrors ReadAtLabel with the same tooltip pattern.
- * Only rendered when a failedAt instant is present.
+ * Renders a compact amber warning icon after the version string when a side's most recent
+ * refresh attempt failed (failedAt present). Hovering the icon reveals a two-line tooltip:
+ *   line 1: "read <relative> ago — <absolute>" or "never read successfully" when readAt is null
+ *   line 2: "refresh failed <relative> ago — <absolute>"
+ *
+ * Uses the same controlled-visibility pattern as VersionString. Returns null when failedAt
+ * is absent (healthy side) or when the side is merely pending (no readAt, no failedAt).
  */
-const FailedRefreshLabel = ({ failedAt }) => {
+const FailedRefreshIcon = ({ readAt, failedAt }) => {
   const [tooltipVisible, setTooltipVisible] = useState(false)
 
   if (!failedAt) return null
 
-  const failedAtDate = new Date(failedAt)
-  const diffMs = Date.now() - failedAtDate.getTime()
-  const diffMinutes = Math.floor(diffMs / 60_000)
-  const relativeLabel = `refresh failed ${diffMinutes}m ago`
-  const absoluteLabel = failedAtDate.toLocaleTimeString()
+  const line1 = readAt ? formatFreshnessLine('read', readAt) : 'never read successfully'
+  const line2 = formatFreshnessLine('refresh failed', failedAt)
 
   return (
     <Box
       component="span"
-      sx={{ display: 'block', position: 'relative' }}
-      onMouseEnter={() => setTooltipVisible(true)}
-      onMouseLeave={() => setTooltipVisible(false)}
+      sx={{ position: 'relative', display: 'inline-flex', verticalAlign: 'middle', ml: 0.5 }}
     >
-      <Typography
-        component="span"
-        display="block"
-        variant="caption"
-        sx={{ color: 'text.disabled', cursor: 'default', userSelect: 'none' }}
-      >
-        {relativeLabel}
-      </Typography>
+      <WarningAmberIcon
+        aria-label="refresh failed"
+        sx={{ fontSize: '1rem', color: 'warning.main' }}
+        onMouseEnter={() => setTooltipVisible(true)}
+        onMouseLeave={() => setTooltipVisible(false)}
+      />
       {tooltipVisible && (
         <Box
           role="tooltip"
@@ -134,7 +123,8 @@ const FailedRefreshLabel = ({ failedAt }) => {
             pointerEvents: 'none',
           }}
         >
-          {absoluteLabel}
+          <Box component="div">{line1}</Box>
+          <Box component="div">{line2}</Box>
         </Box>
       )}
     </Box>
@@ -188,14 +178,12 @@ const ApplicationRow = ({ name, ver, onRefreshed }) => {
         <StatusBadge drift={drift} />
       </TableCell>
       <TableCell sx={{ color: 'text.secondary' }}>
-        {currentVersion ?? '—'}
-        <ReadAtLabel readAt={currentReadAt} />
-        <FailedRefreshLabel failedAt={currentFailedAt} />
+        <VersionString version={currentVersion} readAt={currentReadAt} />
+        <FailedRefreshIcon readAt={currentReadAt} failedAt={currentFailedAt} />
       </TableCell>
       <TableCell sx={outdated ? { color: 'primary.main', fontWeight: 600 } : { color: 'text.secondary' }}>
-        {latestVersion ?? '—'}
-        <ReadAtLabel readAt={latestReadAt} />
-        <FailedRefreshLabel failedAt={latestFailedAt} />
+        <VersionString version={latestVersion} readAt={latestReadAt} />
+        <FailedRefreshIcon readAt={latestReadAt} failedAt={latestFailedAt} />
       </TableCell>
       <TableCell align="center">
         <Tooltip title="Changelog — coming soon">

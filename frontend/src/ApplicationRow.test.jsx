@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import ApplicationRow from './ApplicationRow'
@@ -10,8 +10,11 @@ import versionClient from './api/versionClient'
 //   - Status cell: a drift badge with a status label (NONE/PATCH/MINOR/MAJOR
 //     -> "Up to Date"/"Patch Available"/"Minor Available"/"Major Available")
 //   - Current Version / Latest Version cells (latest emphasised when outdated).
-//     Each side is a {version, readAt} object; beneath the version string a muted
-//     "read Xm ago" label is shown, with the absolute local time on hover.
+//     Each side is a { version, readAt, failedAt? } object.
+//     No always-visible captions — a healthy row is caption-free.
+//     Hovering the version string (when readAt present) shows "read Xm ago — <absolute>".
+//     When failedAt is present an amber WarningAmberIcon appears after the version string;
+//     hovering it shows a two-line tooltip: "read Xm ago — <abs>" + "refresh failed Xm ago — <abs>".
 //   - Changelog cell: an inert document-icon control with tooltip
 //     "Changelog — coming soon" that performs no action
 //   - Actions cell: "Rescrape current" + "Rescrape latest" buttons, each
@@ -201,7 +204,7 @@ test('renders an inert Changelog control with an explanatory tooltip and it perf
 // When an app is Unresolved (resolution === 'Unresolved', drift === null):
 //   - A grey "Unknown" status badge is shown (distinct from the drift severity colours).
 //   - A null version is displayed as "—" (em dash).
-//   - A failed side still shows its FailedRefreshLabel even when version is null.
+//   - A failed side still shows its warning icon even when version is null.
 //   - Non-null sides display normally alongside the null side.
 
 describe('Unknown (Unresolved) app display', () => {
@@ -269,9 +272,10 @@ describe('Unknown (Unresolved) app display', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2)
   })
 
-  test('shows FailedRefreshLabel for a null-version side that carries failedAt', () => {
+  test('shows warning icon for a null-version side that carries failedAt', () => {
     // A side that attempted-and-failed has no value (version: null) but does have failedAt.
-    // The FailedRefreshLabel must still render alongside the "—" placeholder.
+    // The amber WarningAmberIcon must still render alongside the "—" placeholder.
+    // No always-visible "refresh failed" text should appear — only the icon.
     renderRow({
       name: 'cold-app',
       ver: unresolvedVer({
@@ -282,8 +286,10 @@ describe('Unknown (Unresolved) app display', () => {
     })
     // The "—" placeholder must be present.
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1)
-    // The "refresh failed" marker must still appear despite null version.
-    expect(screen.getByText(/refresh failed/i)).toBeInTheDocument()
+    // The warning icon must still render despite null version.
+    expect(screen.getByTestId('WarningAmberIcon')).toBeInTheDocument()
+    // No always-visible "refresh failed" text — only the icon.
+    expect(screen.queryByText(/refresh failed/i)).not.toBeInTheDocument()
   })
 
   test('a partially resolved app shows the resolved version normally and "—" for the missing side', () => {
@@ -305,14 +311,21 @@ describe('Unknown (Unresolved) app display', () => {
   })
 })
 
-// --- Slice 01: per-side readAt display ---------------------------------------------------
+// --- Slice 01: per-side readAt display (reworked) ----------------------------------------
 //
-// Each version cell must show a muted relative "read Xm ago" label computed client-side
-// from the per-side readAt instant, with the absolute local-timezone time in a hover tooltip.
-// Tests in this describe block freeze Date.now() so the relative math is deterministic.
+// Each version cell is now a single line (the version string, or "—"). The always-visible
+// "read Xm ago" caption is gone. Instead the version string itself is a hover target:
+// hovering it reveals a tooltip: "read <relative> ago — <absolute local time>".
+//
+// Relative time is humanized with floor division: minutes under 1h, hours under 1d, days
+// after that. This module delegates the formatting to freshness.js (slice 01 also creates
+// freshness.js — see freshness.test.js for unit-level boundary tests).
+//
+// Sides without a readAt show "—" (when version is null) and expose no hover tooltip.
+// Tests freeze Date.now() via vi.setSystemTime so the relative math is deterministic.
 
 describe('per-side readAt display', () => {
-  // FIXED_READ_AT is 5 minutes before FIXED_NOW so the relative label reads "read 5m ago".
+  // FIXED_READ_AT is 5 minutes before FIXED_NOW → relative label "5m".
   const FIXED_NOW = new Date('2026-07-01T10:05:00.000Z')
 
   beforeEach(() => {
@@ -324,7 +337,7 @@ describe('per-side readAt display', () => {
     vi.useRealTimers()
   })
 
-  test('shows a muted relative "read Xm ago" label under each version side', () => {
+  test('no always-visible "read … ago" text renders anywhere in a row', () => {
     renderRow({
       name: 'app',
       ver: {
@@ -336,12 +349,11 @@ describe('per-side readAt display', () => {
       onRefreshed: vi.fn(),
     })
 
-    // Both the current and latest cells must show a relative "read Xm ago" label.
-    const relativeLabels = screen.getAllByText(/read \d+m ago/i)
-    expect(relativeLabels.length).toBeGreaterThanOrEqual(2)
+    // "read … ago" must NOT be visible without any hover interaction.
+    expect(screen.queryByText(/read .+ ago/i)).not.toBeInTheDocument()
   })
 
-  test('relative label is computed from readAt vs current time (5m gap → "read 5m ago")', () => {
+  test('hovering a version string with readAt shows "read <relative> ago — <absolute>" tooltip', () => {
     renderRow({
       name: 'app',
       ver: {
@@ -353,47 +365,75 @@ describe('per-side readAt display', () => {
       onRefreshed: vi.fn(),
     })
 
-    // With FIXED_READ_AT 5 minutes before FIXED_NOW the label must show "5m".
-    expect(screen.getAllByText(/read 5m ago/i).length).toBeGreaterThanOrEqual(1)
-  })
+    // FIXED_READ_AT is 5 minutes before FIXED_NOW → "5m".
+    const versionEl = screen.getByText('1.0.0')
+    fireEvent.mouseEnter(versionEl)
 
-  test('hovering the relative label shows the absolute local time as a tooltip', async () => {
-    const user = userEvent.setup({ delay: null })
-    renderRow({
-      name: 'app',
-      ver: {
-        current: { version: '1.0.0', readAt: FIXED_READ_AT },
-        latest: { version: '2.0.0', readAt: FIXED_READ_AT },
-        outdated: true,
-        drift: 'MAJOR',
-      },
-      onRefreshed: vi.fn(),
-    })
-
-    const [firstLabel] = screen.getAllByText(/read \d+m ago/i)
-    await user.hover(firstLabel)
-
-    // The tooltip must appear and contain a time-like string (digits + separator).
-    const tooltip = await screen.findByRole('tooltip')
+    const tooltip = screen.getByRole('tooltip')
     expect(tooltip).toBeInTheDocument()
-    // Absolute time contains digits (hours, minutes) and a colon separator.
+    // Tooltip contains "read 5m ago" (humanized minutes for sub-hour gap).
+    expect(tooltip.textContent).toMatch(/read 5m ago/)
+    // Tooltip contains an em dash separator.
+    expect(tooltip.textContent).toContain(' — ')
+    // Tooltip contains an absolute time (digits + colon).
     expect(tooltip.textContent).toMatch(/\d+:\d+/)
+  })
+
+  test('tooltip disappears when the mouse leaves the version string', () => {
+    renderRow({
+      name: 'app',
+      ver: {
+        current: { version: '1.0.0', readAt: FIXED_READ_AT },
+        latest: { version: '2.0.0', readAt: FIXED_READ_AT },
+        outdated: true,
+        drift: 'MAJOR',
+      },
+      onRefreshed: vi.fn(),
+    })
+
+    const versionEl = screen.getByText('1.0.0')
+    fireEvent.mouseEnter(versionEl)
+    expect(screen.getByRole('tooltip')).toBeInTheDocument()
+    fireEvent.mouseLeave(versionEl)
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+  })
+
+  test('a side with readAt: null shows "—" and exposes no tooltip on hover', () => {
+    renderRow({
+      name: 'app',
+      ver: {
+        // current side: null version, no readAt → shows "—", no tooltip.
+        current: { version: null, readAt: null },
+        latest: { version: '2.0.0', readAt: FIXED_READ_AT },
+        outdated: false,
+        drift: null,
+      },
+      onRefreshed: vi.fn(),
+    })
+
+    const dashEl = screen.getByText('—')
+    expect(dashEl).toBeInTheDocument()
+
+    fireEvent.mouseEnter(dashEl)
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
   })
 })
 
-// --- Slice 02: failed-refresh marker display --------------------------------------------
+// --- Slice 02: failed-refresh warning icon display --------------------------------------
 //
-// When a side's `failedAt` is present (the most recent refresh attempt failed), a muted
-// "refresh failed Xm ago" marker must appear alongside the still-displayed old value and
-// its "read Xm ago" label. The marker must NOT appear when `failedAt` is absent/null.
+// When a side's `failedAt` is present the row renders an amber WarningAmberIcon after
+// the version string (or after "—" for a value-less side). There are NO always-visible
+// freshness captions anywhere in the row. Hovering the icon shows a two-line tooltip:
+//   line 1: "read <relative> ago — <absolute>"  (or "never read successfully" when readAt null)
+//   line 2: "refresh failed <relative> ago — <absolute>"
 //
-// The backend only emits `failedAt` when failedRefresh() is true (newest attempt failed),
-// so the frontend simply checks: failedAt present → show marker.
+// The backend only emits `failedAt` when the newest attempt failed, so the frontend
+// simply checks: failedAt present → show icon.
 
 describe('failed-refresh marker display', () => {
-  // FIXED_READ_AT   = 2026-07-01T10:00:00Z  (prior good read, 10m before FIXED_NOW)
-  // FIXED_FAILED_AT = 2026-07-01T10:05:00Z  (failed refresh, 5m before FIXED_NOW)
-  // FIXED_NOW       = 2026-07-01T10:10:00Z
+  // FIXED_READ_AT_10M_AGO = 2026-07-01T10:00:00Z  (prior good read, 10m before FIXED_NOW)
+  // FIXED_FAILED_AT_5M    = 2026-07-01T10:05:00Z  (failed refresh, 5m before FIXED_NOW)
+  // FIXED_NOW_MARKER      = 2026-07-01T10:10:00Z
   const FIXED_NOW_MARKER      = new Date('2026-07-01T10:10:00.000Z')
   const FIXED_READ_AT_10M_AGO = '2026-07-01T10:00:00.000Z'
   const FIXED_FAILED_AT_5M    = '2026-07-01T10:05:00.000Z'
@@ -407,7 +447,7 @@ describe('failed-refresh marker display', () => {
     vi.useRealTimers()
   })
 
-  test('no failed-refresh marker when failedAt is absent on both sides', () => {
+  test('no warning icon when failedAt is absent on both sides', () => {
     renderRow({
       name: 'app',
       ver: {
@@ -419,10 +459,11 @@ describe('failed-refresh marker display', () => {
       onRefreshed: vi.fn(),
     })
 
-    expect(screen.queryByText(/refresh failed/i)).not.toBeInTheDocument()
+    expect(screen.queryByTestId('WarningAmberIcon')).not.toBeInTheDocument()
   })
 
-  test('shows a "refresh failed Xm ago" marker when current side has failedAt', () => {
+  test('no always-visible "refresh failed" text renders anywhere in a row, even with failedAt', () => {
+    // The icon replaces the always-visible caption — no visible text should appear outside hover.
     renderRow({
       name: 'app',
       ver: {
@@ -434,11 +475,42 @@ describe('failed-refresh marker display', () => {
       onRefreshed: vi.fn(),
     })
 
-    // The marker must appear. Text: "refresh failed 5m ago" (failedAt 5m before FIXED_NOW).
-    expect(screen.getByText(/refresh failed 5m ago/i)).toBeInTheDocument()
+    expect(screen.queryByText(/refresh failed/i)).not.toBeInTheDocument()
   })
 
-  test('shows a "refresh failed Xm ago" marker when latest side has failedAt', () => {
+  test('no always-visible "read … ago" text when failedAt is present (ReadAtCaption removed)', () => {
+    // Slice 01 had a bridge ReadAtCaption that showed "read Xm ago" when failedAt was present.
+    // Slice 02 removes it — the read time is in the hover tooltip only.
+    renderRow({
+      name: 'app',
+      ver: {
+        current: { version: '1.0.0', readAt: FIXED_READ_AT_10M_AGO, failedAt: FIXED_FAILED_AT_5M },
+        latest:  { version: '2.0.0', readAt: FIXED_READ_AT_10M_AGO },
+        outdated: true,
+        drift: 'MAJOR',
+      },
+      onRefreshed: vi.fn(),
+    })
+
+    expect(screen.queryByText(/read .+ ago/i)).not.toBeInTheDocument()
+  })
+
+  test('renders amber warning icon when current side has failedAt', () => {
+    renderRow({
+      name: 'app',
+      ver: {
+        current: { version: '1.0.0', readAt: FIXED_READ_AT_10M_AGO, failedAt: FIXED_FAILED_AT_5M },
+        latest:  { version: '2.0.0', readAt: FIXED_READ_AT_10M_AGO },
+        outdated: true,
+        drift: 'MAJOR',
+      },
+      onRefreshed: vi.fn(),
+    })
+
+    expect(screen.getByTestId('WarningAmberIcon')).toBeInTheDocument()
+  })
+
+  test('renders amber warning icon when latest side has failedAt', () => {
     renderRow({
       name: 'app',
       ver: {
@@ -450,10 +522,10 @@ describe('failed-refresh marker display', () => {
       onRefreshed: vi.fn(),
     })
 
-    expect(screen.getByText(/refresh failed 5m ago/i)).toBeInTheDocument()
+    expect(screen.getByTestId('WarningAmberIcon')).toBeInTheDocument()
   })
 
-  test('old value and read-time label are still shown alongside the failed-refresh marker', () => {
+  test('version string is still visible alongside the warning icon when failedAt is present', () => {
     renderRow({
       name: 'app',
       ver: {
@@ -465,20 +537,11 @@ describe('failed-refresh marker display', () => {
       onRefreshed: vi.fn(),
     })
 
-    // Old value must still be visible.
     expect(screen.getByText('1.0.0')).toBeInTheDocument()
-
-    // The "read Xm ago" label must still appear (10m gap).
-    const readLabels = screen.getAllByText(/read 10m ago/i)
-    expect(readLabels.length).toBeGreaterThanOrEqual(1)
-
-    // The failed-refresh marker must also appear.
-    expect(screen.getByText(/refresh failed 5m ago/i)).toBeInTheDocument()
+    expect(screen.getByTestId('WarningAmberIcon')).toBeInTheDocument()
   })
 
-  test('failed-refresh marker relative time is computed from failedAt vs now', () => {
-    // The marker reads "refresh failed 5m ago" because FIXED_FAILED_AT_5M is exactly 5 minutes
-    // before FIXED_NOW_MARKER. This confirms the relative math uses the failedAt instant.
+  test('hovering the warning icon shows two-line tooltip: "read Xm ago" and "refresh failed Xm ago"', () => {
     renderRow({
       name: 'app',
       ver: {
@@ -490,29 +553,107 @@ describe('failed-refresh marker display', () => {
       onRefreshed: vi.fn(),
     })
 
-    expect(screen.getByText(/refresh failed 5m ago/i)).toBeInTheDocument()
-  })
+    const icon = screen.getByTestId('WarningAmberIcon')
+    fireEvent.mouseEnter(icon)
 
-  test('hovering the failed-refresh marker shows the absolute local failure time as a tooltip', async () => {
-    const user = userEvent.setup({ delay: null })
-    renderRow({
-      name: 'app',
-      ver: {
-        current: { version: '1.0.0', readAt: FIXED_READ_AT_10M_AGO, failedAt: FIXED_FAILED_AT_5M },
-        latest:  { version: '2.0.0', readAt: FIXED_READ_AT_10M_AGO },
-        outdated: false,
-        drift: 'NONE',
-      },
-      onRefreshed: vi.fn(),
-    })
-
-    const marker = screen.getByText(/refresh failed \d+m ago/i)
-    await user.hover(marker)
-
-    // A tooltip with the absolute local time must appear.
-    const tooltip = await screen.findByRole('tooltip')
+    const tooltip = screen.getByRole('tooltip')
     expect(tooltip).toBeInTheDocument()
-    // Absolute time contains digits and a colon separator.
-    expect(tooltip.textContent).toMatch(/\d+:\d+/)
+    // Line 1: read 10m ago (readAt is 10m before FIXED_NOW_MARKER).
+    expect(tooltip.textContent).toMatch(/read 10m ago/)
+    // Line 2: refresh failed 5m ago (failedAt is 5m before FIXED_NOW_MARKER).
+    expect(tooltip.textContent).toMatch(/refresh failed 5m ago/)
+    // Both lines carry an absolute time (digits + colon).
+    const absoluteMatches = tooltip.textContent.match(/\d+:\d+/g)
+    expect(absoluteMatches).not.toBeNull()
+    expect(absoluteMatches.length).toBeGreaterThanOrEqual(2)
+    // Both lines carry an em dash separator.
+    const emDashMatches = tooltip.textContent.match(/ — /g)
+    expect(emDashMatches).not.toBeNull()
+    expect(emDashMatches.length).toBeGreaterThanOrEqual(2)
+  })
+
+  test('tooltip disappears when mouse leaves the warning icon', () => {
+    renderRow({
+      name: 'app',
+      ver: {
+        current: { version: '1.0.0', readAt: FIXED_READ_AT_10M_AGO, failedAt: FIXED_FAILED_AT_5M },
+        latest:  { version: '2.0.0', readAt: FIXED_READ_AT_10M_AGO },
+        outdated: false,
+        drift: 'NONE',
+      },
+      onRefreshed: vi.fn(),
+    })
+
+    const icon = screen.getByTestId('WarningAmberIcon')
+    fireEvent.mouseEnter(icon)
+    expect(screen.getByRole('tooltip')).toBeInTheDocument()
+    fireEvent.mouseLeave(icon)
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+  })
+
+  test('never-resolved side: tooltip first line is "never read successfully" when readAt is null', () => {
+    // A side that has failedAt but no readAt has never resolved successfully.
+    // The icon still renders (failedAt present), but the first tooltip line changes.
+    renderRow({
+      name: 'app',
+      ver: {
+        current: { version: null, readAt: null, failedAt: FIXED_FAILED_AT_5M },
+        latest:  { version: '2.0.0', readAt: FIXED_READ_AT_10M_AGO },
+        outdated: false,
+        drift: null,
+      },
+      onRefreshed: vi.fn(),
+    })
+
+    const icon = screen.getByTestId('WarningAmberIcon')
+    fireEvent.mouseEnter(icon)
+
+    const tooltip = screen.getByRole('tooltip')
+    expect(tooltip).toBeInTheDocument()
+    // First line is the never-resolved sentinel — not "read X ago".
+    expect(tooltip.textContent).toContain('never read successfully')
+    // Second line is still the refresh-failed line.
+    expect(tooltip.textContent).toMatch(/refresh failed 5m ago/)
+  })
+
+  test('pending side (readAt and failedAt both null) shows no icon and no tooltip', () => {
+    // A side that is merely pending has not attempted a refresh yet — no failedAt, no icon.
+    renderRow({
+      name: 'app',
+      ver: {
+        current: { version: null, readAt: null },
+        latest:  { version: '2.0.0', readAt: FIXED_READ_AT_10M_AGO },
+        outdated: false,
+        drift: null,
+      },
+      onRefreshed: vi.fn(),
+    })
+
+    expect(screen.queryByTestId('WarningAmberIcon')).not.toBeInTheDocument()
+
+    // No tooltip should appear on hovering the "—" placeholder.
+    const dashEl = screen.getByText('—')
+    fireEvent.mouseEnter(dashEl)
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+  })
+
+  test('per-side independence: current failed + latest healthy renders exactly one warning icon in Current cell', () => {
+    // Only the current side has failedAt; the latest side is healthy.
+    // Exactly one icon must be rendered (in the Current cell, not the Latest cell).
+    renderRow({
+      name: 'app',
+      ver: {
+        current: { version: '1.0.0', readAt: FIXED_READ_AT_10M_AGO, failedAt: FIXED_FAILED_AT_5M },
+        latest:  { version: '2.0.0', readAt: FIXED_READ_AT_10M_AGO },
+        outdated: true,
+        drift: 'MAJOR',
+      },
+      onRefreshed: vi.fn(),
+    })
+
+    // cell index: 0=name, 1=status, 2=current, 3=latest
+    const currentCell = screen.getAllByRole('cell')[2]
+    const icons = within(currentCell).getAllByTestId('WarningAmberIcon')
+    expect(icons).toHaveLength(1)
   })
 })
