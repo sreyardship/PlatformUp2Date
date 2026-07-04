@@ -146,9 +146,23 @@ read attempted yet) — only the former is a Failed scrape.
 _Avoid_: Failing/unhealthy application (the app is not what failed), broken app,
 down
 
+**Backend unavailable**:
+The state of a Surface that cannot obtain the scrape state at all — its request
+to the backend got no answer (*unreachable*) or an error answer (*API error*).
+A property of the surface-to-backend connection, never of any Application or
+scrape: contrast *Failed scrape*, where the backend is fine but its read of one
+side failed. While unavailable, a surface with nothing yet loaded shows the
+unavailability itself — never an empty fleet, which would be a lie — and a
+surface that has already shown data keeps the last loaded snapshot visible with
+the unavailability marked, mirroring how *Side freshness* keeps a last-known
+value alongside a failed refresh.
+_Avoid_: Backend down (unproven — only our request failed), offline, connection
+lost, empty fleet / zero applications (the lie this term exists to prevent)
+
 **Surface**:
 A client-facing entry point that reads scrape state or requests a manual scrape —
-the REST API, the web UI's Refresh button, and the MCP tools. Every surface
+the REST API, the web UI's Refresh button, the MCP tools, and the Prometheus
+metrics endpoint (with the Grafana dashboard it feeds). Every surface
 projects the same shared scrape state and holds none of its own, so any replica
 can serve any surface. See `docs/adr/0003` and `docs/adr/0004`.
 _Avoid_: Endpoint, channel, interface, transport

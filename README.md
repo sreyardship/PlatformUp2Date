@@ -102,6 +102,49 @@ groups:
 For more detail than the gauge carries (the actual current/latest version strings),
 use the frontend or the `GET /api/v1/version` endpoint.
 
+## Grafana dashboard
+
+A default dashboard ships in this repo at `docs/grafana/platform-up-2-date.json`
+(UID `pu2d-version-drift`, title "PlatformUp2Date"). Top to bottom it shows:
+
+1. **Summary row** — Total Apps, Up to Date, Patch/Minor/Major Behind, Unknown
+   (Unresolved apps where a side has never been read), and Failed Scrapes
+   (applications with at least one side whose newest attempt failed).
+2. **Version drift wall** — one color-coded tile per application
+   (green/yellow/orange/red for 0/1/2/3 drift).
+3. **Fleet table** — every configured application with current/latest version
+   strings, drift status, per-side as-of age, and a failed-refresh marker.
+   Unresolved apps render as `Unknown` / `—`, never silently dropped.
+4. **Drift over time** — per-app drift level history as a staircase timeseries
+   (0–3 mapped to OK/Patch/Minor/Major).
+
+The datasource is a template variable (any Prometheus datasource works). The
+dashboard needs the four metric families from the backend's `/metrics`
+endpoint, scraped by Prometheus:
+
+- `pu2d_application_info` — fleet membership + current/latest version strings
+- `pu2d_version_drift_level` — semver drift per resolved application
+- `pu2d_scrape_last_success_timestamp_seconds` — per-(app, side) freshness
+- `pu2d_scrape_last_failure_timestamp_seconds` — per-(app, side) failures
+
+### Importing
+
+Via the UI: **Dashboards → New → Import**, upload
+`docs/grafana/platform-up-2-date.json`, pick your Prometheus datasource.
+
+Via file provisioning, point a dashboard provider at a folder containing the
+JSON:
+
+```yaml
+# /etc/grafana/provisioning/dashboards/platformup2date.yaml
+apiVersion: 1
+providers:
+  - name: platformup2date
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards   # folder holding platform-up-2-date.json
+```
+
 ## MCP endpoint
 
 The backend exposes a [Model Context Protocol](https://modelcontextprotocol.io/) server

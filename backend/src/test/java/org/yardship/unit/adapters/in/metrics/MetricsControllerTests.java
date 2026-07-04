@@ -7,10 +7,10 @@ import org.junit.jupiter.api.Test;
 import org.yardship.adapters.in.metrics.MetricsController;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.SideObservation;
-import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.domain.primitives.VersionApplication;
 
 import java.time.Instant;
+import java.util.Optional;
 import org.yardship.core.ports.in.ApplicationVersionPort;
 
 import java.util.List;
@@ -46,5 +46,30 @@ public class MetricsControllerTests {
                 "expected argo-cd major drift in: " + output);
         assertTrue(output.contains("pu2d_version_drift_level{app=\"grafana\"} 0"),
                 "expected grafana current drift in: " + output);
+    }
+
+    @Test
+    void getMetrics_includesInfoFamilyWithAllApps_resolvedAndNeverAttempted() {
+        VersionApplication resolved = new VersionApplication("grafana",
+                SideObservation.resolved(new SemverVersion("11.0.0"), NOW),
+                SideObservation.resolved(new SemverVersion("11.1.0"), NOW));
+        VersionApplication pending  = new VersionApplication("pending-app",
+                new SideObservation(Optional.empty(), Optional.empty(), Optional.empty()),
+                new SideObservation(Optional.empty(), Optional.empty(), Optional.empty()));
+        when(applicationVersionPort.getApplications())
+                .thenReturn(List.of(resolved, pending));
+
+        String output = sut.getMetrics();
+
+        assertTrue(output.contains("# HELP pu2d_application_info "),
+                "expected info HELP line in: " + output);
+        assertTrue(output.contains("# TYPE pu2d_application_info gauge"),
+                "expected info TYPE line in: " + output);
+        assertTrue(output.contains(
+                "pu2d_application_info{app=\"grafana\",current=\"11.0.0\",latest=\"11.1.0\"} 1"),
+                "expected grafana info sample in: " + output);
+        assertTrue(output.contains(
+                "pu2d_application_info{app=\"pending-app\",current=\"\",latest=\"\"} 1"),
+                "expected pending-app info sample with empty labels in: " + output);
     }
 }

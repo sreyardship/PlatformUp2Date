@@ -14,12 +14,14 @@ public class PrometheusDriftRenderer {
     private static final String DRIFT_METRIC   = "pu2d_version_drift_level";
     private static final String SUCCESS_METRIC = "pu2d_scrape_last_success_timestamp_seconds";
     private static final String FAILURE_METRIC = "pu2d_scrape_last_failure_timestamp_seconds";
+    private static final String INFO_METRIC    = "pu2d_application_info";
 
     public String render(List<VersionApplication> applications) {
         StringBuilder builder = new StringBuilder();
         appendDriftFamily(builder, applications);
         appendSuccessFamily(builder, applications);
         appendFailureFamily(builder, applications);
+        appendInfoFamily(builder, applications);
         return builder.toString();
     }
 
@@ -68,6 +70,24 @@ public class PrometheusDriftRenderer {
                     "current", app.current().lastFailureAt().map(Instant::getEpochSecond));
             appendSideTimestampIfPresent(builder, FAILURE_METRIC, app.name(),
                     "latest", app.latest().lastFailureAt().map(Instant::getEpochSecond));
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Application info family (all configured apps, regardless of resolution)
+    // -------------------------------------------------------------------------
+
+    private static void appendInfoFamily(StringBuilder builder, List<VersionApplication> applications) {
+        appendFamilyHeader(builder, INFO_METRIC,
+                "Metadata about every configured application, labeled with current and latest version");
+        for (VersionApplication app : applications) {
+            String currentVersion = app.current().value().map(VersionValue::value).orElse("");
+            String latestVersion  = app.latest().value().map(VersionValue::value).orElse("");
+            builder.append(INFO_METRIC)
+                    .append("{app=\"").append(escapeLabelValue(app.name()))
+                    .append("\",current=\"").append(escapeLabelValue(currentVersion))
+                    .append("\",latest=\"").append(escapeLabelValue(latestVersion))
+                    .append("\"} 1\n");
         }
     }
 

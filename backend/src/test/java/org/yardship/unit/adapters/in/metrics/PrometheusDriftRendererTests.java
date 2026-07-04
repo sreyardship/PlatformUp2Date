@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 import org.yardship.adapters.in.metrics.PrometheusDriftRenderer;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.SideObservation;
-import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.domain.primitives.VersionApplication;
 
 import java.time.Instant;
@@ -279,5 +278,130 @@ class PrometheusDriftRendererTests {
                 "pu2d_scrape_last_success_timestamp_seconds{app=\"ts-app\",side=\"current\"} "
                         + epochMillis),
                 "gauge value must be epoch SECONDS not millis; found millis value in: " + output);
+    }
+
+    // -------------------------------------------------------------------------
+    // Issue 01 — application-info gauge (every configured app)
+    // -------------------------------------------------------------------------
+
+    /** A side that was never attempted: no value, no success timestamp, no failure timestamp. */
+    private static SideObservation obsNeverAttempted() {
+        return new SideObservation(Optional.empty(), Optional.empty(), Optional.empty());
+    }
+
+    @Test
+    void render_infoFamily_emitsHelpAndTypeHeaderExactlyOnce() {
+        VersionApplication app = new VersionApplication("grafana", obs("1.0.0"), obs("2.0.0"));
+
+        String output = sut.render(List.of(app));
+
+        String expectedHelp = "# HELP pu2d_application_info ";
+        String expectedType = "# TYPE pu2d_application_info gauge";
+        assertTrue(output.contains(expectedHelp),
+                "expected HELP line for info family in: " + output);
+        assertTrue(output.contains(expectedType),
+                "expected TYPE line for info family in: " + output);
+        assertEquals(1, countOccurrences(output, expectedHelp),
+                "info HELP must appear exactly once");
+        assertEquals(1, countOccurrences(output, expectedType),
+                "info TYPE must appear exactly once");
+    }
+
+    @Test
+    void render_resolvedApp_emitsInfoSampleWithBothVersionLabels() {
+        VersionApplication app = new VersionApplication("grafana", obs("11.0.0"), obs("11.1.0"));
+
+        String output = sut.render(List.of(app));
+
+        assertTrue(output.contains(
+                "pu2d_application_info{app=\"grafana\",current=\"11.0.0\",latest=\"11.1.0\"} 1"),
+                "expected info sample with both version labels in: " + output);
+    }
+
+    @Test
+    void render_appWithNeverReadCurrentSide_emitsInfoSampleWithEmptyCurrentLabel() {
+        // current side never read (failed or never attempted); latest side resolved
+        SideObservation neverRead  = obsNeverAttempted();
+        SideObservation goodLatest = obs("2.0.0");
+        VersionApplication app = new VersionApplication("my-app", neverRead, goodLatest);
+
+        String output = sut.render(List.of(app));
+
+        assertTrue(output.contains(
+                "pu2d_application_info{app=\"my-app\",current=\"\",latest=\"2.0.0\"} 1"),
+                "expected info sample with empty current label in: " + output);
+    }
+
+    @Test
+    void render_neverAttemptedApp_emitsInfoSampleWithBothVersionLabelsEmpty() {
+        SideObservation neverCurrent = obsNeverAttempted();
+        SideObservation neverLatest  = obsNeverAttempted();
+        VersionApplication app = new VersionApplication("pending-app", neverCurrent, neverLatest);
+
+        String output = sut.render(List.of(app));
+
+        assertTrue(output.contains(
+                "pu2d_application_info{app=\"pending-app\",current=\"\",latest=\"\"} 1"),
+                "expected info sample with both version labels empty in: " + output);
+    }
+
+    @Test
+    void render_infoFamily_escapesAppNameAndVersionLabels_perExpositionSpec() {
+        // App name with special characters — escaping must apply to the info family too
+        VersionApplication weird = new VersionApplication("we\"ird\\app", obs("1.0.0"), obs("2.0.0"));
+
+        String output = sut.render(List.of(weird));
+
+        assertTrue(output.contains(
+                "pu2d_application_info{app=\"we\\\"ird\\\\app\",current=\"1.0.0\",latest=\"2.0.0\"} 1"),
+                "expected escaped app name in info sample in: " + output);
+    }
+
+    @Test
+    void render_emptyList_infoFamilyEmitsHeaderOnly_noSamples() {
+        String output = sut.render(List.of());
+
+        assertTrue(output.contains("# HELP pu2d_application_info "),
+                "expected info HELP line in: " + output);
+        assertTrue(output.contains("# TYPE pu2d_application_info gauge"),
+                "expected info TYPE line in: " + output);
+        assertFalse(output.contains("pu2d_application_info{"),
+                "expected no info sample lines in: " + output);
+    }
+
+    @Test
+    void render_infoFamily_appearsAfterFailureFamily_noInterleaving() {
+        // A resolved app — produces all four families
+        VersionApplication app = new VersionApplication("some-app", obs("1.0.0"), obs("2.0.0"));
+
+        String output = sut.render(List.of(app));
+
+        int failureTypeIdx = output.indexOf("# TYPE pu2d_scrape_last_failure_timestamp_seconds gauge");
+        int infoHelpIdx    = output.indexOf("# HELP pu2d_application_info ");
+
+        assertTrue(failureTypeIdx >= 0, "failure TYPE line must be present");
+        assertTrue(infoHelpIdx > failureTypeIdx,
+                "info HELP must come after the entire failure family (no interleaving)");
+    }
+
+    @Test
+    void render_infoFamily_coversAllApps_includingUnresolvedAndNeverAttempted() {
+        VersionApplication resolved   = new VersionApplication("app-resolved",
+                obs("1.0.0"), obs("2.0.0"));
+        // current side that failed and never succeeded (Unresolved)
+        VersionApplication unresolved = new VersionApplication("app-unresolved",
+                obsNeverSucceeded(NOW), obs("2.0.0"));
+        // both sides never attempted
+        VersionApplication pending    = new VersionApplication("app-pending",
+                obsNeverAttempted(), obsNeverAttempted());
+
+        String output = sut.render(List.of(resolved, unresolved, pending));
+
+        assertTrue(output.contains("pu2d_application_info{app=\"app-resolved\","),
+                "resolved app must appear in info family: " + output);
+        assertTrue(output.contains("pu2d_application_info{app=\"app-unresolved\","),
+                "unresolved app must appear in info family: " + output);
+        assertTrue(output.contains("pu2d_application_info{app=\"app-pending\","),
+                "never-attempted app must appear in info family: " + output);
     }
 }
