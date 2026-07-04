@@ -34,16 +34,10 @@ yarn test     # Run tests (Jest)
 yarn build    # Production build
 ```
 
-### API Design (Apicurio Studio)
-```bash
-docker compose -f "compose.apicurio.yml" up -d
-# Studio UI: localhost:8888 — schemas don't persist, download before teardown
-```
-
 ## Architecture
 
-### Contract-First API
-The API is defined in an OpenAPI 3.0.2 spec at `backend/src/main/resources/openapi/platform-up-2-date.yaml`. Code is generated for both frontend and backend using OpenAPI Generator. The generated files are treated as immutable. The `quarkus-openapi-generator-server` Quarkus extension handles backend code generation. Apicurio Studio is used for visual schema editing.
+### Code-First API
+The API is code-first: the JAX-RS controllers (e.g., `VersionController`) are the source of truth. The `quarkus-smallrye-openapi` extension generates the OpenAPI spec from them at runtime, served at `/q/openapi` (with Swagger UI available in dev mode). See `docs/adr/0020-api-is-code-first.md` for the rationale.
 
 ### Backend — Hexagonal Architecture
 The backend is a Quarkus 3.10.1 (Java 21) application structured as ports & adapters:
