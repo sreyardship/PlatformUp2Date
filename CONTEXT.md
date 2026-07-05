@@ -88,10 +88,17 @@ _Avoid_: Quota, rate cap, throttle
 **Scrape state**:
 The shared, cluster-wide snapshot a scrape produces — the observed Applications
 (per (app, side): last-known value, last-success time and last-failure time; see
-*Side freshness*), the time of the last scrape attempt, and the scrape budget. See
-`docs/adr/0003` (state lives in Valkey) and `docs/adr/0019` (it records observation
-state, not successes only).
-_Avoid_: Cache (the state is more than a cache)
+*Side freshness*), the time of the last scrape attempt, and the scrape budget.
+It records *observations only*: version values are kept as the raw strings that
+were read, and their interpretation always comes from the Application's declared
+*Version scheme* at the moment the state is read — the state itself never
+declares, remembers, or guesses a scheme. An Application absent from the
+configuration has no declaration to interpret under, so it has no place in the
+fleet a read projects, whatever the state still holds. See `docs/adr/0003`
+(state lives in Valkey) and `docs/adr/0019` (it records observation state, not
+successes only).
+_Avoid_: Cache (the state is more than a cache), self-describing snapshot (the
+scheme is the Application's declaration, never the state's)
 
 **Outcome**:
 The call-level result of requesting a manual scrape: SCRAPED (it ran),

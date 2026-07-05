@@ -63,4 +63,11 @@ public class VersionParser {
             case CALVER -> new CalverVersion(raw, calverFormat);
         };
     }
+
+    /**
+     * The {@link VersionScheme} this parser is configured for.
+     */
+    public VersionScheme scheme() {
+        return scheme;
+    }
 }

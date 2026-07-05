@@ -2,6 +2,7 @@ package org.yardship.unit.adapters.out.versionsource;
 
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
+import org.yardship.adapters.out.versionsource.VersionParsers;
 import org.yardship.adapters.out.versionsource.current.CurrentVersionSourceFactory;
 import org.yardship.adapters.out.versionsource.latest.LatestVersionSourceFactory;
 import org.yardship.adapters.out.versionsource.VersionSourceResolver;
@@ -25,21 +26,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Unit tests for {@link VersionSourceResolver} — the composition root that turns CDI-discovered
  * factories plus configured apps into per-app {@link ApplicationSources} pairs.
  *
- * <p><b>Test seam:</b> the production constructor injects {@code Instance<…Factory>} and the
- * {@link ApplicationConfigLoader}. To unit-test without a CDI container, the implementer must
- * provide a test-visible (package-private or public) constructor that accepts plain collections of
- * factories and a plain {@code List<AppConfig>}:
+ * <p><b>Test seam:</b> the production constructor injects {@code Instance<…Factory>}, the
+ * {@link ApplicationConfigLoader}, and the shared {@link VersionParsers} bean — parser construction
+ * now lives exactly once in {@code VersionParsers} (issue 01), not inline in this resolver. To
+ * unit-test without a CDI container, the resolver exposes a test-visible (package-private or public)
+ * constructor that accepts plain collections of factories, a plain {@code List<AppConfig>}, and a
+ * {@link VersionParsers} instance (itself built via its own plain-list test constructor):
  *
  * <pre>{@code
  * VersionSourceResolver(
  *     Collection<CurrentVersionSourceFactory> currentFactories,
  *     Collection<LatestVersionSourceFactory> latestFactories,
- *     List<ApplicationConfigLoader.AppConfig> apps)
+ *     List<ApplicationConfigLoader.AppConfig> apps,
+ *     VersionParsers parsers)
  * }</pre>
  *
  * <p>The resolver indexes the factories by {@code type()} and builds one source pair per app at
  * construction time — so the fail-fast paths (duplicate factory type / unknown config type) surface
- * as a constructor throw. Driven entirely by fake factories and a fake config; no Quarkus context.
+ * as a constructor throw. Driven entirely by fake factories, a fake config, and a real
+ * {@code VersionParsers} built from the same fake apps; no Quarkus context.
  */
 class VersionSourceResolverTests {
 
@@ -47,13 +52,15 @@ class VersionSourceResolverTests {
     void buildsOneSourcePairPerApp_byDelegatingToTheMatchingFactory() {
         FakeCurrentFactory http = new FakeCurrentFactory("http");
         FakeLatestFactory gh = new FakeLatestFactory("github-release");
+        List<ApplicationConfigLoader.AppConfig> apps = List.of(
+                app("alpha", source("http"), source("github-release")),
+                app("beta", source("http"), source("github-release")));
 
         VersionSourceResolver resolver = new VersionSourceResolver(
                 List.of(http),
                 List.of(gh),
-                List.of(
-                        app("alpha", source("http"), source("github-release")),
-                        app("beta", source("http"), source("github-release"))));
+                apps,
+                new VersionParsers(apps));
 
         List<ApplicationSources> result = resolver.applicationSources();
 
@@ -70,10 +77,11 @@ class VersionSourceResolverTests {
         FakeLatestFactory gh = new FakeLatestFactory("github-release");
         ApplicationConfigLoader.VersionSource currentCfg = source("http");
         ApplicationConfigLoader.VersionSource latestCfg = source("github-release");
+        List<ApplicationConfigLoader.AppConfig> apps = List.of(app("alpha", currentCfg, latestCfg));
 
         VersionSourceResolver resolver = new VersionSourceResolver(
                 List.of(http), List.of(gh),
-                List.of(app("alpha", currentCfg, latestCfg)));
+                apps, new VersionParsers(apps));
 
         ApplicationSources pair = resolver.applicationSources().get(0);
 
@@ -89,7 +97,8 @@ class VersionSourceResolverTests {
                 new VersionSourceResolver(
                         List.of(new FakeCurrentFactory("http"), new FakeCurrentFactory("http")),
                         List.of(new FakeLatestFactory("github-release")),
-                        List.of()));
+                        List.of(),
+                        new VersionParsers(List.of())));
 
         assertTrue(ex.getMessage().contains("http"),
                 "the duplicate-type error must name the offending type; was: " + ex.getMessage());
@@ -101,16 +110,21 @@ class VersionSourceResolverTests {
                 new VersionSourceResolver(
                         List.of(new FakeCurrentFactory("http")),
                         List.of(new FakeLatestFactory("github-release"), new FakeLatestFactory("github-release")),
-                        List.of()));
+                        List.of(),
+                        new VersionParsers(List.of())));
     }
 
     @Test
     void failsFast_onUnknownCurrentConfigType() {
+        List<ApplicationConfigLoader.AppConfig> apps =
+                List.of(app("alpha", source("mystery"), source("github-release")));
+
         IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
                 new VersionSourceResolver(
                         List.of(new FakeCurrentFactory("http")),
                         List.of(new FakeLatestFactory("github-release")),
-                        List.of(app("alpha", source("mystery"), source("github-release")))));
+                        apps,
+                        new VersionParsers(apps)));
 
         assertTrue(ex.getMessage().contains("mystery"),
                 "the unknown-type error must name the offending config type; was: " + ex.getMessage());
@@ -118,11 +132,15 @@ class VersionSourceResolverTests {
 
     @Test
     void failsFast_onUnknownLatestConfigType() {
+        List<ApplicationConfigLoader.AppConfig> apps =
+                List.of(app("alpha", source("http"), source("helm-index")));
+
         assertThrows(IllegalStateException.class, () ->
                 new VersionSourceResolver(
                         List.of(new FakeCurrentFactory("http")),
                         List.of(new FakeLatestFactory("github-release")),
-                        List.of(app("alpha", source("http"), source("helm-index")))));
+                        apps,
+                        new VersionParsers(apps)));
     }
 
     @Test
@@ -130,7 +148,8 @@ class VersionSourceResolverTests {
         VersionSourceResolver resolver = new VersionSourceResolver(
                 List.of(new FakeCurrentFactory("http")),
                 List.of(new FakeLatestFactory("github-release")),
-                List.of());
+                List.of(),
+                new VersionParsers(List.of()));
 
         assertTrue(resolver.applicationSources().isEmpty());
     }

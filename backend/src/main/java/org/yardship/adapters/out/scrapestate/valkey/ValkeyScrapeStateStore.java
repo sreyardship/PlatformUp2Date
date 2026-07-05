@@ -9,13 +9,14 @@ import io.quarkus.redis.datasource.value.ValueCommands;
 import io.quarkus.runtime.annotations.RegisterForReflection;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.yardship.core.domain.primitives.CalverFormat;
-import org.yardship.core.domain.primitives.CalverVersion;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.yardship.adapters.out.versionsource.VersionParsers;
+import org.yardship.core.domain.exceptions.InvalidVersionException;
 import org.yardship.core.domain.primitives.ScrapeSnapshot;
-import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
-import org.yardship.core.domain.primitives.VersionScheme;
+import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.ScrapeStateStore;
 
@@ -23,6 +24,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * Valkey-backed {@link ScrapeStateStore}. JSON-serialises the snapshot into a single key
@@ -30,12 +32,16 @@ import java.util.Optional;
  * Valkey is unreachable.
  *
  * <p>The snapshot is mapped to a plain-string DTO before serialisation so the domain
- * {@link org.yardship.core.domain.primitives.VersionValue} wrapper round-trips cleanly, and back to
- * the domain on read. Slice 01 adds per-side {@code lastSuccessAt} (stored as epoch millis, nullable)
- * and reserves {@code lastFailureAt} (always null in this slice, populated in slice 02).
+ * {@link org.yardship.core.domain.primitives.VersionValue} wrapper round-trips cleanly. The DTO
+ * carries bare strings and epoch-millis timestamps only — no scheme information is persisted.
+ * On read, every stored string is retyped via the app's config-derived
+ * {@link org.yardship.adapters.out.versionsource.VersionParsers}: scheme is never read from
+ * persisted data (ADR-0022).
  */
 @ApplicationScoped
 public class ValkeyScrapeStateStore implements ScrapeStateStore {
+
+    private final Logger logger = LoggerFactory.getLogger(ValkeyScrapeStateStore.class);
 
     static final String KEY = "scrape:snapshot";
 
@@ -45,11 +51,13 @@ public class ValkeyScrapeStateStore implements ScrapeStateStore {
 
     private final ValueCommands<String, String> values;
     private final ObjectMapper objectMapper;
+    private final VersionParsers versionParsers;
 
     @Inject
-    public ValkeyScrapeStateStore(RedisDataSource redisDataSource, ObjectMapper objectMapper) {
+    public ValkeyScrapeStateStore(RedisDataSource redisDataSource, ObjectMapper objectMapper, VersionParsers versionParsers) {
         this.values = redisDataSource.value(String.class, String.class);
         this.objectMapper = objectMapper;
+        this.versionParsers = versionParsers;
     }
 
     @Override
@@ -79,23 +87,14 @@ public class ValkeyScrapeStateStore implements ScrapeStateStore {
 
     private List<AppDTO> toAppDtos(List<VersionApplication> applications) {
         return applications.stream()
-                .map(app -> {
-                    VersionValue resolvedValue = app.current().value()
-                            .or(app.latest()::value)
-                            .orElse(null);
-                    return new AppDTO(
-                            app.name(),
-                            app.current().value().map(VersionValue::value).orElse(null),
-                            app.current().lastSuccessAt().map(Instant::toEpochMilli).orElse(null),
-                            app.current().lastFailureAt().map(Instant::toEpochMilli).orElse(null),
-                            app.latest().value().map(VersionValue::value).orElse(null),
-                            app.latest().lastSuccessAt().map(Instant::toEpochMilli).orElse(null),
-                            app.latest().lastFailureAt().map(Instant::toEpochMilli).orElse(null),
-                            resolvedValue != null ? resolvedValue.scheme().name() : null,
-                            resolvedValue instanceof CalverVersion calverVersion
-                                    ? calverVersion.calverFormat().formatString()
-                                    : null);
-                })
+                .map(app -> new AppDTO(
+                        app.name(),
+                        app.current().value().map(VersionValue::value).orElse(null),
+                        app.current().lastSuccessAt().map(Instant::toEpochMilli).orElse(null),
+                        app.current().lastFailureAt().map(Instant::toEpochMilli).orElse(null),
+                        app.latest().value().map(VersionValue::value).orElse(null),
+                        app.latest().lastSuccessAt().map(Instant::toEpochMilli).orElse(null),
+                        app.latest().lastFailureAt().map(Instant::toEpochMilli).orElse(null)))
                 .toList();
     }
 
@@ -107,37 +106,47 @@ public class ValkeyScrapeStateStore implements ScrapeStateStore {
             throw new ScrapeStateUnavailableException("Failed to deserialise scrape snapshot", e);
         }
         List<VersionApplication> applications = dto.applications().stream()
-                .map(app -> {
-                    VersionScheme scheme = app.versionScheme() != null
-                            ? VersionScheme.valueOf(app.versionScheme())
-                            : VersionScheme.SEMVER;
-                    CalverFormat calverFormat = scheme == VersionScheme.CALVER && app.calverFormat() != null
-                            ? new CalverFormat(app.calverFormat())
-                            : null;
-                    return new VersionApplication(
-                            app.name(),
-                            toSideObservation(app.currentValue(), app.currentLastSuccessAtEpochMillis(), app.currentLastFailureAtEpochMillis(), scheme, calverFormat),
-                            toSideObservation(app.latestValue(), app.latestLastSuccessAtEpochMillis(), app.latestLastFailureAtEpochMillis(), scheme, calverFormat));
-                })
+                .flatMap(this::toVersionApplicationOrSkip)
                 .toList();
         return new ScrapeSnapshot(applications, Instant.ofEpochMilli(dto.lastAttemptAtEpochMillis()));
     }
 
-    private SideObservation toSideObservation(
-            String value, Long lastSuccessMillis, Long lastFailureMillis, VersionScheme scheme, CalverFormat calverFormat) {
-        Optional<VersionValue> vv = value != null
-                ? Optional.of(toVersionValue(value, scheme, calverFormat))
-                : Optional.empty();
-        Optional<Instant> lastSuccess = lastSuccessMillis != null ? Optional.of(Instant.ofEpochMilli(lastSuccessMillis)) : Optional.empty();
-        Optional<Instant> lastFailure = lastFailureMillis != null ? Optional.of(Instant.ofEpochMilli(lastFailureMillis)) : Optional.empty();
-        return new SideObservation(vv, lastSuccess, lastFailure);
+    // A config change can remove an app that still has a persisted entry from a prior scrape:
+    // that entry is stale, not corrupt, so it is skipped (not thrown) and logged as expected.
+    private Stream<VersionApplication> toVersionApplicationOrSkip(AppDTO app) {
+        Optional<VersionParser> parser = versionParsers.forApp(app.name());
+        if (parser.isEmpty()) {
+            logger.info("Skipping unconfigured app '{}' from scrape snapshot (removed from config)", app.name());
+            return Stream.empty();
+        }
+        return Stream.of(new VersionApplication(
+                app.name(),
+                toSideObservation(app.name(), "current", app.currentValue(), app.currentLastSuccessAtEpochMillis(), app.currentLastFailureAtEpochMillis(), parser.get()),
+                toSideObservation(app.name(), "latest", app.latestValue(), app.latestLastSuccessAtEpochMillis(), app.latestLastFailureAtEpochMillis(), parser.get())));
     }
 
-    private VersionValue toVersionValue(String value, VersionScheme scheme, CalverFormat calverFormat) {
-        if (scheme == VersionScheme.CALVER) {
-            return new CalverVersion(value, calverFormat);
+    // A stored value can predate a config change (e.g. semver -> calver flip) or simply not match
+    // the app's declared calver-format. Rehydrating it under the app's CONFIGURED parser can then
+    // throw InvalidVersionException: that failure is isolated to this one (app, side) rather than
+    // propagating and failing the whole snapshot read. The side degrades to value-less (value and
+    // lastSuccessAt dropped) while lastFailureAt is preserved as stored regardless of parse outcome.
+    private SideObservation toSideObservation(
+            String appName, String side, String value, Long lastSuccessMillis, Long lastFailureMillis, VersionParser parser) {
+        Optional<VersionValue> vv = Optional.empty();
+        Optional<Instant> lastSuccess = Optional.empty();
+        if (value != null) {
+            try {
+                vv = Optional.of(parser.parse(value));
+                lastSuccess = lastSuccessMillis != null ? Optional.of(Instant.ofEpochMilli(lastSuccessMillis)) : Optional.empty();
+            } catch (InvalidVersionException e) {
+                logger.warn(
+                        "Failed to parse stored {} value '{}' for app '{}' under configured scheme {}; "
+                                + "degrading this side to value-less",
+                        side, value, appName, parser.scheme(), e);
+            }
         }
-        return new SemverVersion(value);
+        Optional<Instant> lastFailure = lastFailureMillis != null ? Optional.of(Instant.ofEpochMilli(lastFailureMillis)) : Optional.empty();
+        return new SideObservation(vv, lastSuccess, lastFailure);
     }
 
     private String serialise(SnapshotDTO dto) {
@@ -165,8 +174,6 @@ public class ValkeyScrapeStateStore implements ScrapeStateStore {
             Long currentLastFailureAtEpochMillis,
             String latestValue,
             Long latestLastSuccessAtEpochMillis,
-            Long latestLastFailureAtEpochMillis,
-            String versionScheme,
-            String calverFormat) {
+            Long latestLastFailureAtEpochMillis) {
     }
 }

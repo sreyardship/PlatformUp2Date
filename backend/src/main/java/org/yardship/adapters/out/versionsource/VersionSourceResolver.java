@@ -10,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.core.domain.primitives.VersionParser;
-import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.ports.out.ApplicationSources;
 import org.yardship.core.ports.out.CurrentVersionSource;
 import org.yardship.core.ports.out.LatestVersionSource;
@@ -44,19 +43,25 @@ public class VersionSourceResolver implements VersionSources {
 
     private final List<ApplicationSources> applicationSources;
 
+    private final VersionParsers versionParsers;
+
     @Inject
     public VersionSourceResolver(
             Instance<CurrentVersionSourceFactory> currentFactories,
             Instance<LatestVersionSourceFactory> latestFactories,
-            ApplicationConfigLoader configLoader) {
-        this(currentFactories.stream().toList(), latestFactories.stream().toList(), configLoader.apps());
+            ApplicationConfigLoader configLoader,
+            VersionParsers versionParsers) {
+        this(currentFactories.stream().toList(), latestFactories.stream().toList(), configLoader.apps(),
+                versionParsers);
     }
 
     // Visible for testing: lets tests drive the resolver with plain fakes and no CDI container.
     public VersionSourceResolver(
             Collection<CurrentVersionSourceFactory> currentFactories,
             Collection<LatestVersionSourceFactory> latestFactories,
-            List<ApplicationConfigLoader.AppConfig> apps) {
+            List<ApplicationConfigLoader.AppConfig> apps,
+            VersionParsers versionParsers) {
+        this.versionParsers = versionParsers;
         Map<String, CurrentVersionSourceFactory> currentByType =
                 indexByType(currentFactories, CurrentVersionSourceFactory::type);
         Map<String, LatestVersionSourceFactory> latestByType =
@@ -89,12 +94,9 @@ public class VersionSourceResolver implements VersionSources {
             Map<String, CurrentVersionSourceFactory> currentByType,
             Map<String, LatestVersionSourceFactory> latestByType) {
         // One parser per app, shared by both legs, so current and latest are always commensurable by
-        // construction — a cross-scheme comparison cannot occur. Built fail-fast here at startup: a
-        // calver app with a missing/invalid calver-format throws from the parser constructor.
-        VersionParser parser = switch (app.versionScheme()) {
-            case SEMVER -> new VersionParser(VersionScheme.SEMVER);
-            case CALVER -> new VersionParser(VersionScheme.CALVER, app.calverFormat().orElse(null));
-        };
+        // construction — a cross-scheme comparison cannot occur. Built once, fail-fast at startup, by
+        // VersionParsers; every configured app has an entry there, so an absent parser here is a bug.
+        VersionParser parser = versionParsers.forApp(app.name()).orElseThrow();
         CurrentVersionSource current =
                 factoryFor(currentByType, app.current().type()).create(app.current(), parser);
         LatestVersionSource latest =
