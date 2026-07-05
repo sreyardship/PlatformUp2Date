@@ -7,11 +7,14 @@ import org.junit.jupiter.api.Test;
 import org.yardship.adapters.in.mcp.ApplicationMcpTools;
 import org.yardship.adapters.in.mcp.ApplicationMcpTools.ScrapeTargetArg;
 import org.yardship.adapters.in.mcp.ApplicationView;
+import org.yardship.adapters.out.versionsource.ChangelogTemplates;
+import org.yardship.core.domain.primitives.ChangelogTemplate;
 import org.yardship.core.domain.primitives.ScrapeTarget;
 import org.yardship.core.domain.primitives.Side;
 import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.TargetResult;
 import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.domain.primitives.VersionApplication;
 
@@ -49,6 +52,13 @@ public class ApplicationMcpToolsTests {
 
     @InjectMock
     private ApplicationVersionPort applicationVersionPort;
+
+    // Issue 03 (changelog link on the MCP surface, ADR-0021): the shared per-app template lookup
+    // built in slice 01 (org.yardship.adapters.out.versionsource.ChangelogTemplates). Mocked here
+    // so each test controls exactly which apps carry a template, mirroring VersionControllerIT's
+    // approach for the REST sibling.
+    @InjectMock
+    private ChangelogTemplates changelogTemplates;
 
     @Inject
     private ApplicationMcpTools sut;
@@ -555,5 +565,65 @@ public class ApplicationMcpToolsTests {
                 "description must call out the targeted rate limit: " + description);
         assertTrue(description.contains("separate") || description.contains("distinct"),
                 "description must say the targeted budget is separate from trigger_scrape's: " + description);
+    }
+
+    // === Issue 03: changelogUrl on the MCP surface (ADR-0021) ======================================
+    //
+    // ApplicationView must carry the same nullable changelogUrl the REST payload carries, resolved
+    // from the shared ChangelogTemplates bean (slice 01) — the exact same semantics as
+    // ApplicationStatus.from: null when no template is configured, null when the latest side has no
+    // known version, otherwise the template resolved against the displayed latest version.
+
+    @Test
+    void getApplication_exposesChangelogUrl_whenTemplateConfiguredAndLatestResolved() {
+        VersionApplication app = new VersionApplication("argo-cd",
+                SideObservation.resolved(new SemverVersion("3.0.4"), NOW),
+                SideObservation.resolved(new SemverVersion("3.0.5"), NOW));
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(app));
+        when(changelogTemplates.forApp("argo-cd")).thenReturn(Optional.of(
+                new ChangelogTemplate(
+                        "https://github.com/argoproj/argo-cd/releases/tag/v{version}",
+                        VersionScheme.SEMVER,
+                        Optional.empty())));
+
+        ApplicationView view = sut.get_application("argo-cd");
+
+        assertNotNull(view);
+        assertEquals("https://github.com/argoproj/argo-cd/releases/tag/v3.0.5", view.changelogUrl(),
+                "changelogUrl must be resolved against the displayed latest version");
+    }
+
+    @Test
+    void getApplication_changelogUrlIsNull_whenNoTemplateConfigured() {
+        VersionApplication app = new VersionApplication("untemplated-app",
+                SideObservation.resolved(new SemverVersion("1.0.0"), NOW),
+                SideObservation.resolved(new SemverVersion("1.1.0"), NOW));
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(app));
+        // changelogTemplates.forApp(...) is unstubbed → Optional.empty() (Mockito default for this app).
+
+        ApplicationView view = sut.get_application("untemplated-app");
+
+        assertNotNull(view);
+        assertNull(view.changelogUrl(), "changelogUrl must be null when no template is configured");
+    }
+
+    @Test
+    void getApplication_changelogUrlIsNull_whenLatestSideHasNoKnownVersion_evenWithTemplateConfigured() {
+        VersionApplication app = new VersionApplication("cold-templated-app",
+                SideObservation.resolved(new SemverVersion("1.0.0"), NOW),
+                pending());
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(app));
+        when(changelogTemplates.forApp("cold-templated-app")).thenReturn(Optional.of(
+                new ChangelogTemplate(
+                        "https://github.com/example/example/releases/tag/v{version}",
+                        VersionScheme.SEMVER,
+                        Optional.empty())));
+
+        ApplicationView view = sut.get_application("cold-templated-app");
+
+        assertNotNull(view);
+        assertNull(view.changelogUrl(),
+                "changelogUrl must be null when the latest side has no known version, "
+                        + "even with a template configured");
     }
 }

@@ -5,9 +5,12 @@ import io.quarkiverse.mcp.server.test.McpAssured.McpStreamableTestClient;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
+import org.yardship.adapters.out.versionsource.ChangelogTemplates;
+import org.yardship.core.domain.primitives.ChangelogTemplate;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
+import org.yardship.core.domain.primitives.VersionScheme;
 
 import java.util.Optional;
 
@@ -50,6 +53,12 @@ public class ApplicationMcpServerIT {
 
     @InjectMock
     ApplicationVersionPort applicationVersionPort;
+
+    // Issue 03 (changelog link on the MCP surface, ADR-0021): the shared per-app template lookup
+    // (slice 01). Mocked here so each test controls exactly which apps carry a template, mirroring
+    // VersionControllerIT's approach for the REST sibling.
+    @InjectMock
+    ChangelogTemplates changelogTemplates;
 
     private static final Instant NOW = Instant.parse("2026-07-01T10:00:00Z");
 
@@ -306,6 +315,63 @@ public class ApplicationMcpServerIT {
                             assertTrue(text.contains("\"retryAfterSeconds\":30"),
                                     "payload must carry retryAfterSeconds=30: " + text);
                         })
+                .thenAssertResults();
+    }
+
+    // === Issue 03: changelogUrl on the MCP surface (ADR-0021) ======================================
+    //
+    // The core resolution logic (token substitution, per-scheme legality) is fully covered by
+    // ChangelogTemplateTests (unit) and the null/non-null branching by ApplicationMcpToolsTests
+    // (unit). This IT proves only what real MCP wiring can reveal: the field appears on a real
+    // tool call result for both a templated and an untemplated app.
+
+    @Test
+    void toolsCall_getApplication_returnsResolvedChangelogUrl_forTemplatedApp() {
+        VersionApplication app = new VersionApplication("argo-cd",
+                SideObservation.resolved(new SemverVersion("3.0.4"), NOW),
+                SideObservation.resolved(new SemverVersion("3.0.5"), NOW));
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(app));
+        when(changelogTemplates.forApp("argo-cd")).thenReturn(Optional.of(
+                new ChangelogTemplate(
+                        "https://github.com/argoproj/argo-cd/releases/tag/v{version}",
+                        VersionScheme.SEMVER,
+                        Optional.empty())));
+
+        McpStreamableTestClient client = McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
+                .build()
+                .connect();
+        client.when()
+                .toolsCall("get_application", Map.of("name", "argo-cd"), response -> {
+                    assertFalse(response.isError(), "get_application must not error for a known app");
+                    String text = response.firstContent().asText().text();
+                    assertTrue(
+                            text.contains("https://github.com/argoproj/argo-cd/releases/tag/v3.0.5"),
+                            "get_application response must include the resolved changelogUrl: " + text);
+                })
+                .thenAssertResults();
+    }
+
+    @Test
+    void toolsCall_getApplication_changelogUrlIsNull_forUntemplatedApp() {
+        VersionApplication app = new VersionApplication("untemplated-app",
+                SideObservation.resolved(new SemverVersion("1.0.0"), NOW),
+                SideObservation.resolved(new SemverVersion("1.1.0"), NOW));
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(app));
+        // changelogTemplates.forApp(...) is unstubbed → Optional.empty() (Mockito default).
+
+        McpStreamableTestClient client = McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
+                .build()
+                .connect();
+        client.when()
+                .toolsCall("get_application", Map.of("name", "untemplated-app"), response -> {
+                    assertFalse(response.isError(), "get_application must not error for a known app");
+                    String text = response.firstContent().asText().text();
+                    assertTrue(text.contains("\"changelogUrl\":null"),
+                            "get_application response must carry changelogUrl:null "
+                                    + "for an untemplated app: " + text);
+                })
                 .thenAssertResults();
     }
 }

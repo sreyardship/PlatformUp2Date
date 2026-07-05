@@ -4,9 +4,12 @@ import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.scrapestate.ScrapeStateUnavailableException;
+import org.yardship.adapters.out.versionsource.ChangelogTemplates;
+import org.yardship.core.domain.primitives.ChangelogTemplate;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
+import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.ports.in.ApplicationVersionPort;
 
 import java.time.Instant;
@@ -37,6 +40,12 @@ class VersionControllerIT {
 
     @InjectMock
     ApplicationVersionPort applicationVersionPort;
+
+    // Slice 01 (changelog link, ADR-0021): the per-app template lookup the controller threads
+    // into ApplicationStatus.from(...). Mocked here so each test controls exactly which apps
+    // carry a template, independent of the (untemplated) shared test 'platform-config'.
+    @InjectMock
+    ChangelogTemplates changelogTemplates;
 
     @Test
     void getVersion_returnsPerSideObjects_withVersionAndReadAt() {
@@ -246,6 +255,79 @@ class VersionControllerIT {
                 // drift must be non-null for a Resolved app.
                 .body("'resolved-app'.drift", notNullValue())
                 .body("'resolved-app'.drift", equalTo("MAJOR"));
+    }
+
+    // --- Slice 01 (changelog link, ADR-0021): top-level nullable changelogUrl -------------------
+    //
+    // The core resolution logic (token substitution, zero-padding, per-scheme legality) is fully
+    // covered by ChangelogTemplateTests (unit). This IT proves only what only real JSON wiring can
+    // reveal: the field appears as a top-level sibling of drift, is null when no template is
+    // configured, and is null when the latest side has no known version even with a template.
+
+    @Test
+    void getVersion_returnsResolvedChangelogUrl_forTemplatedApp() {
+        Instant readAt = Instant.parse("2026-07-01T10:00:00Z");
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(
+                new VersionApplication("argo-cd",
+                        SideObservation.resolved(new SemverVersion("3.0.4"), readAt),
+                        SideObservation.resolved(new SemverVersion("3.0.5"), readAt))));
+        when(changelogTemplates.forApp("argo-cd")).thenReturn(Optional.of(
+                new ChangelogTemplate(
+                        "https://github.com/argoproj/argo-cd/releases/tag/v{version}",
+                        VersionScheme.SEMVER,
+                        Optional.empty())));
+
+        given()
+                .when()
+                .get("/api/v1/version")
+                .then()
+                .statusCode(200)
+                .body("'argo-cd'.changelogUrl",
+                        equalTo("https://github.com/argoproj/argo-cd/releases/tag/v3.0.5"))
+                // Sibling of drift at the top level — not nested under current/latest.
+                .body("'argo-cd'.drift", notNullValue());
+    }
+
+    @Test
+    void getVersion_changelogUrlIsNull_forAppWithNoTemplateConfigured() {
+        // changelogTemplates.forApp(...) is unstubbed for this app name → Optional.empty()
+        // (Mockito's default answer for an Optional-returning method).
+        Instant readAt = Instant.parse("2026-07-01T10:00:00Z");
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(
+                new VersionApplication("untemplated-app",
+                        SideObservation.resolved(new SemverVersion("1.0.0"), readAt),
+                        SideObservation.resolved(new SemverVersion("1.1.0"), readAt))));
+
+        given()
+                .when()
+                .get("/api/v1/version")
+                .then()
+                .statusCode(200)
+                .body("'untemplated-app'.changelogUrl", nullValue());
+    }
+
+    @Test
+    void getVersion_changelogUrlIsNull_whenLatestSideHasNoKnownVersion_evenWithTemplateConfigured() {
+        // A template is configured for this app, but the latest side never resolved — the
+        // resolution has nothing to substitute {version} with, so changelogUrl must still be null.
+        Instant readAt = Instant.parse("2026-07-01T10:00:00Z");
+        SideObservation resolvedCurrent = SideObservation.resolved(new SemverVersion("1.0.0"), readAt);
+        SideObservation pendingLatest = new SideObservation(Optional.empty(), Optional.empty(), Optional.empty());
+
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(
+                new VersionApplication("cold-templated-app", resolvedCurrent, pendingLatest)));
+        when(changelogTemplates.forApp("cold-templated-app")).thenReturn(Optional.of(
+                new ChangelogTemplate(
+                        "https://github.com/example/example/releases/tag/v{version}",
+                        VersionScheme.SEMVER,
+                        Optional.empty())));
+
+        given()
+                .when()
+                .get("/api/v1/version")
+                .then()
+                .statusCode(200)
+                .body("'cold-templated-app'.changelogUrl", nullValue());
     }
 
     @Test

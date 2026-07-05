@@ -131,8 +131,48 @@ const FailedRefreshIcon = ({ readAt, failedAt }) => {
   )
 }
 
+/**
+ * Renders the changelog icon as a real link when changelogUrl is present (opening in a
+ * new tab without granting it access to window.opener), or as a disabled icon button
+ * with an explanatory tooltip when there is no changelog link to offer.
+ */
+const ChangelogControl = ({ changelogUrl }) => {
+  if (!changelogUrl) {
+    return (
+      <Tooltip title="No changelog link">
+        <span>
+          <IconButton
+            aria-label="No changelog link"
+            size="small"
+            disabled
+            sx={{ color: 'text.secondary', '&.Mui-disabled': { pointerEvents: 'auto' } }}
+          >
+            <DescriptionOutlinedIcon fontSize="small" />
+          </IconButton>
+        </span>
+      </Tooltip>
+    )
+  }
+
+  return (
+    <Tooltip title="Open changelog">
+      <IconButton
+        component="a"
+        href={changelogUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Open changelog"
+        size="small"
+        sx={{ color: 'text.secondary' }}
+      >
+        <DescriptionOutlinedIcon fontSize="small" />
+      </IconButton>
+    </Tooltip>
+  )
+}
+
 const ApplicationRow = ({ name, ver, onRefreshed }) => {
-  const { current, latest, outdated, drift } = ver
+  const { current, latest, outdated, drift, changelogUrl } = ver
   // null drift means Unresolved; map to UNKNOWN for colour computation.
   const effectiveDrift = drift ?? 'UNKNOWN'
   const rowTint = hexToRgba(severityColor[effectiveDrift], 0.1)
@@ -186,11 +226,7 @@ const ApplicationRow = ({ name, ver, onRefreshed }) => {
         <FailedRefreshIcon readAt={latestReadAt} failedAt={latestFailedAt} />
       </TableCell>
       <TableCell align="center">
-        <Tooltip title="Changelog — coming soon">
-          <IconButton aria-label="Changelog" size="small" sx={{ color: 'text.secondary' }}>
-            <DescriptionOutlinedIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
+        <ChangelogControl changelogUrl={changelogUrl} />
       </TableCell>
       <TableCell align="right" sx={{ pr: 2 }}>
         <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ width: '100%' }}>

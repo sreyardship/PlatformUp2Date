@@ -54,6 +54,21 @@ public final class SemverVersion implements VersionValue {
         return semver.getVersion();
     }
 
+    /** The major component, as its displayed decimal string (e.g. {@code "3"} for {@code 3.10.5}). */
+    public String major() {
+        return String.valueOf(semver.getMajor());
+    }
+
+    /** The minor component, as its displayed decimal string (e.g. {@code "10"} for {@code 3.10.5}). */
+    public String minor() {
+        return String.valueOf(semver.getMinor());
+    }
+
+    /** The patch component, as its displayed decimal string (e.g. {@code "5"} for {@code 3.10.5}). */
+    public String patch() {
+        return String.valueOf(semver.getPatch());
+    }
+
     @Override
     public java.util.Optional<String> preReleaseSegment() {
         java.util.List<String> parts = semver.getPreRelease();

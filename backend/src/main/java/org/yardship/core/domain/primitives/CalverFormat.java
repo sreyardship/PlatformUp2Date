@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -137,6 +138,25 @@ public final class CalverFormat {
         return tokenList;
     }
 
+    /**
+     * Looks up the {@link TokenType} for a calver.org format-string symbol (e.g. {@code "0M"} →
+     * {@link TokenType#ZERO_M}), or {@link Optional#empty()} if {@code symbol} names no known
+     * calver.org token. Used by {@link ChangelogTemplate} to validate a placeholder token name.
+     */
+    public static Optional<TokenType> tokenTypeForSymbol(String symbol) {
+        return Optional.ofNullable(SYMBOL_TO_TYPE.get(symbol));
+    }
+
+    /**
+     * {@code true} when {@code symbol} names a calver.org token that this format actually declares
+     * (i.e. is present in {@link #tokens()}). A symbol that is a real calver.org token in general
+     * but absent from THIS format's declared tokens (e.g. {@code MICRO} on a {@code "YY.0M"} format)
+     * returns {@code false}.
+     */
+    public boolean declaresSymbol(String symbol) {
+        return tokenTypeForSymbol(symbol).map(tokenList::contains).orElse(false);
+    }
+
     /** Package-private: the separator that precedes token {@code i} (empty string for index 0). */
     List<String> separators() {
         return separatorList;
@@ -161,21 +181,27 @@ public final class CalverFormat {
 
         int n = tokenList.size();
         int[] numericValues = new int[n];
+        String[] rawGroups = new String[n];
         String modifier = null;
 
         for (int i = 0; i < n; i++) {
             String group = matcher.group(i + 1);
+            rawGroups[i] = group;
             if (tokenList.get(i) == TokenType.MODIFIER) {
                 modifier = group; // null means absent
             } else {
                 numericValues[i] = (group == null) ? 0 : Integer.parseInt(group);
             }
         }
-        return new ParsedComponents(numericValues, modifier);
+        return new ParsedComponents(numericValues, modifier, rawGroups);
     }
 
-    /** Parsed numeric values and optional modifier string extracted from a raw version string. */
-    record ParsedComponents(int[] numericValues, String modifier) {}
+    /**
+     * Parsed numeric values, optional modifier string, and the per-token displayed substrings
+     * (raw regex capture groups, zero-padding preserved; {@code null} for a trailing token absent
+     * from the matched version string) extracted from a raw version string.
+     */
+    record ParsedComponents(int[] numericValues, String modifier, String[] rawGroups) {}
 
     // -----------------------------------------------------------------------
     // Regex builder

@@ -25,6 +25,7 @@ public final class CalverVersion implements VersionValue {
     private final CalverFormat format;
     private final int[] numericValues;
     private final String modifier; // null when absent
+    private final String[] rawGroups; // displayed substring per token, in format.tokens() order; null if absent
 
     /**
      * Parses {@code original} against {@code format}.
@@ -47,13 +48,16 @@ public final class CalverVersion implements VersionValue {
         this.format = format;
         this.numericValues = parsed.numericValues();
         this.modifier = parsed.modifier();
+        this.rawGroups = parsed.rawGroups();
     }
 
-    private CalverVersion(String original, CalverFormat format, int[] numericValues, String modifier) {
+    private CalverVersion(
+            String original, CalverFormat format, int[] numericValues, String modifier, String[] rawGroups) {
         this.original = original;
         this.format = format;
         this.numericValues = numericValues;
         this.modifier = modifier;
+        this.rawGroups = rawGroups;
     }
 
     @Override
@@ -102,7 +106,22 @@ public final class CalverVersion implements VersionValue {
                 ? original.substring(0, original.length() - suffix.length())
                 : original.replace(suffix, "");
         int[] clearedNumerics = numericValues.clone();
-        return new CalverVersion(stripped, format, clearedNumerics, null);
+        String[] clearedRawGroups = rawGroups.clone();
+        clearedRawGroups[modifierIndex] = null;
+        return new CalverVersion(stripped, format, clearedNumerics, null, clearedRawGroups);
+    }
+
+    /**
+     * The displayed substring (zero-padding preserved) this version carries for {@code type}, or
+     * {@code null} if {@code type} is not one of {@link #format}'s declared tokens, or is a trailing
+     * token absent from {@link #original}. Package-private: consumed by {@link ChangelogTemplate}.
+     */
+    String displayedValue(CalverFormat.TokenType type) {
+        int index = format.tokens().indexOf(type);
+        if (index < 0) {
+            return null;
+        }
+        return rawGroups[index];
     }
 
     @Override

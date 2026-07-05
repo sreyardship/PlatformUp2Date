@@ -73,6 +73,9 @@ quarkus:
       window: 1h
     apps:
       - name: argo-cd
+        # Changelog link (ADR-0021): a semver app-level template, sibling of version-scheme.
+        # github-release gets no automatic default — the 'v' tag prefix is a static literal here.
+        changelog-url: https://github.com/argoproj/argo-cd/releases/tag/v{version}
         current:
           type: http
           url: https://deployments.sreyardship.com/api/version
@@ -80,6 +83,7 @@ quarkus:
           type: github-release
           repo: argoproj/argo-cd
       - name: git-tea
+        changelog-url: https://github.com/go-gitea/gitea/releases/tag/v{version}
         current:
           type: http
           url: https://git.sreyardship.com/api/v1/version
@@ -87,6 +91,7 @@ quarkus:
           type: github-release
           repo: go-gitea/gitea
       - name: sharry
+        changelog-url: https://github.com/eikek/sharry/releases/tag/v{version}
         current:
           type: http
           url: https://fileshare.sreyardship.com/api/v2/open/info/version
@@ -94,6 +99,7 @@ quarkus:
           type: github-release
           repo: eikek/sharry
       - name: harbor
+        changelog-url: https://github.com/goharbor/harbor/releases/tag/v{version}
         current:
           type: http
           url: https://container-registry.sreyardship.com/api/v2.0/systeminfo
@@ -171,9 +177,13 @@ quarkus:
       #
       # OpenWRT: VERSION_ID looks like 23.05.5 -> calver YY.0M.MICRO; latest from the releases
       # directory listing (HTML), regex pulls the version out of each `href="23.05.5/"`.
+      # Changelog link (ADR-0021): calver format-symbol tokens ({YY}, {0M}) resolve to the
+      # DISPLAYED substrings of the version string — {0M} stays zero-padded ("05"), not
+      # re-rendered as a number ("5").
       # - name: openwrt-router
       #   version-scheme: calver
       #   calver-format: "YY.0M.MICRO"
+      #   changelog-url: https://openwrt.org/releases/{YY}.{0M}/notes-{version}
       #   current:
       #     type: ssh-os-release
       #     host: 192.168.1.1
@@ -189,10 +199,12 @@ quarkus:
       #
       # Ubuntu: VERSION_ID looks like 24.04 -> calver YY.0M; latest LTS from the meta-release-lts
       # feed (plain text), regex pulls each `Version: 24.04`. An up-to-date LTS box compares equal
-      # to the latest LTS (no drift).
+      # to the latest LTS (no drift). This changelog-url is a token-free constant — Ubuntu's
+      # release-notes hub always describes the latest release, so no placeholder is needed.
       # - name: ubuntu-vm
       #   version-scheme: calver
       #   calver-format: "YY.0M"
+      #   changelog-url: https://documentation.ubuntu.com/release-notes/
       #   current:
       #     type: ssh-os-release
       #     host: 10.0.0.10

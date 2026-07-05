@@ -164,6 +164,11 @@ class VersionSourceResolverTests {
             public Optional<String> calverFormat() {
                 return Optional.empty();
             }
+
+            @Override
+            public Optional<String> changelogUrl() {
+                return Optional.empty();
+            }
         };
     }
 

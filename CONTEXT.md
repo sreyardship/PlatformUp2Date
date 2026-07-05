@@ -159,6 +159,19 @@ value alongside a failed refresh.
 _Avoid_: Backend down (unproven — only our request failed), offline, connection
 lost, empty fleet / zero applications (the lie this term exists to prevent)
 
+**Changelog link**:
+The per-Application link to the release notes of the *latest* upstream release,
+offered on every Surface (the board's changelog icon, the REST payload, and the
+MCP tools — so an agent can read release notes for breaking changes before
+update work). It is a *projection*: derived on read from an operator-configured
+URL template and the Application's stored latest version — never observed or
+stored by a scrape (contrast a version value, which is an observation). One
+template per Application, regardless of which latest source kind the app uses;
+its placeholders follow the Application's Version scheme (semver.org component
+names for semver, the app's declared calver-format tokens for calver). No
+template, or no known latest version, means no link.
+_Avoid_: release URL, changelog observation, html_url
+
 **Surface**:
 A client-facing entry point that reads scrape state or requests a manual scrape —
 the REST API, the web UI's Refresh button, the MCP tools, and the Prometheus

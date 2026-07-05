@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.yardship.adapters.out.versionsource.ChangelogTemplates;
 import org.yardship.core.domain.primitives.ScrapeTarget;
 import org.yardship.core.domain.primitives.Side;
 import org.yardship.core.domain.primitives.VersionValue;
@@ -22,9 +23,11 @@ import java.util.List;
 public class ApplicationMcpTools {
 
     private final ApplicationVersionPort applicationVersionPort;
+    private final ChangelogTemplates changelogTemplates;
 
-    public ApplicationMcpTools(ApplicationVersionPort applicationVersionPort) {
+    public ApplicationMcpTools(ApplicationVersionPort applicationVersionPort, ChangelogTemplates changelogTemplates) {
         this.applicationVersionPort = applicationVersionPort;
+        this.changelogTemplates = changelogTemplates;
     }
 
     @Tool(
@@ -46,7 +49,7 @@ public class ApplicationMcpTools {
         // failed-scrape app surfaces via get_application / list_applications_with_failed_scrapes.
         return applicationVersionPort.getApplications().stream()
                 .filter(app -> app.isResolved() && app.hasDriftAtLeast(threshold))
-                .map(ApplicationView::from)
+                .map(app -> ApplicationView.from(app, changelogTemplates.forApp(app.name())))
                 .toList();
     }
 
@@ -61,7 +64,7 @@ public class ApplicationMcpTools {
         return applicationVersionPort.getApplications().stream()
                 .filter(app -> app.name().equals(name))
                 .findFirst()
-                .map(ApplicationView::from)
+                .map(app -> ApplicationView.from(app, changelogTemplates.forApp(app.name())))
                 .orElse(null);
     }
 
@@ -75,7 +78,7 @@ public class ApplicationMcpTools {
     public List<ApplicationView> list_applications_with_failed_scrapes() {
         return applicationVersionPort.getApplications().stream()
                 .filter(app -> app.hasFailedScrape())
-                .map(ApplicationView::from)
+                .map(app -> ApplicationView.from(app, changelogTemplates.forApp(app.name())))
                 .toList();
     }
 

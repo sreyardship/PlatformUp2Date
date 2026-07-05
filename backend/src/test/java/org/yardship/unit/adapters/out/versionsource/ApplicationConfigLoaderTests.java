@@ -1,12 +1,17 @@
 package org.yardship.unit.adapters.out.versionsource;
 
 import io.quarkus.test.junit.QuarkusTest;
+import io.smallrye.config.PropertiesConfigSource;
+import io.smallrye.config.SmallRyeConfig;
+import io.smallrye.config.SmallRyeConfigBuilder;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader.AppConfig;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader.VersionSource.Auth;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -163,5 +168,58 @@ class ApplicationConfigLoaderTests {
                 return tokenFile;
             }
         };
+    }
+
+    // --- Slice 01 (changelog link, ADR-0021): app-level 'changelog-url' ------------------------
+
+    @Test
+    void changelogUrl_isEmpty_whenAbsentFromConfig() {
+        // test-app (the shared test config) has no changelog-url configured.
+        AppConfig app = configLoader.apps().getFirst();
+
+        assertTrue(app.changelogUrl().isEmpty(),
+                "test-app has no 'changelog-url' configured, so changelogUrl() must be empty");
+    }
+
+    @Test
+    void changelogUrl_bindsAtAppLevel_siblingOfVersionScheme_whenPresent() {
+        // Bound through a standalone SmallRyeConfig (like ApplicationConfigLoaderSshBindingTests)
+        // rather than the shared src/test/resources/application.properties, so this slice's
+        // binding contract is pinned without perturbing every other test that reads 'test-app'.
+        Map<String, String> props = baseProps();
+        props.put("platform-config.apps[0].name", "argo-cd");
+        props.put("platform-config.apps[0].current.type", "http");
+        props.put("platform-config.apps[0].current.url", "https://example.test/version");
+        props.put("platform-config.apps[0].latest.type", "github-release");
+        props.put("platform-config.apps[0].latest.repo", "argoproj/argo-cd");
+        props.put("platform-config.apps[0].changelog-url",
+                "https://github.com/argoproj/argo-cd/releases/tag/v{version}");
+
+        AppConfig app = bind(props).apps().getFirst();
+
+        assertTrue(app.changelogUrl().isPresent(), "changelog-url must bind from config");
+        assertEquals("https://github.com/argoproj/argo-cd/releases/tag/v{version}",
+                app.changelogUrl().get());
+    }
+
+    private static ApplicationConfigLoader bind(Map<String, String> props) {
+        SmallRyeConfig config = new SmallRyeConfigBuilder()
+                .withMapping(ApplicationConfigLoader.class)
+                .withSources(new PropertiesConfigSource(props, "test-changelog-url", 100))
+                .build();
+        return config.getConfigMapping(ApplicationConfigLoader.class);
+    }
+
+    // Common required top-level config so the standalone mapping binds (mirrors
+    // ApplicationConfigLoaderSshBindingTests#baseProps — durations in ISO-8601 since this
+    // standalone SmallRyeConfig does not register Quarkus's "1h" shorthand converter).
+    private static Map<String, String> baseProps() {
+        Map<String, String> props = new HashMap<>();
+        props.put("platform-config.scrape-interval", "1h");
+        props.put("platform-config.scrape-trigger.max-per-window", "10");
+        props.put("platform-config.scrape-trigger.window", "PT1H");
+        props.put("platform-config.targeted-scrape-trigger.max-per-window", "30");
+        props.put("platform-config.targeted-scrape-trigger.window", "PT1H");
+        return props;
     }
 }

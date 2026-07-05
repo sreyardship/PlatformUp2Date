@@ -1,12 +1,21 @@
 package org.yardship.adapters.in.http;
 
 import io.quarkus.runtime.annotations.RegisterForReflection;
+import org.yardship.core.domain.primitives.ChangelogTemplate;
+import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.domain.primitives.VersionValue;
 
 import java.time.Instant;
+import java.util.Optional;
 
-public record ApplicationStatus(VersionSide current, VersionSide latest, boolean outdated, String drift, String resolution) {
+public record ApplicationStatus(
+        VersionSide current,
+        VersionSide latest,
+        boolean outdated,
+        String drift,
+        String resolution,
+        String changelogUrl) {
 
     /**
      * Projects a {@link VersionApplication} into the wire shape.
@@ -20,8 +29,12 @@ public record ApplicationStatus(VersionSide current, VersionSide latest, boolean
      * </ul>
      *
      * <p>For Resolved apps: {@code resolution} = {@code "Resolved"} and drift/outdated are computed normally.
+     *
+     * <p>{@code changelogUrl} (ADR-0021) is a top-level nullable field — sibling of {@code drift},
+     * never nested inside a side. It is {@code null} when {@code changelogTemplate} is absent (no
+     * source kind gets a default) or when the latest side has no known version to substitute.
      */
-    public static ApplicationStatus from(VersionApplication app) {
+    public static ApplicationStatus from(VersionApplication app, Optional<ChangelogTemplate> changelogTemplate) {
         String resolution = app.isResolved() ? "Resolved" : "Unresolved";
         VersionValue.Diff drift = app.isResolved() ? app.drift() : null;
         boolean outdated = drift != null && drift != VersionValue.Diff.NONE;
@@ -30,7 +43,15 @@ public record ApplicationStatus(VersionSide current, VersionSide latest, boolean
                 toVersionSide(app.latest()),
                 outdated,
                 drift != null ? drift.name() : null,
-                resolution);
+                resolution,
+                resolveChangelogUrl(changelogTemplate, app.latest()));
+    }
+
+    private static String resolveChangelogUrl(
+            Optional<ChangelogTemplate> changelogTemplate, SideObservation latest) {
+        return changelogTemplate
+                .flatMap(template -> latest.value().map(template::resolve))
+                .orElse(null);
     }
 
     /**

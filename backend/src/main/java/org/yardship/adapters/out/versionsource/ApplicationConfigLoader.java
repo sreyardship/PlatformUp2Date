@@ -53,6 +53,17 @@ public interface ApplicationConfigLoader {
          * is built in the resolver, not by config binding (a semver app simply has no calver-format).
          */
         Optional<String> calverFormat();
+
+        /**
+         * Optional app-level changelog URL template (ADR-0021), sibling of {@link #versionScheme()}
+         * — NOT a {@link VersionSource} field, since the changelog link is a property of the app,
+         * not of either version-source leg. Absent leaves {@code changelogUrl} {@code null} on the
+         * REST payload; no source kind gets a default template. Placeholder legality (e.g.
+         * {@code {version}}, {@code {major}}, or a calver-format-symbol token) is validated
+         * fail-fast at startup by the {@code ChangelogTemplates} wiring bean via {@link
+         * org.yardship.core.domain.primitives.ChangelogTemplate}'s constructor.
+         */
+        Optional<String> changelogUrl();
     }
 
     /**

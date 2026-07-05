@@ -15,8 +15,10 @@ import versionClient from './api/versionClient'
 //     Hovering the version string (when readAt present) shows "read Xm ago — <absolute>".
 //     When failedAt is present an amber WarningAmberIcon appears after the version string;
 //     hovering it shows a two-line tooltip: "read Xm ago — <abs>" + "refresh failed Xm ago — <abs>".
-//   - Changelog cell: an inert document-icon control with tooltip
-//     "Changelog — coming soon" that performs no action
+//   - Changelog cell: driven by ver.changelogUrl (sibling of drift/outdated).
+//     - present -> a link-rendered icon button (href/target="_blank"/rel="noopener noreferrer"),
+//       tooltip "Open changelog"
+//     - null -> a disabled icon button (no anchor in the DOM), tooltip "No changelog link"
 //   - Actions cell: "Rescrape current" + "Rescrape latest" buttons, each
 //     calling versionClient.scrapeApplication(name, side) and refetching on success
 
@@ -46,6 +48,7 @@ const baseVer = (overrides) => ({
   latest: { version: '1.0.0', readAt: FIXED_READ_AT },
   outdated: false,
   drift: 'NONE',
+  changelogUrl: null,
   ...overrides,
 })
 
@@ -185,18 +188,85 @@ test('clicking "Rescrape latest" scrapes (name, "latest") and refetches on succe
   })
 })
 
-test('renders an inert Changelog control with an explanatory tooltip and it performs no action', async () => {
-  const user = userEvent.setup()
-  renderRow({ name: 'my-app', ver: baseVer(), onRefreshed: vi.fn() })
+// --- Changelog control (driven by ver.changelogUrl) --------------------------------------
+//
+// The changelog icon in the board is a sibling column, always rendered (never hidden) so the
+// column stays aligned across a mixed fleet. Its behaviour depends solely on ver.changelogUrl:
+//   - present -> a real link (anchor-rendered icon) that opens the URL in a new tab, tooltip
+//     "Open changelog"
+//   - null    -> a visibly disabled icon, not clickable, no anchor in the DOM, tooltip
+//     "No changelog link"
+// The old "Changelog — coming soon" placeholder tooltip must be gone entirely.
 
-  const changelogControl = screen.getByRole('button', { name: /changelog/i })
-  expect(changelogControl).toBeInTheDocument()
+describe('changelog control', () => {
+  const CHANGELOG_URL = 'https://github.com/argoproj/argo-cd/releases/tag/v3.0.5'
 
-  await user.hover(changelogControl)
-  expect(await screen.findByText('Changelog — coming soon')).toBeInTheDocument()
+  test('changelogUrl present renders a link with correct href, target and rel', () => {
+    renderRow({ name: 'my-app', ver: baseVer({ changelogUrl: CHANGELOG_URL }), onRefreshed: vi.fn() })
 
-  await user.click(changelogControl)
-  expect(versionClient.scrapeApplication).not.toHaveBeenCalled()
+    const link = screen.getByRole('link', { name: /changelog/i })
+    expect(link).toHaveAttribute('href', CHANGELOG_URL)
+    expect(link).toHaveAttribute('target', '_blank')
+    // rel must include both noopener and noreferrer (order-agnostic).
+    const rel = link.getAttribute('rel')
+    expect(rel).toMatch(/noopener/)
+    expect(rel).toMatch(/noreferrer/)
+  })
+
+  test('changelogUrl present shows "Open changelog" tooltip on hover', async () => {
+    const user = userEvent.setup()
+    renderRow({ name: 'my-app', ver: baseVer({ changelogUrl: CHANGELOG_URL }), onRefreshed: vi.fn() })
+
+    const link = screen.getByRole('link', { name: /changelog/i })
+    await user.hover(link)
+    expect(await screen.findByText('Open changelog')).toBeInTheDocument()
+  })
+
+  test('changelogUrl null renders a disabled changelog icon with no anchor in the DOM', () => {
+    renderRow({ name: 'my-app', ver: baseVer({ changelogUrl: null }), onRefreshed: vi.fn() })
+
+    expect(screen.queryByRole('link', { name: /changelog/i })).not.toBeInTheDocument()
+    const button = screen.getByRole('button', { name: /changelog/i })
+    expect(button).toBeDisabled()
+  })
+
+  test('changelogUrl null shows "No changelog link" tooltip on hover', async () => {
+    const user = userEvent.setup()
+    renderRow({ name: 'my-app', ver: baseVer({ changelogUrl: null }), onRefreshed: vi.fn() })
+
+    const button = screen.getByRole('button', { name: /changelog/i })
+    await user.hover(button)
+    expect(await screen.findByText('No changelog link')).toBeInTheDocument()
+  })
+
+  test('the "Changelog — coming soon" placeholder tooltip is gone', async () => {
+    const user = userEvent.setup()
+    renderRow({ name: 'my-app', ver: baseVer({ changelogUrl: null }), onRefreshed: vi.fn() })
+    await user.hover(screen.getByRole('button', { name: /changelog/i }))
+    expect(await screen.findByText('No changelog link')).toBeInTheDocument()
+    expect(screen.queryByText(/coming soon/i)).not.toBeInTheDocument()
+
+    renderRow({ name: 'other-app', ver: baseVer({ changelogUrl: CHANGELOG_URL }), onRefreshed: vi.fn() })
+    expect(screen.queryByText(/coming soon/i)).not.toBeInTheDocument()
+  })
+
+  test('a stale row (failed-refresh marker on latest) still links using the last-known latest version — no special handling', () => {
+    // The changelog URL is independent of readAt/failedAt on the latest side: no special
+    // casing is expected for a row whose latest side carries a failed-refresh marker.
+    renderRow({
+      name: 'my-app',
+      ver: baseVer({
+        changelogUrl: CHANGELOG_URL,
+        latest: { version: '3.0.5', readAt: FIXED_READ_AT, failedAt: '2026-07-01T10:05:00.000Z' },
+        outdated: true,
+        drift: 'PATCH',
+      }),
+      onRefreshed: vi.fn(),
+    })
+
+    const link = screen.getByRole('link', { name: /changelog/i })
+    expect(link).toHaveAttribute('href', CHANGELOG_URL)
+  })
 })
 
 // --- Issue 03: Unknown (Unresolved) app display ------------------------------------------

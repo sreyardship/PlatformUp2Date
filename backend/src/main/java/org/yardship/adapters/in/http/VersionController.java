@@ -4,6 +4,7 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yardship.adapters.out.versionsource.ChangelogTemplates;
 import org.yardship.core.ports.in.ApplicationVersionPort;
 
 import java.util.HashMap;
@@ -15,9 +16,11 @@ public class VersionController {
     Logger logger = LoggerFactory.getLogger(VersionController.class);
 
     private final ApplicationVersionPort applicationVersionPort;
+    private final ChangelogTemplates changelogTemplates;
 
-    public VersionController(ApplicationVersionPort applicationVersionPort) {
+    public VersionController(ApplicationVersionPort applicationVersionPort, ChangelogTemplates changelogTemplates) {
         this.applicationVersionPort = applicationVersionPort;
+        this.changelogTemplates = changelogTemplates;
     }
 
     @GET
@@ -30,7 +33,7 @@ public class VersionController {
         // ScrapeStateUnavailableExceptionMapper — never a 200 with stale or empty data.
         applicationVersionPort.getApplications()
                 .forEach(app -> {
-                            var status = ApplicationStatus.from(app);
+                            var status = ApplicationStatus.from(app, changelogTemplates.forApp(app.name()));
                             appStatusList.put(app.name(), status);
                         }
                 );

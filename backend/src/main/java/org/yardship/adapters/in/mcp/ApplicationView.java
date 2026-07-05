@@ -1,10 +1,13 @@
 package org.yardship.adapters.in.mcp;
 
 import io.quarkus.runtime.annotations.RegisterForReflection;
+import org.yardship.core.domain.primitives.ChangelogTemplate;
+import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.domain.primitives.VersionValue;
 
 import java.time.Instant;
+import java.util.Optional;
 
 /**
  * AI-facing projection of a monitored application's version status. This is the
@@ -15,6 +18,10 @@ import java.time.Instant;
  * {@code null}, {@code drift} is {@code null}, and {@code resolution} is {@code "Unresolved"}.
  * Per-side read/failure instants are {@code null} when absent or when a failure did not occur
  * (respectively).
+ *
+ * <p>{@code changelogUrl} (ADR-0021, issue 03) mirrors {@code ApplicationStatus}'s (the REST
+ * sibling) exact semantics: {@code null} when {@code changelogTemplate} is absent, or when the
+ * latest side has no known version to substitute.
  */
 @RegisterForReflection
 public record ApplicationView(
@@ -27,9 +34,10 @@ public record ApplicationView(
         Instant currentReadAt,
         Instant currentFailedAt,
         Instant latestReadAt,
-        Instant latestFailedAt) {
+        Instant latestFailedAt,
+        String changelogUrl) {
 
-    public static ApplicationView from(VersionApplication app) {
+    public static ApplicationView from(VersionApplication app, Optional<ChangelogTemplate> changelogTemplate) {
         String current = app.current().value().map(v -> v.value()).orElse(null);
         String latest = app.latest().value().map(v -> v.value()).orElse(null);
         VersionValue.Diff drift = app.isResolved() ? app.drift() : null;
@@ -57,6 +65,14 @@ public record ApplicationView(
                 currentReadAt,
                 currentFailedAt,
                 latestReadAt,
-                latestFailedAt);
+                latestFailedAt,
+                resolveChangelogUrl(changelogTemplate, app.latest()));
+    }
+
+    private static String resolveChangelogUrl(
+            Optional<ChangelogTemplate> changelogTemplate, SideObservation latest) {
+        return changelogTemplate
+                .flatMap(template -> latest.value().map(template::resolve))
+                .orElse(null);
     }
 }
