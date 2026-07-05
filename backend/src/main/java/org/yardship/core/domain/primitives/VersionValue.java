@@ -23,6 +23,13 @@ public sealed interface VersionValue permits SemverVersion, CalverVersion {
     String value();
 
     /**
+     * The {@link VersionScheme} this instance was built under (e.g. {@link VersionScheme#SEMVER}
+     * for {@link SemverVersion}). Lets an adapter holding only a {@code VersionValue} instance
+     * later reconstruct an equivalent one from its raw string, without consulting live app config.
+     */
+    VersionScheme scheme();
+
+    /**
      * The pre-release segment of this version, or {@link java.util.Optional#empty()} when there is
      * none. For semver this is the dot-joined prerelease (e.g. {@code 1.22.0-rc.1} → {@code "rc.1"},
      * {@code 1.22.0-alpine} → {@code "alpine"}); for calver it is the {@code MODIFIER} token when the

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.yardship.core.domain.primitives.CalverFormat;
+import org.yardship.core.domain.primitives.CalverVersion;
 import org.yardship.core.domain.primitives.VersionValue;
 
 import java.util.List;
@@ -204,6 +205,54 @@ public class CalverFormatTests {
         assertThrows(IllegalArgumentException.class,
                 () -> new CalverFormat("..."),
                 "A format string with no tokens must be rejected");
+    }
+
+    // -----------------------------------------------------------------------
+    // formatString() — retains the exact original format string
+    // -----------------------------------------------------------------------
+
+    @Test
+    void formatString_returnsExactlyTheStringPassedToTheConstructor() {
+        // Arrange
+        String original = "YY.0M.MICRO";
+        CalverFormat format = new CalverFormat(original);
+
+        // Act & Assert
+        assertEquals(original, format.formatString(),
+                "formatString() must return exactly the string the format was constructed from");
+    }
+
+    @Test
+    void formatString_isUnmodified_evenWithHyphenSeparators() {
+        // Round-tripping must not normalise separators (e.g. hyphen to dot).
+        String original = "YYYY-0M-DD";
+        CalverFormat format = new CalverFormat(original);
+
+        assertEquals(original, format.formatString());
+    }
+
+    @Test
+    void reconstructedCalverFormat_parsesAndComparesIdentically_toOriginal() {
+        // Arrange: a CalverFormat reconstructed from formatString() must be behaviorally
+        // equivalent to the original — same tokens() and same tryParse() shape.
+        CalverFormat original = new CalverFormat("YY.0M.MICRO");
+
+        // Act
+        CalverFormat reconstructed = new CalverFormat(original.formatString());
+
+        // Assert — same ordered tokens
+        assertEquals(original.tokens(), reconstructed.tokens(),
+                "Reconstructed CalverFormat must parse to the same token list as the original");
+
+        // Assert — parses a representative version string identically (via CalverVersion, since
+        // tryParse() is not part of CalverFormat's public surface).
+        CalverVersion viaOriginal = new CalverVersion("24.04.5", original);
+        CalverVersion viaReconstructed = new CalverVersion("24.04.5", reconstructed);
+
+        assertEquals(viaOriginal.value(), viaReconstructed.value());
+        assertFalse(viaOriginal.isOlderThan(viaReconstructed));
+        assertFalse(viaReconstructed.isOlderThan(viaOriginal));
+        assertEquals(VersionValue.Diff.NONE, viaOriginal.diff(viaReconstructed));
     }
 
     // -----------------------------------------------------------------------

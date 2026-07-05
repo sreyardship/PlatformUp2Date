@@ -83,6 +83,16 @@ public final class CalverVersion implements VersionValue {
     }
 
     @Override
+    public VersionScheme scheme() {
+        return VersionScheme.CALVER;
+    }
+
+    /** The {@link CalverFormat} this version was parsed against. */
+    public CalverFormat calverFormat() {
+        return format;
+    }
+
+    @Override
     public java.util.Optional<String> preReleaseSegment() {
         // Calver's MODIFIER token is the closest analogue of a semver prerelease segment.
         return java.util.Optional.ofNullable(modifier);

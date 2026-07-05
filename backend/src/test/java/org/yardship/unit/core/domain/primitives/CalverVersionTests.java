@@ -5,6 +5,7 @@ import org.yardship.core.domain.exceptions.InvalidVersionException;
 import org.yardship.core.domain.primitives.CalverFormat;
 import org.yardship.core.domain.primitives.CalverVersion;
 import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.domain.primitives.VersionValue;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -326,6 +327,40 @@ public class CalverVersionTests {
         assertThrows(InvalidVersionException.class,
                 () -> new CalverVersion("2024.XX", format),
                 "A non-numeric component for a numeric token must throw InvalidVersionException");
+    }
+
+    // -----------------------------------------------------------------------
+    // scheme() self-description
+    // -----------------------------------------------------------------------
+
+    @Test
+    void scheme_returnsCalver_forAnyCalverVersion() {
+        // A VersionValue must self-report the scheme it was built under, so an adapter holding
+        // just the instance (no live app config) can tell SEMVER from CALVER.
+        CalverFormat format = new CalverFormat("YY.0M");
+        CalverVersion version = new CalverVersion("24.04", format);
+
+        assertEquals(VersionScheme.CALVER, version.scheme(),
+                "CalverVersion.scheme() must always return VersionScheme.CALVER");
+    }
+
+    // -----------------------------------------------------------------------
+    // calverFormat() accessor — recovers the format used to parse this version
+    // -----------------------------------------------------------------------
+
+    @Test
+    void calverFormat_returnsTheFormatTheVersionWasConstructedWith() {
+        // Arrange
+        CalverFormat format = new CalverFormat("YY.0M.MICRO");
+        CalverVersion version = new CalverVersion("24.04.5", format);
+
+        // Act
+        CalverFormat recovered = version.calverFormat();
+
+        // Assert — same instance, or at minimum an equivalent one (same original format string).
+        assertEquals(format.formatString(), recovered.formatString(),
+                "calverFormat() must return the same (or an equivalent) CalverFormat the version was constructed with");
+        assertEquals(format.tokens(), recovered.tokens());
     }
 
     // -----------------------------------------------------------------------

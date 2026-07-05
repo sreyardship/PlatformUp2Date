@@ -5,6 +5,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.yardship.core.domain.exceptions.InvalidVersionException;
 import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.domain.primitives.VersionValue;
 
 import java.util.List;
@@ -264,6 +265,16 @@ public class SemverVersionTests {
 
         assertNotEquals(alpine, alpine316,
                 "'alpine' and 'alpine3.16' must be distinct prerelease segments");
+    }
+
+    // ---- scheme() self-description -----------------------------------------------------------
+
+    @Test
+    void scheme_returnsSemver_forAnySemverVersion() {
+        // A VersionValue must self-report the scheme it was built under, so an adapter holding
+        // just the instance (no live app config) can tell SEMVER from CALVER.
+        assertEquals(VersionScheme.SEMVER, new SemverVersion("1.2.3").scheme(),
+                "SemverVersion.scheme() must always return VersionScheme.SEMVER");
     }
 
     private static List<String> invalidInputs() {

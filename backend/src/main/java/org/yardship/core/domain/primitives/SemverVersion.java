@@ -54,6 +54,11 @@ public final class SemverVersion implements VersionValue {
         return semver.getVersion();
     }
 
+    @Override
+    public VersionScheme scheme() {
+        return VersionScheme.SEMVER;
+    }
+
     /** The major component, as its displayed decimal string (e.g. {@code "3"} for {@code 3.10.5}). */
     public String major() {
         return String.valueOf(semver.getMajor());

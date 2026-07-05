@@ -77,6 +77,7 @@ public final class CalverFormat {
             "YYYY|MODIFIER|MAJOR|MINOR|MICRO|YY|0Y|0M|0W|0D|MM|WW|DD|[.\\-_]"
     );
 
+    private final String formatString;
     private final List<TokenType> tokenList;
     private final List<String> separatorList; // separatorList.get(i) precedes tokenList.get(i); "" for i=0
     private final Pattern versionPattern;
@@ -127,10 +128,19 @@ public final class CalverFormat {
                     "CalverFormat: format '" + format + "' contains no recognised tokens");
         }
 
+        this.formatString = format;
         this.tokenList = Collections.unmodifiableList(tokens);
         this.separatorList = Collections.unmodifiableList(separators);
         this.versionPattern = buildVersionPattern(tokens, separators);
         this.modifierIndex = tokens.indexOf(TokenType.MODIFIER);
+    }
+
+    /**
+     * Returns exactly the string this format was constructed from (e.g. {@code "YY.0M.MICRO"}),
+     * enabling persistence and reconstruction via {@code new CalverFormat(formatString())}.
+     */
+    public String formatString() {
+        return formatString;
     }
 
     /** Returns the ordered list of parsed token types (separators are NOT included). */
