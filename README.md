@@ -1,16 +1,20 @@
 # <img src="frontend/public/logo.svg" alt="PlatformUp2Date logo" align="absmiddle" height="45"/> PlatformUp2Date
 
-You run and maintain a platform, home cluster or otherwise a collection of applications in order to get your work, leisure or archiving going smooth. Only issue that every single app is waaay out of date. Lets change that! 
+You run a platform, a home cluster, or just a pile of applications that keep
+your work, leisure, or archiving going smooth. Only issue: every single app
+is waaay out of date. Let's change that!
 
 PlatformUp2Date monitors deployed applications against their latest upstream
-releases and shows, per app, whether it's up-to-date or behind
-, regardless of how or where that app is deployed. "Current" always
-means the app's actually-observed running state, never a declared value like
-a GitOps repo pin (see [`ARCHITECTURE.md`](ARCHITECTURE.md)); "latest" comes
-from an independent upstream source such as GitHub Releases or a container
-registry's tag list. 
+releases and shows, per app, whether it's up-to-date or behind — regardless
+of how or where that app is deployed. "Current" always means the app's
+actually-observed running state, never a declared value like a GitOps repo
+pin (see [`ARCHITECTURE.md`](ARCHITECTURE.md)); "latest" comes from an
+independent upstream source such as GitHub Releases or a container
+registry's tag list.
 
-Integrates with Prometheus/Grafana and comes with its own custom Frontend that you can choose to deploy or not :) 
+It integrates with Prometheus/Grafana and ships its own frontend — deploy it
+or don't :) It also serves an [MCP endpoint](#mcp-endpoint), so an AI agent
+can ask what's outdated and read the changelogs while helping you upgrade.
 
 [![edge](https://github.com/sreyardship/PlatformUp2Date/actions/workflows/edge.yml/badge.svg)](https://github.com/sreyardship/PlatformUp2Date/actions/workflows/edge.yml)
 [![release](https://img.shields.io/github/v/release/sreyardship/PlatformUp2Date)](https://github.com/sreyardship/PlatformUp2Date/releases/latest)
