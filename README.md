@@ -1,4 +1,4 @@
-# <img src="frontend/public/logo.svg" alt="PlatformUp2Date logo" align="absmiddle" height="32"/> PlatformUp2Date
+# <img src="frontend/public/logo.svg" alt="PlatformUp2Date logo" align="absmiddle" height="40"/> PlatformUp2Date
 
 You run and maintain a platform, home cluster or otherwise a collection of applications in order to get your work, leisure or archiving going smooth. Only issue that every single app is waaay out of date. Lets change that! 
 
