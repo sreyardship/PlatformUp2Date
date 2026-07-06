@@ -1,15 +1,14 @@
-# <img src="frontend/public/logo.svg" alt="PlatformUp2Date logo" width="36" align="middle"/> PlatformUp2Date
+# <img src="frontend/public/logo.svg" alt="PlatformUp2Date logo" height="30"/> PlatformUp2Date
 
 You run and maintain a platform, home cluster or otherwise a collection of applications in order to get your work, leisure or archiving going smooth. Only issue that every single app is waaay out of date. Lets change that! 
 
 PlatformUp2Date monitors deployed applications against their latest upstream
-releases and shows, per app, whether it's up-to-date (green) or behind
-(red) — regardless of how or where that app is deployed. "Current" always
+releases and shows, per app, whether it's up-to-date or behind
+, regardless of how or where that app is deployed. "Current" always
 means the app's actually-observed running state, never a declared value like
 a GitOps repo pin (see [`ARCHITECTURE.md`](ARCHITECTURE.md)); "latest" comes
 from an independent upstream source such as GitHub Releases or a container
-registry's tag list. Read [`CONTEXT.md`](CONTEXT.md) for the project's
-vocabulary.
+registry's tag list. 
 
 Integrates with Prometheus/Grafana and comes with its own custom Frontend that you can choose to deploy or not :) 
 
