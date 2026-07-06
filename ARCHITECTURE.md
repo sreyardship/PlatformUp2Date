@@ -14,6 +14,7 @@ uniform. They are deployed in every way imaginable and many of them are not ours
 - Apps other teams run, where we have no access to their deployment repo.
 - Apps on plain VMs, bare metal, or weird legacy boxes.
 - Hosted/third-party things we can only reach over the network.
+- Routers! They are weird.
 
 The tool must work for **all** of them. Therefore the core design rule is:
 
@@ -39,18 +40,17 @@ So the definition we hold to is:
 Declared-state inference is allowed only as an explicit, clearly-labeled last resort
 (see Tier C), and the UI should distinguish an *observed* reading from a *declared* guess
 so a green card from a real version endpoint is never conflated with a green card from a
-repo pin.
+repo pin. Keep this is mind if we ever implement a tier C Adapter.
 
 ## Tiers of "current" probes (ordered by required access)
 
-Each application picks the best probe it can support. The system degrades gracefully:
-most apps only ever get Tier A, and that is fine.
+Each application picks the best probe it can support. Most apps only ever need Tier A, and that is awesome.
 
 ### Tier A — black-box, network reachability only (the default)
 
-Substrate-agnostic. Works whether the app runs in k8s, on a VM, or on the moon, because
-it only talks to the running app over the network.
+Substrate-agnostic. Works whether the app runs in k8s, on a VM, or on the moon (assuming the moon gets hooked up to the world wide web), because it only talks to the running app over the network.
 
+A list of possible adapters (not all implemented at the time of writing)
 - **HTTP version endpoint** — `GET <url>` and select a field (e.g. JSONPath `$.version`).
 - **Prometheus `*_build_info` scrape** — hit `/metrics`, read the `version=` label.
 - **HTTP header probe** — `Server:`, `X-Version`, or other custom headers.
@@ -60,7 +60,7 @@ it only talks to the running app over the network.
 
 ### Tier B — credentialed, opportunistic (only when we happen to have access)
 
-Still observes *reality*, not the manifest, but needs credentials to a platform.
+Still observes *reality*, not the manifest, but does not talk to the application directly necessarily.
 
 - **Kubernetes API** — read the *running* pod's container image tag, or better its image
   **digest** (tags can be mutated; digests cannot).
@@ -103,6 +103,8 @@ The core service (`ApplicationVersionService`) stays oblivious to deployment sub
 only asks "current?" and "latest?" and compares. Each application is configured as simply
 `{ current: { type, ... }, latest: { type, ... } }`, so supporting a new deployment style
 or a new upstream is *one new adapter*, with no change to the core.
+
+### Resulting config shape
 
 ```yaml
 platform-config:
