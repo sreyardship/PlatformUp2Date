@@ -115,8 +115,8 @@ Grafana dashboard on a real cluster, see [`docs/deployment.md`](docs/deployment.
 ## MCP endpoint
 
 The backend exposes a [Model Context Protocol](https://modelcontextprotocol.io/) server
-so an AI agent can ask "which monitored applications are out of date, and how far behind?"
-without any custom integration. It is a third read surface over the same data as `/metrics`
+so an AI agent can ask "which monitored applications are out of date, how far behind,
+and what changed between the versions?" without any custom integration. It is a third read surface over the same data as `/metrics`
 and `GET /api/v1/version` — any MCP-capable host can connect and discover the tools at
 runtime.
 
