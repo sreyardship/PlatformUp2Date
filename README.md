@@ -127,12 +127,18 @@ behind multiple replicas with no session affinity.
 ### Tools
 
 - **`list_outdated_applications(minSeverity?)`** — returns the applications running behind
-  their latest upstream release, each as `{ name, current, latest, outdated, drift }` where
-  `drift` is `PATCH` / `MINOR` / `MAJOR`. The optional `minSeverity` argument
+  their latest upstream release, each as
+  `{ name, current, latest, outdated, drift, changelogUrl, … }` where `drift` is
+  `PATCH` / `MINOR` / `MAJOR`. The optional `minSeverity` argument
   (`PATCH` | `MINOR` | `MAJOR`) filters by how far behind an app is; omit it to get every
   app with any drift.
 - **`get_application(name)`** — returns the status of a single application by exact name,
   or nothing if it isn't monitored.
+
+`changelogUrl` links the release notes of the latest upstream release — if the app has a
+[changelog-link template](docs/configuration.md#changelog-link-templates) configured,
+`null` otherwise — so an agent can read what changed (breaking changes included) before
+starting update work.
 
 The drift verdict is computed server-side by the same tested semver logic that backs the
 metrics gauge, so the caller never has to compare versions itself.
