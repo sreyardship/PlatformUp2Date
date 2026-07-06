@@ -40,7 +40,7 @@ So the definition we hold to is:
 Declared-state inference is allowed only as an explicit, clearly-labeled last resort
 (see Tier C), and the UI should distinguish an *observed* reading from a *declared* guess
 so a green card from a real version endpoint is never conflated with a green card from a
-repo pin. Keep this is mind if we ever implement a tier C Adapter.
+repo pin. Keep this in mind if we ever implement a Tier C adapter.
 
 ## Tiers of "current" probes (ordered by required access)
 
@@ -60,7 +60,7 @@ A list of possible adapters (not all implemented at the time of writing)
 
 ### Tier B — credentialed, opportunistic (only when we happen to have access)
 
-Still observes *reality*, not the manifest, but does not talk to the application directly necessarily.
+Still observes *reality*, not the manifest, but does not necessarily talk to the application directly.
 
 - **Kubernetes API** — read the *running* pod's container image tag, or better its image
   **digest** (tags can be mutated; digests cannot).

@@ -102,10 +102,10 @@ I believe in you! You can figure it out, gambare!
 
 ## Grafana dashboard
 
-A default dashboard ships in this repo at [`grafana/platform-up-2-date.json`](../grafana/platform-up-2-date.json)
-It's deliberately a, as close as possible, replica of the frontend. For many 
-running a full prometheus/grafana monitoring stack, it might make sense
-to _not_ deploy the frontend, altough it's quite pretty imo.
+A default dashboard ships in this repo at [`grafana/platform-up-2-date.json`](../grafana/platform-up-2-date.json).
+It's deliberately as close a replica of the frontend as possible. If you already
+run a full Prometheus/Grafana monitoring stack, it might make sense to _not_
+deploy the frontend — although it's quite pretty imo.
 
 ## Container images
 

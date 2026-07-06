@@ -94,18 +94,16 @@ pu2d_version_drift_level{app="argo-cd"} 3
 pu2d_version_drift_level{app="git-tea"} 0
 ```
 
-One gauge answers both questions: whether an app is outdated, and how far behind it is.
-The value encodes the highest-significance semver difference between the deployed and
-latest version — `0` current, `1` patch behind, `2` minor behind, `3` major behind.
-(Pre-release differences report as `1`; a difference in build metadata only
-is ignored and reports as `0`.) `pu2d_application_info` carries the actual
-current/latest version strings and covers every configured app, including
+One gauge answers both questions: whether an app is outdated, and how far behind it
+is — the value is the highest-significance semver difference between the deployed and
+latest version. Two caveats: pre-release differences report as `1`, and a difference
+in build metadata only is ignored and reports as `0`. `pu2d_application_info` carries
+the actual current/latest version strings and covers every configured app, including
 ones that haven't resolved yet.
 
-For more detail than the gauge carries (the actual current/latest version strings),
-use the frontend or the `GET /api/v1/version` endpoint. For scraping setup, alert
-rules, and the bundled Grafana dashboard on a real cluster, see
-[`docs/deployment.md`](docs/deployment.md).
+For more detail than the gauges carry, use the frontend or the
+`GET /api/v1/version` endpoint. For scraping setup, alert rules, and the bundled
+Grafana dashboard on a real cluster, see [`docs/deployment.md`](docs/deployment.md).
 
 ## MCP endpoint
 

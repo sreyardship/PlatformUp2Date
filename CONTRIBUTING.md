@@ -118,9 +118,9 @@ exactly what runs.
   implementations, or controllers belong under `adapters/`, driven through
   a port interface defined in `core/`.
 
-Note: CONTEXT.md and ADRs are mostly here so AI-agents can easily generate
-pretty decent code right of the bat. The fact that we humans also get 
-these things documented are a bonus.
+Note: CONTEXT.md and ADRs are mostly here so AI agents can easily generate
+pretty decent code right off the bat. The fact that we humans also get
+these things documented is a bonus.
 
 ## Getting started
 
@@ -130,19 +130,19 @@ principles behind the version-source model. Then enter the dev shell,
 build from source (above), make your change, and open a pull request.
 
 ## AI usage
-AI is fine, AI slop is not. 
+AI is fine, AI slop is not.
 
-It just comes down to the fact that you need to understand the code the AI generates. I judge it as any other code, but if the PR is too large it might take a while before I get around to it. 
+It just comes down to the fact that you need to understand the code the AI generates. I judge it as any other code, but if the PR is too large it might take a while before I get around to it.
 
-Lets pray this project stays small enough that PRs can stay open. (Most likely it will, so I'm most likely writing to myself here)
+Let's pray this project stays small enough that PRs can stay open. (Most likely it will, so I'm most likely writing to myself here)
 
 ## Testing
-All features should be tested. 
+All features should be tested.
 
 - Unit tests
 - Integration tests
 - No need for 100% code coverage
-- No testing private methods by making them public (I rather not even have the test then in the end, okay to use while you develop).
+- No testing private methods by making them public (I'd rather not have the test at all in that case — fine to use while you develop).
 
 If you're worried about where you should put the tests, reference the testing pyramid... and the code.
 
