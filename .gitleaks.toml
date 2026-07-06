@@ -19,4 +19,9 @@ paths = [
   # Self-signed localhost keystore for WireMock TLS tests — no real credential.
   # Matches the source fixture and its copies in Gradle build output.
   '''tls/wiremock-localhost\.p12''',
+  # Historical Tekton-era SealedSecrets (Bitnami-encrypted, decryptable only by
+  # the retired cluster's controller — not plaintext credentials). The ci/
+  # directory is deleted at HEAD; these remain in published history, which the
+  # migration accepted as-is after a manual secret review.
+  '''ci/secrets/.*\.yaml''',
 ]
