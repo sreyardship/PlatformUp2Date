@@ -22,7 +22,7 @@ can ask what's outdated and read the changelogs while helping you upgrade.
 
 ![The board: every monitored app with its current and latest version, color-coded by drift status](docs/img/board.png)
 
-## Quick start (no toolchain required)
+## Quick taste (no toolchain required)
 
 All you need is Docker. This pulls the published images from GHCR instead of
 building anything locally:
@@ -54,11 +54,6 @@ without any credentials — see
 [`docs/samples/platform-config.yaml`](docs/samples/platform-config.yaml) for
 the exact config, and [`docs/configuration.md`](docs/configuration.md) for
 every source type and config key available for your own apps.
-
-`compose.quickstart.yml` uses `image:` (the published `:edge` tag off
-`main`); pin a release tag instead for something more stable. It also runs a
-throwaway Valkey container, since all scrape state lives there rather than in
-the JVM.
 
 ## Build from source
 
