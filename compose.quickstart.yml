@@ -18,7 +18,7 @@ services:
     restart: unless-stopped
 
   backend:
-    image: ghcr.io/sreyardship/platformup2date/backend:edge
+    image: ghcr.io/sreyardship/platformup2date/backend:0.0.48
     restart: unless-stopped
     environment:
       QUARKUS_REDIS_HOSTS: redis://valkey:6379
@@ -30,18 +30,22 @@ services:
     volumes:
       - ./docs/samples/platform-config.yaml:/config/platform-config.yaml:ro
     ports:
-      - '8080:8080'
+      - "8080:8080"
     depends_on:
       - valkey
 
   frontend:
-    image: ghcr.io/sreyardship/platformup2date/frontend:edge
+    image: ghcr.io/sreyardship/platformup2date/frontend:0.0.46
     restart: unless-stopped
     environment:
       # Injected into window._env_ at container start (docker-entrypoint.d/40-env-config.sh),
-      # not baked in at build time.
-      API_BASE_URL: http://localhost:8080
+      # not baked in at build time. Empty = same-origin, proxied to the
+      # backend via nginx.quickstart.conf below (mirrors the ingress setup
+      # used in production, avoiding a cross-origin call from the browser).
+      API_BASE_URL: ""
+    volumes:
+      - ./frontend/nginx.quickstart.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
-      - '3000:80'
+      - "3000:80"
     depends_on:
       - backend
