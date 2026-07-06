@@ -4,14 +4,6 @@
 interval, the manual-scrape budgets, and the list of monitored Applications,
 each pairing a `current` version source with a `latest` version source.
 
-This page is derived directly from the code that binds and validates it —
-`ApplicationConfigLoader` (the `@ConfigMapping` interface SmallRye Config binds
-`platform-config` onto) and the per-source-kind factory that validates its own
-fragment at startup. Every key below was found by reading every getter on
-`ApplicationConfigLoader.VersionSource`/`AppConfig`/`Auth` and cross-checking
-it against the one factory that actually reads it, so this list only contains
-keys the loader binds and at least one source consumes.
-
 For a runnable, minimal example, see `docs/samples/platform-config.yaml` (used
 by the README quick start).
 

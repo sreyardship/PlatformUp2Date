@@ -130,9 +130,9 @@ carries), use the frontend or `GET /api/v1/version`.
 
 A default dashboard ships in this repo at [`grafana/platform-up-2-date.json`](../grafana/platform-up-2-date.json)
 (UID `pu2d-version-drift`, title "Application Version Drift"). It's
-deliberately a single panel: a stat grid with one color-coded tile per
-application (green/yellow/orange/red for 0/1/2/3 drift), driven by
-`max by(app) (pu2d_version_drift_level)`.
+deliberately a, as close as possible, replica of the frontend. For many 
+running a full prometheus/grafana monitoring stack, it might make sense
+to _not_ deploy the frontend, altough it's quite pretty imo.
 
 The `pu2d_application_info` and scrape-timestamp metric families (see above)
 aren't visualized in the shipped dashboard — build panels/tables against
