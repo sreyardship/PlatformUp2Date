@@ -162,7 +162,7 @@ enforces access, exactly like the `/metrics` endpoint. Do not expose it directly
 untrusted network: it enumerates your infrastructure's version drift, which is useful recon
 for an attacker.
 
-A common setup is [`oauth2-proxy`](https://oauth2-proxy.github.io/oauth2-proxy/) in front of
+A setup the author uses is [`oauth2-proxy`](https://oauth2-proxy.github.io/oauth2-proxy/) in front of
 `/api/mcp`, configured to accept bearer JWTs from your OIDC issuer:
 
 ```
