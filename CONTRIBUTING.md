@@ -1,15 +1,38 @@
 # Contributing to PlatformUp2Date
 
 Thanks for taking a look. This document covers the things a drive-by
-contributor can't guess from the code alone: how to build and test each
-half of the stack, what the merge gate expects, and the conventions the
-codebase follows.
+contributor can't guess from the code alone: how to get a working
+toolchain, how to build and test each half of the stack, what the merge
+gate expects, and the conventions the codebase follows.
+
+## Dev environment
+
+The recommended way to get a toolchain is the Nix flake in
+`project-environment/`:
+
+```bash
+nix develop ./project-environment
+```
+
+If you use [direnv](https://direnv.net/), a `.envrc` is checked in that
+loads the same flake — run `direnv allow` once and the shell activates
+automatically whenever you enter the repo.
+
+One command gets you everything the project needs, pinned to the same
+versions CI uses: Gradle 8.14.4 on Java 21, the Quarkus CLI, GraalVM CE
+(with `GRAALVM_HOME` exported) for native builds, `yarn` and Node.js for
+the frontend, and a native `valkey` binary so integration tests can run
+without Docker.
+
+If you'd rather not use Nix, install the toolchain yourself: Gradle
+**8.14.4** on Java 21, yarn + Node.js, and — only if you're doing native
+builds — GraalVM CE with `GRAALVM_HOME` set. Match the CI versions in
+`.github/workflows/pr.yml` if you want your local runs to behave the same
+as the pipeline. Note there is no Gradle wrapper checked in.
 
 ## Backend (Quarkus + Gradle, Java 21)
 
-The backend is a Quarkus 3.33.2 application on Java 21. There is no Gradle
-wrapper checked in — install Gradle yourself (CI uses **8.14.4**; match that
-if you want your local runs to behave the same as the pipeline).
+The backend is a Quarkus 3.33.2 application on Java 21.
 
 ```bash
 cd backend
@@ -19,19 +42,18 @@ gradle build        # build the JAR
 ```
 
 `gradle test` includes integration tests (e.g. `ValkeyScrapeStateStoreIT`)
-that lean on Quarkus Dev Services — they need Docker on your machine to spin
-up a throwaway Valkey container automatically; no manual service setup
-required.
+that lean on Quarkus Dev Services to provide a throwaway Valkey instance.
+With Docker available, Dev Services spins up a container automatically;
+inside the Nix dev shell you also have a native `valkey` binary, so the
+tests can run against a locally started Valkey without Docker (this is how
+CI runs them).
 
 ### Native build
 
-The shipped image is a GraalVM native binary, not the JVM jar. To build and
-exercise it locally you need a GraalVM install — the easiest path is the Nix
-flake in `project-environment/`, which pins GraalVM CE 25 (JDK 25) and
-exports `GRAALVM_HOME` for you:
+The shipped image is a GraalVM native binary, not the JVM jar. Inside the
+dev shell, GraalVM and `GRAALVM_HOME` are already set up:
 
 ```bash
-nix develop ./project-environment
 cd backend
 gradle build quarkusIntTest \
   -Dquarkus.native.enabled=true \
@@ -39,11 +61,10 @@ gradle build quarkusIntTest \
   -x test
 ```
 
-If you'd rather not use Nix, install GraalVM CE 25 directly and set
-`GRAALVM_HOME` yourself; the command above is otherwise unchanged. See
-`.github/workflows/pr.yml` for the exact toolchain versions and flags CI
-uses — keep local native builds consistent with it if something doesn't
-match.
+Outside the dev shell, install GraalVM CE and set `GRAALVM_HOME` yourself;
+the command above is otherwise unchanged. See `.github/workflows/pr.yml`
+for the exact toolchain versions and flags CI uses — keep local native
+builds consistent with it if something doesn't match.
 
 ## Frontend (Vite + Vitest)
 
@@ -97,9 +118,32 @@ exactly what runs.
   implementations, or controllers belong under `adapters/`, driven through
   a port interface defined in `core/`.
 
+Note: CONTEXT.md and ADRs are mostly here so AI-agents can easily generate
+pretty decent code right of the bat. The fact that we humans also get 
+these things documented are a bonus.
+
 ## Getting started
 
 Read the [README](README.md) for the quick start and an overview of what
 the project does, and [`ARCHITECTURE.md`](ARCHITECTURE.md) for the design
-principles behind the version-source model. Then build from source (above),
-make your change, and open a pull request.
+principles behind the version-source model. Then enter the dev shell,
+build from source (above), make your change, and open a pull request.
+
+## AI usage
+AI is fine, AI slop is not. 
+
+It just comes down to the fact that you need to understand the code the AI generates. I judge it as any other code, but if the PR is too large it might take a while before I get around to it. 
+
+Lets pray this project stays small enough that PRs can stay open. (Most likely it will, so I'm most likely writing to myself here)
+
+## Testing
+All features should be tested. 
+
+- Unit tests
+- Integration tests
+- No need for 100% code coverage
+- No testing private methods by making them public (I rather not even have the test then in the end, okay to use while you develop).
+
+If you're worried about where you should put the tests, reference the testing pyramid... and the code.
+
+If I'm having a good day I might even engage in a philosophical testing discussion.
