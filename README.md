@@ -72,9 +72,10 @@ Then go to [localhost:3000](http://localhost:3000).
 
 - [`docs/configuration.md`](docs/configuration.md) — every version-source
   type, every config key, version schemes, changelog-link templates.
-- [`docs/deployment.md`](docs/deployment.md) — running this on your own
-  Kubernetes cluster: Valkey, RBAC for the `k8s-image` source, Prometheus
-  scraping, alert rules, the Grafana dashboard.
+- [`docs/deployment.md`](docs/deployment.md) — running this for real:
+  Kubernetes (the primary target, though any OCI runtime works), HA and
+  replicas, Valkey, RBAC for the `k8s-image` source, Prometheus scraping,
+  alert rules, the Grafana dashboard.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — the design principles behind the
   substrate-agnostic version-source model.
 - [`CONTEXT.md`](CONTEXT.md) — glossary of project-specific terms.

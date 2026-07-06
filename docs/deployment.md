@@ -3,6 +3,20 @@
 The README's quick start (`compose.quickstart.yml`) is for trying the tool out
 locally. This page is for running it for real, on your own cluster.
 
+Kubernetes is the primary deployment target — it's where the tool is developed
+and run — but nothing requires it: both images are plain OCI images that run on
+any OCI-compatible runtime (Docker, Podman, containerd), as the compose
+quickstart shows. The one Kubernetes-only piece is the `k8s-image` current
+source, which reads workloads from the Kubernetes API and auto-configures
+in-cluster.
+
+The backend is designed to run highly available. All scrape state lives in
+Valkey and every surface — REST, frontend, metrics, MCP — is a stateless
+projection of it, so replicas are interchangeable: run as many as you like
+with no session affinity, and a scrape on any replica updates what all of
+them serve (see [`docs/adr/0003`](adr/0003-scrape-state-centralised-in-valkey.md)
+and [`docs/adr/0004`](adr/0004-mcp-transport-stateless-for-ha.md)).
+
 ## What the backend needs
 
 - **A reachable Valkey (or Redis-API-compatible) instance.** All scrape state —
