@@ -7,8 +7,7 @@ locally. This page is for running it for real, on your own cluster.
 
 - **A reachable Valkey (or Redis-API-compatible) instance.** All scrape state —
   the observed Applications, the fleet-wide staleness clock, and the manual-scrape
-  budgets — lives centrally in Valkey, not in the JVM
-  (ADR [0003](adr/0003-scrape-state-centralised-in-valkey.md)). This makes every
+  budgets — lives centrally in Valkey, not in the JVM. This makes every
   replica serve the same snapshot, but it is a hard dependency: if Valkey is
   unreachable, reads and scrape triggers fail closed (503) rather than falling
   back to a per-instance cache. Point the backend at it with
