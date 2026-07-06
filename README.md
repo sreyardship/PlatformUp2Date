@@ -34,7 +34,7 @@ docker compose -f compose.quickstart.yml up
 ```
 
 Then open [localhost:3000](http://localhost:3000). Within a few seconds you
-should see two cards:
+should see two application rows:
 
 - **mastodon** — `current` is read from the public
   [chaos.social](https://chaos.social) instance's API (a genuinely observed
