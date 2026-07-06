@@ -78,7 +78,9 @@ families are exported:
 - `pu2d_version_drift_level` — how far the deployed version is behind latest
   (`0`=current, `1`=patch, `2`=minor, `3`=major; a pre-release difference
   reports as `1`, while a difference in build metadata only is ignored and
-  reports as `0`).
+  reports as `0`). Calver apps grade by the category of the changed token:
+  year → `3`, month/week/day → `2`, micro/modifier → `1` (see
+  [`configuration.md`](configuration.md#calver-format)).
 - `pu2d_scrape_last_success_timestamp_seconds` — per-(app, side) freshness.
 - `pu2d_scrape_last_failure_timestamp_seconds` — per-(app, side) failures.
 

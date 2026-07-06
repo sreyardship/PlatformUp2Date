@@ -84,8 +84,7 @@ Then go to [localhost:3000](http://localhost:3000).
 
 ## Metrics & Alerting
 
-The backend exposes a Prometheus scrape endpoint at `/metrics`, hand-rendered in the
-Prometheus text exposition format (no Micrometer). Four metric families are exported:
+The backend exposes a Prometheus scrape endpoint at `/metrics`. Four metric families are exported:
 `pu2d_version_drift_level`, `pu2d_application_info`, `pu2d_scrape_last_success_timestamp_seconds`,
 and `pu2d_scrape_last_failure_timestamp_seconds` — see [`docs/deployment.md`](docs/deployment.md#metrics)
 for the full list. The core one for version monitoring is a gauge:
@@ -98,11 +97,14 @@ pu2d_version_drift_level{app="git-tea"} 0
 ```
 
 One gauge answers both questions: whether an app is outdated, and how far behind it
-is — the value is the highest-significance semver difference between the deployed and
-latest version. Two caveats: pre-release differences report as `1`, and a difference
-in build metadata only is ignored and reports as `0`. `pu2d_application_info` carries
-the actual current/latest version strings and covers every configured app, including
-ones that haven't resolved yet.
+is — the value is the highest-significance difference between the deployed and latest
+version. For semver that's the changed component; two caveats: pre-release differences
+report as `1`, and a difference in build metadata only is ignored and reports as `0`.
+Calver apps (e.g. Ubuntu's `24.04`) report on the same scale, graded by what the
+changed token *means*: a changed year is `3`, month/week/day `2`, micro/modifier `1` —
+see [`docs/configuration.md`](docs/configuration.md#calver-format). `pu2d_application_info`
+carries the actual current/latest version strings and covers every configured app,
+including ones that haven't resolved yet.
 
 For more detail than the gauges carry, use the frontend or the
 `GET /api/v1/version` endpoint. For scraping setup, alert rules, and the bundled
