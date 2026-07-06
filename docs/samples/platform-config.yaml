@@ -1,0 +1,44 @@
+# Sample platform-config for the README quick start (compose.quickstart.yml).
+#
+# Monitors two real, public applications that need no credentials on either side —
+# see docs/configuration.md for the full config reference this shape is drawn from.
+#
+# The two apps are chosen so the board usually shows both outcomes at once:
+#
+# - mastodon: current is read from the public chaos.social instance's API (a
+#   genuine Tier A "observed running state" read — /api/v1/instance reports a
+#   top-level "version", so the default /version key just works); latest comes
+#   from GitHub Releases. chaos.social upgrades conservatively, so this card is
+#   usually BEHIND (red/orange) — a live demonstration of drift detection.
+# - gitea: current is read from the public gitea.com SaaS instance's version API
+#   (the same /api/v1/version shape Gitea exposes anywhere it runs); latest comes
+#   from Gitea's official Docker Hub image tags via the oci-registry source, so
+#   the two sample apps deliberately exercise different "latest" flavors
+#   (github-release vs. oci-registry). gitea.com tracks upstream closely, so
+#   this card is usually GREEN.
+platform-config:
+  scrape-interval: 1h
+  # Optional GitHub token for the github-release leg (raises the anonymous
+  # 60 req/hr limit to 5,000). SmallRye expansion: an unset GITHUB_TOKEN
+  # resolves to empty/absent — no startup error, unauthenticated as before.
+  github:
+    token: ${GITHUB_TOKEN:}
+  apps:
+    - name: mastodon
+      changelog-url: https://github.com/mastodon/mastodon/releases/tag/v{version}
+      current:
+        type: http
+        url: https://chaos.social/api/v1/instance
+      latest:
+        type: github-release
+        repo: mastodon/mastodon
+
+    - name: gitea
+      changelog-url: https://github.com/go-gitea/gitea/releases/tag/v{version}
+      current:
+        type: http
+        url: https://gitea.com/api/v1/version
+      latest:
+        type: oci-registry
+        registry: registry-1.docker.io
+        repo: gitea/gitea

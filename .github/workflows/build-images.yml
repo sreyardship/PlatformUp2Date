@@ -1,0 +1,184 @@
+name: Build and publish images
+
+# Shared build definition for both publish triggers (edge on push-to-main,
+# release on v* tags — see edge.yml / release.yml). A reusable workflow
+# (workflow_call), not a composite action, because:
+#   - it needs two independent jobs (backend, frontend) with different
+#     toolchains and runtimes, each with its own `permissions:`; a composite
+#     action is a single flat step sequence and cannot declare permissions or
+#     split into parallel jobs.
+#   - callers only need to vary the docker/metadata-action tag rules
+#     (edge vs semver), passed as a single input, so the two call sites stay
+#     tiny and cannot drift apart on the actual build/push mechanics.
+on:
+  workflow_call:
+    inputs:
+      tags-config:
+        description: >
+          docker/metadata-action `tags:` input (newline-separated patterns),
+          identical for both images so backend and frontend are always
+          tagged in lockstep.
+        required: true
+        type: string
+
+jobs:
+  # Backend: GraalVM NATIVE image. The old Tekton production path built the
+  # native binary in the project's Nix devshell and packaged it with
+  # Dockerfile.native-ci (see git history on that file: "fix(backend): now we
+  # patch the ld paths in dockerfile" / "ci bump" commits) — patchelf resets
+  # the ELF interpreter/RUNPATH because a Nix-built binary points at
+  # /nix/store paths that don't exist in the UBI9 micro runtime.
+  #
+  # GitHub Actions does not build in the Nix devshell (pr.yml's native job
+  # uses graalvm/setup-graalvm@v1, matching the toolchain split documented
+  # there), so the Nix-path problem this Dockerfile's patcher stage exists
+  # for does not apply here — the patchelf step is a harmless no-op against a
+  # standard-interpreter binary (it resets the interpreter to the same
+  # standard glibc loader path and drops an RPATH that isn't set). We still
+  # reuse this Dockerfile unmodified rather than Dockerfile.native /
+  # .native-micro because:
+  #   - it is the only one of the four docker/ files that has been touched
+  #     since the default Quarkus scaffold (Mar 1) — the other three are
+  #     untouched generated stubs — i.e. it is the file this project actually
+  #     ran in CI.
+  #   - it already expects the CI build-dir convention (`build-native/`, via
+  #     Gradle's `customBuildDir` property, see build.gradle) that
+  #     backend/.dockerignore already whitelists
+  #     (`!build-native/*-runner`) — confirmed by running
+  #     `gradle help -PcustomBuildDir=build-native` locally, which redirects
+  #     the Gradle build directory as expected.
+  #   - its UBI9 base (glibc 2.34) is the newest glibc of the four options,
+  #     which is the closest available match to a binary compiled directly
+  #     on a GitHub-hosted runner.
+  #
+  # KNOWN OPEN RISK (flag for first live run, see NOTES.md): native-image
+  # links against the *build host's* system glibc when not using
+  # `quarkus.native.container-build`, which this job deliberately does not
+  # use (per the "identical toolchain split as pr.yml" constraint — the
+  # native binary must be built exactly once and fed into both the native
+  # ITs upstream and this docker build, never recompiled). If `ubuntu-latest`
+  # ships a newer glibc than UBI9's 2.34 at the time this runs for real, the
+  # packaged binary will fail to start ("GLIBC_x.xx not found"). There is no
+  # way to prove this from a sandbox without GitHub-hosted runners; treat the
+  # first edge publish as the real test of this Dockerfile choice and be
+  # ready to switch to `quarkus.native.container-build=true` with a pinned
+  # builder image if it fails.
+  backend:
+    name: backend image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Same split as pr.yml's native job: GraalVM CE 25 provides
+      # native-image (via GRAALVM_HOME, which Quarkus prefers over
+      # JAVA_HOME); Gradle 8.14.x cannot launch on JDK 25, so JDK 21 is set
+      # up afterwards and wins JAVA_HOME/PATH for the Gradle launcher.
+      - name: Set up GraalVM CE 25 (native-image toolchain)
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm-community'
+          set-java-home: 'false'
+
+      - name: Set up JDK 21 (Gradle launcher)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.4'
+
+      # Built once here; the native ITs that gate this exact binary already
+      # ran in the `native` job on `main` before this push landed (pr.yml),
+      # so this job does not repeat them — it only compiles once more.
+      # -PcustomBuildDir=build-native routes the output to the path
+      # Dockerfile.native-ci's build context expects
+      # (backend/.dockerignore whitelists build-native/*-runner).
+      - name: Native build (backend)
+        working-directory: backend
+        run: >
+          gradle --no-daemon build
+          -Dquarkus.native.enabled=true
+          -Dquarkus.package.jar.enabled=false
+          -x test
+          -PcustomBuildDir=build-native
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/sreyardship/platformup2date/backend
+          tags: ${{ inputs.tags-config }}
+          labels: |
+            org.opencontainers.image.licenses=Apache-2.0
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/src/main/docker/Dockerfile.native-ci
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  # Frontend: static assets served by nginx; runtime config (API_BASE_URL) is
+  # injected by docker-entrypoint.d/40-env-config.sh at container start, not
+  # baked in at build time (see frontend/nginx.conf +
+  # docker-entrypoint.d/40-env-config.sh — no REACT_APP_BASE_URL/VITE_* build
+  # arg is consumed by frontend/Dockerfile), so no --build-arg is needed here.
+  frontend:
+    name: frontend image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/sreyardship/platformup2date/frontend
+          tags: ${{ inputs.tags-config }}
+          labels: |
+            org.opencontainers.image.licenses=Apache-2.0
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

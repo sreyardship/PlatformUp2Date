@@ -25,12 +25,12 @@ gradle test                 # Run all tests
 gradle test --tests '*VersionTests'  # Run a single test class
 ```
 
-### Frontend (React + Yarn)
+### Frontend (Vite + Yarn)
 ```bash
 cd frontend
 yarn install
-yarn start    # Dev server on localhost:3000
-yarn test     # Run tests (Jest)
+yarn dev      # Dev server on localhost:3000
+yarn test     # Run tests (Vitest)
 yarn build    # Production build
 ```
 
@@ -40,7 +40,7 @@ yarn build    # Production build
 The API is code-first: the JAX-RS controllers (e.g., `VersionController`) are the source of truth. The `quarkus-smallrye-openapi` extension generates the OpenAPI spec from them at runtime, served at `/q/openapi` (with Swagger UI available in dev mode). See `docs/adr/0020-api-is-code-first.md` for the rationale.
 
 ### Backend — Hexagonal Architecture
-The backend is a Quarkus 3.10.1 (Java 21) application structured as ports & adapters:
+The backend is a Quarkus 3.33.2 (Java 21) application structured as ports & adapters:
 
 - **`core/ports/in/`** — Use case interfaces (e.g., `ApplicationVersionPort`)
 - **`core/ports/out/`** — Repository interfaces (e.g., `VersionRepository`)
@@ -52,7 +52,7 @@ The backend is a Quarkus 3.10.1 (Java 21) application structured as ports & adap
 Application monitoring targets are configured in `backend/src/main/resources/application.yml`.
 
 ### Frontend — React
-Create React App with Material-UI. Component flow: `App` (data fetching) → `Display` (container) → `VersionList` → `Version` (card with color-coded status). API calls go through a centralized Axios client in `src/api/` configured via `REACT_APP_BASE_URL` env var.
+Vite + React with Material-UI. Component flow: `App` (data fetching) → `Display` (container) → `VersionList` → `Version` (card with color-coded status). API calls go through a centralized Axios client in `src/api/` configured via the runtime `window._env_.API_BASE_URL` value.
 
 ## Dev Environment
 

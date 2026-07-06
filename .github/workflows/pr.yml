@@ -1,0 +1,119 @@
+name: PR checks
+
+on:
+  pull_request:
+
+# Cancel a still-running check set when the PR gets a new push; only the latest
+# commit on a given PR needs to hold up the merge gate.
+concurrency:
+  group: pr-checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Read-only by default. Fork PRs get the restricted, read-only default token
+# automatically; this workflow never escalates that, and it never runs as
+# pull_request_target, so it never sees a write-capable token or repo secrets.
+permissions:
+  contents: read
+
+jobs:
+  # Unit + JVM integration tests (backend) and the frontend test suite. The
+  # Valkey-backed integration tests (e.g. ValkeyScrapeStateStoreIT) use Quarkus
+  # Dev Services: GitHub-hosted runners ship Docker, so `quarkus-redis-client`
+  # auto-starts a throwaway Valkey container for the test JVM with no
+  # `quarkus.redis.hosts` override and no explicit service block needed here.
+  fast:
+    name: fast
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.4'
+
+      - name: Backend unit + integration tests
+        working-directory: backend
+        run: gradle --no-daemon test
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: yarn install --frozen-lockfile
+
+      - name: Frontend tests
+        working-directory: frontend
+        run: yarn test
+
+  # The GraalVM native build plus the native @QuarkusIntegrationTest suite
+  # (SshOsReleaseResourceIT et al. — see docs/adr/0025). `quarkusIntTest` boots
+  # the freshly built native binary and exercises it over HTTP, so this job
+  # gates on native-image regressions the JVM-mode `fast` job cannot see.
+  native:
+    name: native
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # GraalVM CE 25 matches the toolchain that builds the shipped native
+      # image: project-environment/flake.nix pins `graalvmPackages.graalvm-ce`
+      # (currently 25.0.0, i.e. JDK 25) and exports it as GRAALVM_HOME, and
+      # Dockerfile.native-ci packages the binary built in that devshell. The
+      # *bytecode* still targets 21 (build.gradle sourceCompatibility) — a
+      # different axis from the native-image toolchain major.
+      #
+      # set-java-home: 'false' keeps JAVA_HOME free for the JDK 21 below:
+      # Gradle 8.14.x cannot run ON JDK 25 (that needs Gradle 9.1+), so Gradle
+      # runs on 21 while Quarkus picks up native-image from GRAALVM_HOME,
+      # which it prefers over JAVA_HOME — the same split the devshell uses.
+      - name: Set up GraalVM CE 25 (native-image toolchain)
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm-community'
+          set-java-home: 'false'
+
+      # Must run AFTER setup-graalvm so this JAVA_HOME (and PATH `java`) wins
+      # for the Gradle launcher and test-harness JVMs.
+      - name: Set up JDK 21 (Gradle launcher)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.4'
+
+      # `quarkusIntTest` runs the @QuarkusIntegrationTest suite (e.g.
+      # SshOsReleaseResourceIT, docs/adr/0025) against the artifact `build`
+      # just produced — with -Dquarkus.native.enabled=true that is the native
+      # binary, so native-image regressions fail this job, not the release.
+      # -Dquarkus.package.jar.enabled=false skips packaging the redundant JVM
+      # jar; -x test skips the JVM unit/integration suite the `fast` job owns.
+      # Valkey comes from Quarkus Dev Services (this runner has Docker), for
+      # the native binary's boot just as for `fast`'s test JVM.
+      - name: Native build + native integration tests
+        working-directory: backend
+        run: >
+          gradle --no-daemon build quarkusIntTest
+          -Dquarkus.native.enabled=true
+          -Dquarkus.package.jar.enabled=false
+          -x test

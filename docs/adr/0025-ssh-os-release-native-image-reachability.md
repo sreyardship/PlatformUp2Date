@@ -99,7 +99,7 @@ with a reflection/`NoSuchMethodException`):
      src/main/resources/META-INF/native-image/org.yardship/platform-up-2-date/
    ```
 
-3. Rebuild native and run the guard (`ci/bin/build-native.sh`, or the equivalent
-   `gradle ... -Dquarkus.native.enabled=true build quarkusIntTest`). Iterate on any
-   remaining `--initialize-at-run-time` needs (see `quarkus.native.additional-build-args`)
-   until `SshOsReleaseResourceIT` is green in native.
+3. Rebuild native and run the guard (`gradle ... -Dquarkus.native.enabled=true build
+   quarkusIntTest`). Iterate on any remaining `--initialize-at-run-time` needs (see
+   `quarkus.native.additional-build-args`) until `SshOsReleaseResourceIT` is green in
+   native.

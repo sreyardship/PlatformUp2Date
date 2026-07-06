@@ -1,0 +1,22 @@
+title = "PlatformUp2Date gitleaks config"
+
+# Extend gitleaks' built-in rule set rather than replacing it.
+[extend]
+useDefault = true
+
+# The ssh-os-release current source is exercised against real ed25519 keypairs
+# generated purely for tests (ssh-keygen, comment embedded-test-server /
+# embedded-test-client) — see docs/adr/0025-ssh-os-release-native-image-reachability.md.
+# They are throwaway fixtures, never used outside these test classes, but they
+# match the OpenSSH private-key pattern and would otherwise flag on every scan.
+[allowlist]
+description = "Embedded ed25519 test keys for the ssh-os-release current source"
+paths = [
+  '''backend/src/integrationTest/java/org/yardship/it/SshOsReleaseResource\.java''',
+  '''backend/src/test/java/org/yardship/integration/adapters/out/versionsource/current/ssh/SshOsReleaseCurrentSourceIT\.java''',
+  '''backend/src/test/java/org/yardship/unit/adapters/out/versionsource/current/ssh/SshOsReleaseCurrentSourceTests\.java''',
+  '''backend/src/test/java/org/yardship/unit/adapters/out/versionsource/current/ssh/SshOsReleaseCurrentSourceFactoryTests\.java''',
+  # Self-signed localhost keystore for WireMock TLS tests — no real credential.
+  # Matches the source fixture and its copies in Gradle build output.
+  '''tls/wiremock-localhost\.p12''',
+]

@@ -1,0 +1,79 @@
+name: Release
+
+# v* tags publish semver images (:X.Y.Z, :X.Y, :X, :latest) for both images
+# and cut a GitHub Release with auto-generated notes. Reuses build-images.yml
+# so this can never drift from edge.yml's build/push mechanics (05/06 share
+# one build definition).
+#
+# Version consistency: the git tag is the single source of the version.
+# docker/metadata-action's `type=semver` tags derive directly from the pushed
+# tag and it sets `org.opencontainers.image.version` to the parsed version
+# automatically, so the OCI version label always matches the tag with no
+# extra wiring. We deliberately do NOT thread the tag into the Gradle build
+# (`-Pversion=` / `quarkus.application.version`) — build.gradle hardcodes
+# `version '1.0.0-SNAPSHOT'` and overriding that would mean editing a backend
+# build file for a cosmetic value with no external consumer (the app doesn't
+# expose its own version anywhere users would compare it against the image
+# tag). The plan document itself allows this fallback ("if that's
+# disproportionate, at minimum ensure the image OCI version label matches the
+# tag"); the OCI label is sufficient here and keeps this migration free of
+# backend code changes.
+on:
+  push:
+    tags: ['v*']
+
+# Queue near-simultaneous tag pushes instead of racing them; never cancel an
+# in-flight release publish.
+concurrency:
+  group: release-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  images:
+    name: publish images
+    uses: ./.github/workflows/build-images.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      # :latest comes from docker/metadata-action's default flavor
+      # (latest=auto): added for release semver tags, skipped for
+      # prereleases (e.g. v0.9.9-rc.1) — which likewise only get the exact
+      # {{version}} tag, since the {{major}}/{{major}}.{{minor}} patterns
+      # are also auto-skipped on prereleases. So an rc tag can never move
+      # :latest or any rolling tag.
+      tags-config: |
+        type=semver,pattern={{version}}
+        type=semver,pattern={{major}}.{{minor}}
+        type=semver,pattern={{major}}
+
+  github-release:
+    name: github release
+    needs: images
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Only this job gets contents:write, and only for the duration of
+    # creating the release — the image-publishing jobs above stay at
+    # packages:write/contents:read throughout.
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Semver prerelease tags (e.g. v0.9.9-rc.1, used to verify this
+      # workflow per issue 06 before the real v1.0.0) get flagged as GitHub
+      # prereleases so they don't show up as "Latest release" on the repo.
+      - name: Create GitHub Release with generated notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ github.ref_name }}"
+          prerelease_flag=()
+          if [[ "$tag" == *-* ]]; then
+            prerelease_flag=(--prerelease)
+          fi
+          gh release create "$tag" --generate-notes "${prerelease_flag[@]}"

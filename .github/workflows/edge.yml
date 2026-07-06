@@ -1,0 +1,31 @@
+name: Publish edge images
+
+# Merges to main publish :edge (moving) and :sha-<short> (immutable) tags for
+# both images, per docs/adr/0023 / the migration plan. Reuses build-images.yml
+# so edge and release (release.yml) can never drift on how the images are
+# actually built.
+on:
+  push:
+    branches: [main]
+
+# Don't cancel an in-flight publish for an older main commit just because a
+# newer one landed — each push should still get its own :sha-<short> tag
+# published, unlike the PR checks, which only ever care about the latest.
+concurrency:
+  group: edge-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: publish
+    uses: ./.github/workflows/build-images.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      tags-config: |
+        type=raw,value=edge
+        type=sha,format=short

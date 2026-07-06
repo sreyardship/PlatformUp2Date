@@ -1,0 +1,47 @@
+# No-toolchain quick start: pulls the published GHCR images (:edge from main,
+# or pin :latest / a release tag) instead of building locally — no Gradle, no
+# Node, no `docker build`. For contributing to this repo, use `compose.yml`
+# instead, which builds both images from source.
+#
+# Usage:
+#   docker compose -f compose.quickstart.yml up
+#   -> http://localhost:3000
+#
+# The backend needs Valkey (ADR-0003: scrape state is centralised there, not
+# per-replica) and a set of apps to monitor (ADR-0001), supplied here by the
+# sample config in docs/samples/platform-config.yaml — see docs/configuration.md
+# for the full config reference and docs/deployment.md for a real cluster
+# rollout.
+services:
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+
+  backend:
+    image: ghcr.io/sreyardship/platformup2date/backend:edge
+    restart: unless-stopped
+    environment:
+      QUARKUS_REDIS_HOSTS: redis://valkey:6379
+      QUARKUS_CONFIG_LOCATIONS: /config/platform-config.yaml
+      # Optional: set a GitHub token to raise the github-release leg's rate
+      # limit from 60 to 5,000 req/hr (the anonymous limit is ample for the
+      # sample apps).
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+    volumes:
+      - ./docs/samples/platform-config.yaml:/config/platform-config.yaml:ro
+    ports:
+      - '8080:8080'
+    depends_on:
+      - valkey
+
+  frontend:
+    image: ghcr.io/sreyardship/platformup2date/frontend:edge
+    restart: unless-stopped
+    environment:
+      # Injected into window._env_ at container start (docker-entrypoint.d/40-env-config.sh),
+      # not baked in at build time.
+      API_BASE_URL: http://localhost:8080
+    ports:
+      - '3000:80'
+    depends_on:
+      - backend
