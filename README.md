@@ -1,4 +1,6 @@
-# PlatformUp2Date
+# <img src="frontend/public/logo.svg" alt="PlatformUp2Date logo" width="36"/> PlatformUp2Date
+
+You run and maintain a platform, home cluster or otherwise a collection of application in order to get your work, leisure or archiving going smooth. Only issue that every single app is waaay out of date. Lets change that! 
 
 PlatformUp2Date monitors deployed applications against their latest upstream
 releases and shows, per app, whether it's up-to-date (green) or behind
@@ -8,6 +10,8 @@ a GitOps repo pin (see [`ARCHITECTURE.md`](ARCHITECTURE.md)); "latest" comes
 from an independent upstream source such as GitHub Releases or a container
 registry's tag list. Read [`CONTEXT.md`](CONTEXT.md) for the project's
 vocabulary.
+
+Integrates with Prometheus/Grafana and comes with its own custom Frontend that you can choose to deploy or not :) 
 
 [![edge](https://github.com/sreyardship/PlatformUp2Date/actions/workflows/edge.yml/badge.svg)](https://github.com/sreyardship/PlatformUp2Date/actions/workflows/edge.yml)
 [![release](https://img.shields.io/github/v/release/sreyardship/PlatformUp2Date)](https://github.com/sreyardship/PlatformUp2Date/releases/latest)
