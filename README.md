@@ -1,6 +1,6 @@
-# <img src="frontend/public/logo.svg" alt="PlatformUp2Date logo" width="36"/> PlatformUp2Date
+# <img src="frontend/public/logo.svg" alt="PlatformUp2Date logo" width="36" align="middle"/> PlatformUp2Date
 
-You run and maintain a platform, home cluster or otherwise a collection of application in order to get your work, leisure or archiving going smooth. Only issue that every single app is waaay out of date. Lets change that! 
+You run and maintain a platform, home cluster or otherwise a collection of applications in order to get your work, leisure or archiving going smooth. Only issue that every single app is waaay out of date. Lets change that! 
 
 PlatformUp2Date monitors deployed applications against their latest upstream
 releases and shows, per app, whether it's up-to-date (green) or behind
