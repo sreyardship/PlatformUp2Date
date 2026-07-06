@@ -107,6 +107,8 @@ It's deliberately as close a replica of the frontend as possible. If you already
 run a full Prometheus/Grafana monitoring stack, it might make sense to _not_
 deploy the frontend — although it's quite pretty imo.
 
+![The bundled Grafana dashboard](img/grafana-dashboard.png)
+
 ## Container images
 
 Published to GHCR on every merge to `main` (`:edge`, moving) and on every

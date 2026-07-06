@@ -13,7 +13,7 @@ vocabulary.
 [![release](https://img.shields.io/github/v/release/sreyardship/PlatformUp2Date)](https://github.com/sreyardship/PlatformUp2Date/releases/latest)
 [![license](https://img.shields.io/github/license/sreyardship/PlatformUp2Date)](LICENSE)
 
-<!-- screenshot: the board at localhost:3000, cards color-coded by drift status -->
+![The board: every monitored app with its current and latest version, color-coded by drift status](docs/img/board.png)
 
 ## Quick start (no toolchain required)
 
@@ -104,6 +104,8 @@ ones that haven't resolved yet.
 For more detail than the gauges carry, use the frontend or the
 `GET /api/v1/version` endpoint. For scraping setup, alert rules, and the bundled
 Grafana dashboard on a real cluster, see [`docs/deployment.md`](docs/deployment.md).
+
+![The bundled Grafana dashboard: fleet stats and a per-app drift table](docs/img/grafana-dashboard.png)
 
 ## MCP endpoint
 
