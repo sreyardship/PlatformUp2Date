@@ -38,8 +38,8 @@ drags the MCP path along.
   defaults to `/mcp/sse`. Integration tests must set the path explicitly
   (`setSsePath("/api/mcp/sse")`), which doubles as the regression guard if config
   and tests ever drift apart.
-- The public URL consumers register changes to `…/api/mcp/sse`. Any client
-  already registered against `…/mcp/sse` (e.g. via `claude mcp add`) must
-  re-register. The README and OIDC wrapper scripts are updated to the new path.
+- The public URL consumers register changes to `…/api/mcp/sse`. Any MCP client
+  already registered against `…/mcp/sse` must re-register with the new path.
+  The README and OIDC wrapper scripts are updated to the new path.
 - Should the REST contract ever go `/api/v2`, the MCP endpoint stays put at
   `/api/mcp`; it is not republished alongside the new contract version.

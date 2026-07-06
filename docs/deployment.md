@@ -99,6 +99,10 @@ spec:
 
 ### Example alert rules
 
+Nothing ships in this repo — no `PrometheusRule`, no rules file. The
+snippet below is a starting point to adapt and apply yourself alongside your
+own Prometheus/Alertmanager setup.
+
 ```yaml
 groups:
   - name: platform-up-2-date
@@ -126,21 +130,15 @@ carries), use the frontend or `GET /api/v1/version`.
 ## Grafana dashboard
 
 A default dashboard ships in this repo at [`grafana/platform-up-2-date.json`](../grafana/platform-up-2-date.json)
-(UID `pu2d-version-drift`, title "PlatformUp2Date"). Top to bottom it shows:
+(UID `pu2d-version-drift`, title "Application Version Drift"). It's
+deliberately a single panel: a stat grid with one color-coded tile per
+application (green/yellow/orange/red for 0/1/2/3 drift), driven by
+`max by(app) (pu2d_version_drift_level)`.
 
-1. **Summary row** — Total Apps, Up to Date, Patch/Minor/Major Behind, Unknown
-   (Unresolved apps where a side has never been read), and Failed Scrapes
-   (applications with at least one side whose newest attempt failed).
-2. **Version drift wall** — one color-coded tile per application
-   (green/yellow/orange/red for 0/1/2/3 drift).
-3. **Fleet table** — every configured application with current/latest version
-   strings, drift status, per-side as-of age, and a failed-refresh marker.
-   Unresolved apps render as `Unknown` / `—`, never silently dropped.
-4. **Drift over time** — per-app drift level history as a staircase timeseries
-   (0–3 mapped to OK/Patch/Minor/Major).
-
-The datasource is a template variable (any Prometheus datasource scraping the
-`/metrics` endpoint above works).
+The `pu2d_application_info` and scrape-timestamp metric families (see above)
+aren't visualized in the shipped dashboard — build panels/tables against
+them yourself if you want fleet counts, version strings, or staleness views;
+they're on the same `/metrics` endpoint the drift panel already scrapes.
 
 ### Importing
 

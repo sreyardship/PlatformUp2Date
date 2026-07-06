@@ -79,18 +79,13 @@ Then go to [localhost:3000](http://localhost:3000).
 - [`docs/adr/`](docs/adr/) — architecture decision records for individual
   design choices.
 
-## API
-
-The API is code-first: the JAX-RS controllers are the source of truth, and
-`quarkus-smallrye-openapi` generates an always-accurate OpenAPI spec from them at runtime,
-served at `/q/openapi` (with Swagger UI available in dev mode). See
-[`docs/adr/0020-api-is-code-first.md`](docs/adr/0020-api-is-code-first.md) for why.
-
 ## Metrics & Alerting
 
 The backend exposes a Prometheus scrape endpoint at `/metrics`, hand-rendered in the
-Prometheus text exposition format (no Micrometer). The custom metric for version
-monitoring is a single gauge:
+Prometheus text exposition format (no Micrometer). Four metric families are exported:
+`pu2d_version_drift_level`, `pu2d_application_info`, `pu2d_scrape_last_success_timestamp_seconds`,
+and `pu2d_scrape_last_failure_timestamp_seconds` — see [`docs/deployment.md`](docs/deployment.md#metrics)
+for the full list. The core one for version monitoring is a gauge:
 
 ```
 # HELP pu2d_version_drift_level How far the deployed version is behind latest (0=current, 1=patch, 2=minor, 3=major)
@@ -103,7 +98,9 @@ One gauge answers both questions: whether an app is outdated, and how far behind
 The value encodes the highest-significance semver difference between the deployed and
 latest version — `0` current, `1` patch behind, `2` minor behind, `3` major behind.
 (Pre-release differences report as `1`; a difference in build metadata only
-is ignored and reports as `0`.)
+is ignored and reports as `0`.) `pu2d_application_info` carries the actual
+current/latest version strings and covers every configured app, including
+ones that haven't resolved yet.
 
 For more detail than the gauge carries (the actual current/latest version strings),
 use the frontend or the `GET /api/v1/version` endpoint. For scraping setup, alert
