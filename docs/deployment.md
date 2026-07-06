@@ -98,64 +98,14 @@ spec:
 
 ### Example alert rules
 
-Nothing ships in this repo — no `PrometheusRule`, no rules file. The
-snippet below is a starting point to adapt and apply yourself alongside your
-own Prometheus/Alertmanager setup.
-
-```yaml
-groups:
-  - name: platform-up-2-date
-    rules:
-      - alert: AppOutdated
-        expr: pu2d_version_drift_level > 0
-        for: 1h
-        labels:
-          severity: warning
-        annotations:
-          summary: "{{ $labels.app }} is behind its latest release"
-
-      - alert: AppMajorVersionBehind
-        expr: pu2d_version_drift_level >= 3
-        for: 1h
-        labels:
-          severity: critical
-        annotations:
-          summary: "{{ $labels.app }} is a major version behind latest"
-```
-
-For the actual current/latest version strings (more detail than the gauge
-carries), use the frontend or `GET /api/v1/version`.
+I believe in you! You can figure it out, gambare!
 
 ## Grafana dashboard
 
 A default dashboard ships in this repo at [`grafana/platform-up-2-date.json`](../grafana/platform-up-2-date.json)
-(UID `pu2d-version-drift`, title "Application Version Drift"). It's
-deliberately a, as close as possible, replica of the frontend. For many 
+It's deliberately a, as close as possible, replica of the frontend. For many 
 running a full prometheus/grafana monitoring stack, it might make sense
 to _not_ deploy the frontend, altough it's quite pretty imo.
-
-The `pu2d_application_info` and scrape-timestamp metric families (see above)
-aren't visualized in the shipped dashboard — build panels/tables against
-them yourself if you want fleet counts, version strings, or staleness views;
-they're on the same `/metrics` endpoint the drift panel already scrapes.
-
-### Importing
-
-Via the UI: **Dashboards → New → Import**, upload
-`grafana/platform-up-2-date.json`, pick your Prometheus datasource.
-
-Via file provisioning, point a dashboard provider at a folder containing the
-JSON:
-
-```yaml
-# /etc/grafana/provisioning/dashboards/platformup2date.yaml
-apiVersion: 1
-providers:
-  - name: platformup2date
-    type: file
-    options:
-      path: /var/lib/grafana/dashboards   # folder holding platform-up-2-date.json
-```
 
 ## Container images
 
