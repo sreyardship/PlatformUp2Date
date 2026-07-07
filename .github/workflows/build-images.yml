@@ -103,9 +103,8 @@ jobs:
       # Dockerfile.native-ci's build context expects
       # (backend/.dockerignore whitelists build-native/*-runner).
       - name: Native build (backend)
-        working-directory: backend
         run: >
-          gradle --no-daemon build
+          gradle --no-daemon :backend:build
           -Dquarkus.native.enabled=true
           -Dquarkus.package.jar.enabled=false
           -x test

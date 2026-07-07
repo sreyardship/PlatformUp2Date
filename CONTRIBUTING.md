@@ -32,13 +32,17 @@ as the pipeline. Note there is no Gradle wrapper checked in.
 
 ## Backend (Quarkus + Gradle, Java 21)
 
-The backend is a Quarkus 3.33.2 application on Java 21.
+The backend is a Quarkus 3.33.2 application on Java 21, split into two Gradle
+modules: `:domain` (plain `java-library`, the domain primitives, zero
+Quarkus runtime dependency) and `:backend` (the Quarkus app itself, depends
+on `:domain`). The Gradle root is the repo root — run these from there, not
+from `backend/`.
 
 ```bash
-cd backend
-gradle quarkusDev   # dev mode with live reload, localhost:8080
-gradle test         # unit + JVM integration tests
-gradle build        # build the JAR
+gradle :backend:quarkusDev   # dev mode with live reload, localhost:8080
+gradle :domain:test          # :domain's own unit tests
+gradle :backend:test         # backend unit + JVM integration tests
+gradle :backend:build        # build the JAR
 ```
 
 `gradle test` includes integration tests (e.g. `ValkeyScrapeStateStoreIT`)
@@ -54,8 +58,7 @@ The shipped image is a GraalVM native binary, not the JVM jar. Inside the
 dev shell, GraalVM and `GRAALVM_HOME` are already set up:
 
 ```bash
-cd backend
-gradle build quarkusIntTest \
+gradle :backend:build :backend:quarkusIntTest \
   -Dquarkus.native.enabled=true \
   -Dquarkus.package.jar.enabled=false \
   -x test
@@ -83,7 +86,7 @@ yarn build   # production build
 
 Every pull request must pass **both** required checks before it can merge:
 
-- **`fast`** — backend unit/integration tests (`gradle test`) plus the
+- **`fast`** — backend unit/integration tests (`gradle :domain:test :backend:test`) plus the
   frontend test suite. A few minutes.
 - **`native`** — a full GraalVM native build plus the native integration
   test suite run against the built binary. This is the slow one: expect

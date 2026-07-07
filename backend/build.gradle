@@ -11,6 +11,7 @@ repositories {
 
 dependencies {
     implementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    implementation project(':domain')
     implementation 'io.quarkus:quarkus-rest'
     implementation 'io.quarkus:quarkus-rest-client'
     implementation 'io.quarkus:quarkus-arc'
@@ -48,6 +49,7 @@ dependencies {
     // Black-box integration tests (@QuarkusIntegrationTest) run via the `quarkusIntTest`
     // task against the built artifact (native in CI). Separate `integrationTest` source set.
     integrationTestImplementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    integrationTestImplementation project(':domain')
     integrationTestImplementation 'io.quarkus:quarkus-junit5'
     integrationTestImplementation 'org.wiremock:wiremock:3.13.2'
     // The ssh-os-release native guard (@QuarkusIntegrationTest) boots an embedded ed25519 MINA SSH

@@ -4137,12 +4137,6 @@
       "glob": "org/yardship/unit/adapters/out/versionsource/ApplicationConfigLoaderTests.class"
     },
     {
-      "glob": "org/yardship/unit/core/domain/primitives/DomainValidatorTests.class"
-    },
-    {
-      "glob": "org/yardship/unit/core/domain/primitives/VersionApplicationTests.class"
-    },
-    {
       "glob": "testcontainers.properties"
     },
     {

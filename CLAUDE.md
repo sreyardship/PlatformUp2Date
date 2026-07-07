@@ -11,18 +11,19 @@ PlatformUp2Date is a version monitoring application that tracks deployed platfor
 ### Full stack (Docker Compose)
 ```bash
 # Build backend first (required before compose)
-cd backend && gradle build && cd ..
+gradle :backend:build
 docker compose up -d
 # Frontend: localhost:3000, Backend: localhost:8080
 ```
 
 ### Backend (Quarkus + Gradle)
+The Gradle root is the repo root (multi-module build: `:domain` + `:backend`); run these from the repo root, not `backend/`.
 ```bash
-cd backend
-gradle quarkusDev          # Dev mode with live reload (localhost:8080)
-gradle build                # Build JAR
-gradle test                 # Run all tests
-gradle test --tests '*VersionTests'  # Run a single test class
+gradle :backend:quarkusDev          # Dev mode with live reload (localhost:8080)
+gradle :backend:build                # Build JAR
+gradle :backend:test                 # Run all backend tests
+gradle :backend:test --tests '*VersionTests'  # Run a single test class
+gradle :domain:test                  # Run :domain's own unit tests
 ```
 
 ### Frontend (Vite + Yarn)

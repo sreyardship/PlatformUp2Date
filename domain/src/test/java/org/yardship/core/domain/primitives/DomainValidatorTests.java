@@ -1,6 +1,5 @@
-package org.yardship.unit.core.domain.primitives;
+package org.yardship.core.domain.primitives;
 
-import io.quarkus.test.junit.QuarkusTest;
 import org.yardship.core.domain.exceptions.InvalidDomainObjectException;
 import org.junit.jupiter.api.Test;
 
@@ -9,7 +8,6 @@ import static org.yardship.core.domain.primitives.DomainValidator.notNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@QuarkusTest
 public class DomainValidatorTests {
 
     @Test

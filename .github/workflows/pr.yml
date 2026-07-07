@@ -41,8 +41,7 @@ jobs:
           gradle-version: '8.14.4'
 
       - name: Backend unit + integration tests
-        working-directory: backend
-        run: gradle --no-daemon test
+        run: gradle --no-daemon :domain:test :backend:test
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -111,9 +110,8 @@ jobs:
       # Valkey comes from Quarkus Dev Services (this runner has Docker), for
       # the native binary's boot just as for `fast`'s test JVM.
       - name: Native build + native integration tests
-        working-directory: backend
         run: >
-          gradle --no-daemon build quarkusIntTest
+          gradle --no-daemon :backend:build :backend:quarkusIntTest
           -Dquarkus.native.enabled=true
           -Dquarkus.package.jar.enabled=false
           -x test
