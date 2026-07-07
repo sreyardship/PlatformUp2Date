@@ -1,5 +1,6 @@
 package org.yardship.cli.render;
 
+import org.yardship.cli.outcome.PointerResult;
 import org.yardship.cli.outcome.RegexCandidate;
 import org.yardship.cli.outcome.ValidationOutcome;
 
@@ -25,6 +26,8 @@ public final class ReportRenderer {
             case ValidationOutcome.ConfigInvalid invalid -> renderConfigInvalid(invalid, out);
             case ValidationOutcome.FetchFailed failed -> renderFetchFailed(failed, out);
             case ValidationOutcome.ValidButEmpty empty -> renderValidButEmpty(empty, out);
+            case ValidationOutcome.PointerOk ok -> renderPointerOk(ok, out);
+            case ValidationOutcome.PointerValidButEmpty empty -> renderPointerValidButEmpty(empty, out);
         }
         return outcome.exitCode();
     }
@@ -46,6 +49,22 @@ public final class ReportRenderer {
     private void renderValidButEmpty(ValidationOutcome.ValidButEmpty empty, PrintStream out) {
         out.println("VALID BUT EMPTY: " + empty.candidates().size() + " candidate(s) found, none parseable.");
         renderCandidates(empty.candidates(), null, out);
+    }
+
+    private void renderPointerOk(ValidationOutcome.PointerOk ok, PrintStream out) {
+        PointerResult result = ok.result();
+        out.println("OK: pointer resolved to '" + result.rawText() + "'"
+                + (result.strippedPreRelease() ? " (pre-release stripped)" : "") + ".");
+        if (result.parsed().isPresent()) {
+            out.println("Parsed: " + result.parsed().get().value());
+        }
+    }
+
+    private void renderPointerValidButEmpty(ValidationOutcome.PointerValidButEmpty empty, PrintStream out) {
+        out.println("VALID BUT EMPTY: " + empty.message());
+        empty.attempted().ifPresent(result ->
+                out.println("  - raw text: '" + result.rawText() + "'"
+                        + (result.strippedPreRelease() ? " (pre-release stripped)" : "")));
     }
 
     private void renderCandidates(List<RegexCandidate> candidates, RegexCandidate winner, PrintStream out) {

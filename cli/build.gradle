@@ -14,6 +14,13 @@ dependencies {
     implementation 'info.picocli:picocli:4.7.6'
     annotationProcessor 'info.picocli:picocli-codegen:4.7.6'
 
+    // Standalone Jackson for the 'pointer' subcommand's JSON parsing / RFC 6901 pointer resolution
+    // (issue 03). :cli must not depend on :backend, so this is a separate, matching-generation
+    // version rather than the Quarkus-BOM-managed one backend gets via quarkus-rest-jackson
+    // (backend runs Quarkus 3.33.2, whose platform BOM manages Jackson 2.18.x) — pick a current
+    // 2.18.x release for parity; bump alongside backend's BOM if it moves.
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.2'
+
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     testImplementation 'org.wiremock:wiremock:3.13.2'
 }
