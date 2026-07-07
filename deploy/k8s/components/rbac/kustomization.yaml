@@ -1,0 +1,9 @@
+# Opt-in, cluster-scoped RBAC for the k8s-image current source (reads a
+# workload's running container image tag from the Kubernetes API). Only add
+# this component if an app in your platform-config uses `type: k8s-image` —
+# without it the backend runs fine and never touches the cluster API.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - rbac.yaml

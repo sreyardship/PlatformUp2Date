@@ -1,0 +1,39 @@
+# Cluster-wide read-only `get` on the three workload kinds — no list/watch,
+# no write verbs, no secrets access.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: platformup2date-read-workloads
+  labels:
+    app.kubernetes.io/name: platformup2date
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: platformup2date-read-workloads
+  labels:
+    app.kubernetes.io/name: platformup2date
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: platformup2date-read-workloads
+subjects:
+  - kind: ServiceAccount
+    name: platformup2date
+    # A ClusterRoleBinding subject must name a concrete namespace, and
+    # kustomize's `namespace:` transformer does NOT rewrite it (it only
+    # rewrites subjects named `default`). Deploying to any other namespace?
+    # Patch it in your overlay or the binding silently points at a
+    # ServiceAccount that doesn't exist:
+    #
+    #   patches:
+    #     - patch: |-
+    #         - op: replace
+    #           path: /subjects/0/namespace
+    #           value: <your-namespace>
+    #       target: {kind: ClusterRoleBinding, name: platformup2date-read-workloads}
+    namespace: platformup2date

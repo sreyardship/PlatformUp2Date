@@ -117,3 +117,41 @@ jobs:
           -Dquarkus.native.enabled=true
           -Dquarkus.package.jar.enabled=false
           -x test
+
+  # Keeps deploy/k8s from rotting: kustomize-build every shipped composition
+  # (base alone, the quickstart overlay, and base + each component — the rbac
+  # component only composes at apply time, so CI fabricates the throwaway
+  # overlay a user would write) and schema-validate the output against the
+  # upstream Kubernetes OpenAPI schemas with kubeconform.
+  manifests:
+    name: manifests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install kubeconform
+        run: |
+          curl -sSfL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
+            | tar xz -C /usr/local/bin kubeconform
+
+      - name: Build and validate kustomizations
+        run: |
+          set -euo pipefail
+          mkdir -p deploy/k8s/.ci-full
+          cat > deploy/k8s/.ci-full/kustomization.yaml <<'EOF'
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          namespace: platformup2date
+          resources:
+            - ../base
+          components:
+            - ../components/valkey
+            - ../components/rbac
+          EOF
+          for target in base overlays/quickstart .ci-full; do
+            echo "--- kustomize build + kubeconform: deploy/k8s/$target"
+            kubectl kustomize "deploy/k8s/$target" \
+              | kubeconform -strict -summary
+          done

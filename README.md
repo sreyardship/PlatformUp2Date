@@ -1,16 +1,29 @@
 # <img src="frontend/public/logo.svg" alt="PlatformUp2Date logo" align="absmiddle" height="45"/> PlatformUp2Date
 
-You run a platform, a home cluster, or just a pile of applications that keep
-your work, leisure, or archiving going smooth. Only issue: *every* single *app*
-is waaay *out of date*. Let's change that!
+You run a platform, a home lab, or just a pile of apps, and every single one of them is waaay out of date. Let's change that!
+
+If it exposes its version somehow: an HTTP endpoint, a container image tag, `ssh`/`os-release`, a
+Prometheus metric[^prom-source], it can be monitored!
+
+[^prom-source]: Reading `current` from a Prometheus metric is not implemented yet. But just you wait! It was a great idea, i just don't see where it would be used, so ehrm... Make an issue if you have a real world use for it? Or a PR <3.
 
 PlatformUp2Date monitors deployed applications against their latest upstream
-releases and shows, per app, whether it's up-to-date or behind — regardless
-of how or where that app is deployed. "Current" always means the app's
-actually-observed running state, never a declared value like a GitOps repo
-pin (see [`ARCHITECTURE.md`](ARCHITECTURE.md)); "latest" comes from an
-independent upstream source such as GitHub Releases or a container
-registry's tag list.
+releases and shows, per app, whether it's up-to-date or behind. "Current" is
+always the app's actually-observed running state, never a declared value
+like a GitOps repo pin. "Latest" comes from an independent upstream source
+such as GitHub Releases or a container registry's tag list. (See
+[`ARCHITECTURE.md`](ARCHITECTURE.md) for why that distinction matters.)
+
+Monitor version drift for
+
+- Kubernetes deployments
+- Docker Compose images
+- VMs
+- Bare-metal machines
+- OpenWrt routers
+- Random services you have no control over, purely to demonstrate your superiority at staying on top of things
+- Coffee makers?
+
 
 It integrates with Prometheus/Grafana and ships its own frontend — deploy it
 or don't :) It also serves an [MCP endpoint](#mcp-endpoint), so an AI agent
@@ -51,7 +64,7 @@ should see two application rows:
 Both instances are live third-party services, so the exact colors on any
 given day depend on what they happen to be running. Both apps resolve
 without any credentials — see
-[`docs/samples/platform-config.yaml`](docs/samples/platform-config.yaml) for
+[`deploy/k8s/base/platform-config.yaml`](deploy/k8s/base/platform-config.yaml) for
 the exact config, and [`docs/configuration.md`](docs/configuration.md) for
 every source type and config key available for your own apps.
 

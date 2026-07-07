@@ -4,9 +4,6 @@
 interval, the manual-scrape budgets, and the list of monitored Applications,
 each pairing a `current` version source with a `latest` version source.
 
-For a runnable, minimal example, see `docs/samples/platform-config.yaml` (used
-by the README quick start).
-
 ## Top-level keys
 
 | Key | Type | Required | Default | Notes |

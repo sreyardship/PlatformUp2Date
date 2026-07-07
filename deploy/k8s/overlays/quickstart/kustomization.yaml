@@ -1,0 +1,20 @@
+# Try-it-out overlay: kubectl apply -k deploy/k8s/overlays/quickstart
+#
+# Deploys the app plus the bundled Valkey into a dedicated namespace and
+# exposes it through a host-less, class-less Ingress (served by the cluster's
+# default IngressClass — k3s/minikube have one out of the box; elsewhere,
+# patch ingressClassName). Monitors the two credential-free sample apps from
+# base/platform-config.yaml. For a real rollout, write your own overlay
+# instead — see docs/deployment.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: platformup2date
+
+resources:
+  - namespace.yaml
+  - ../../base
+  - ingress.yaml
+
+components:
+  - ../../components/valkey

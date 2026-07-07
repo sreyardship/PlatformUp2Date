@@ -1,0 +1,39 @@
+# The routing contract: /api → backend (unstripped — the backend serves its
+# whole surface under /api, including /api/mcp), everything else → frontend.
+# The frontend's API_BASE_URL stays empty (same-origin), so the browser calls
+# /api on whatever host served the page and no CORS is involved.
+#
+# Deliberately no `host` (matches any hostname/IP) and no `ingressClassName`
+# (uses the cluster's default IngressClass). On clusters without a default
+# class, patch one in:
+#
+#   patches:
+#     - patch: |-
+#         - op: add
+#           path: /spec/ingressClassName
+#           value: nginx
+#       target: {kind: Ingress, name: platformup2date}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: platformup2date
+  labels:
+    app.kubernetes.io/name: platformup2date
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: platformup2date-backend
+                port:
+                  name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: platformup2date-frontend
+                port:
+                  name: http

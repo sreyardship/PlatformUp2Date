@@ -77,3 +77,49 @@ jobs:
             prerelease_flag=(--prerelease)
           fi
           gh release create "$tag" --generate-notes "${prerelease_flag[@]}"
+
+  # Keep the shipped pins pointing at the release that was just published:
+  # the images: block in deploy/k8s/base/kustomization.yaml and the image
+  # tags in compose.quickstart.yml. Skipped for prereleases (they never move
+  # rolling tags, so they shouldn't move pins either). Pushes directly to
+  # main — if branch protection rejects the push, this job fails visibly and
+  # the bump lands manually.
+  bump-pins:
+    name: bump image pins
+    needs: images
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: ${{ !contains(github.ref_name, '-') }}
+    permissions:
+      contents: write
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Bump pins to released version
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          # kustomization images: block — the newTag line directly after each
+          # image name.
+          for img in backend frontend; do
+            sed -i -E "/platformup2date\/${img}$/{n;s|newTag: \".*\"|newTag: \"${version}\"|}" \
+              deploy/k8s/base/kustomization.yaml
+          done
+          sed -i -E "s#(ghcr\.io/sreyardship/platformup2date/(backend|frontend)):[0-9][^\"' ]*#\1:${version}#g" \
+            compose.quickstart.yml
+          git diff --stat
+
+      - name: Commit and push
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "pins already at ${GITHUB_REF_NAME#v}, nothing to do"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(release): pin images to ${GITHUB_REF_NAME#v}"
+          git push origin main

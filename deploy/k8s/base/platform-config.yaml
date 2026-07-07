@@ -1,4 +1,7 @@
-# Sample platform-config for the README quick start (compose.quickstart.yml).
+# The canonical sample platform-config: mounted by the README quick start
+# (compose.quickstart.yml) and shipped as the default ConfigMap by the
+# kustomize base in this directory (replace it in your overlay — see
+# docs/deployment.md).
 #
 # Monitors two real, public applications that need no credentials on either side —
 # see docs/configuration.md for the full config reference this shape is drawn from.
