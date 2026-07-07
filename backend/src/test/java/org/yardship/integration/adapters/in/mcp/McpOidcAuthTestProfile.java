@@ -59,6 +59,21 @@ public class McpOidcAuthTestProfile implements QuarkusTestProfile {
                 // JWT/JWKS verification, matching a bearer-only resource server).
                 "quarkus.keycloak.devservices.create-client", "false",
                 "MCP_OIDC_ISSUER", "${quarkus.oidc.auth-server-url}",
-                "MCP_OIDC_AUDIENCE", CONFIGURED_AUDIENCE);
+                "MCP_OIDC_AUDIENCE", CONFIGURED_AUDIENCE,
+                // No Redis dev service in this session — nothing here exercises Redis (the
+                // version port is mocked; /q/health's Redis probe result is never asserted).
+                // This is not just a speed-up: Quarkus registers each started dev service with
+                // the SESSION-WIDE merged config map (DevServicesRegistryBuildItem#reallyStart
+                // passes the shared `configs` map into every RunningService), and the Keycloak
+                // entry of this profile's session outlives the profile switch (its registry key
+                // carries this session's application UUID, so the next session's cleanup skips
+                // it). If a Redis dev service also ran here, the lingering Keycloak entry would
+                // keep advertising THIS session's (by then stopped) quarkus.redis.hosts through
+                // DevServicesConfigSource, and later default-profile Valkey ITs would
+                // intermittently resolve the dead port ("Connection refused") instead of their
+                // own fresh container. Pointing hosts at a closed localhost port keeps the dev
+                // service off and the shared map free of any redis key.
+                "quarkus.redis.devservices.enabled", "false",
+                "quarkus.redis.hosts", "redis://localhost:63790");
     }
 }
