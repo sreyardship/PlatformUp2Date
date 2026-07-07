@@ -21,7 +21,7 @@ Monitor version drift for
 - VMs
 - Bare-metal machines
 - OpenWrt routers
-- Random services you have no control over — purely to demonstrate your superiority at staying on top of things
+- Random services you have no control over, purely to demonstrate your superiority at staying on top of things
 - Coffee makers?
 
 
