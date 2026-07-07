@@ -53,6 +53,20 @@ quarkus:
   # classpath (the extension's zero-config dev/test convenience); disabled by default so the
   # auth-off regression suite (ApplicationMcpServerIT) stays fast and Docker-free, and re-enabled
   # explicitly by the auth-on @TestProfile (McpOidcAuthTestProfile).
+  oidc:
+    # RFC 9728 protected-resource metadata (docs/adr/0026, issue 02). Safe to enable
+    # unconditionally here (no presence-derivation needed for this property): the extension only
+    # registers the well-known route and appends the WWW-Authenticate `resource_metadata` pointer
+    # for tenants whose tenant-enabled is true, and tenant-enabled is the very flag
+    # McpOidcRuntimeConfigSourceFactory derives from MCP_OIDC_ISSUER/MCP_OIDC_AUDIENCE above. So
+    # with both env vars unset, tenant-enabled resolves to false, the metadata route never
+    # registers, and the well-known path 404s exactly as before this issue. The explicit `resource`
+    # value is what makes both the well-known route path and the metadata document's `resource`
+    # field name /api/mcp — matching the exact path ADR 0026 documents,
+    # /.well-known/oauth-protected-resource/api/mcp — instead of the bare host-root default.
+    resource-metadata:
+      enabled: true
+      resource: /api/mcp
   keycloak:
     devservices:
       enabled: false
