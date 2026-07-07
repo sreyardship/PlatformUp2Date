@@ -182,6 +182,77 @@ both):
   [`configuration.md`](configuration.md#type-ssh-os-release-current--tier-b-requires-ssh-access))
   and no Kubernetes RBAC at all.
 
+## MCP endpoint authentication
+
+If you turn on MCP endpoint authentication (`MCP_OIDC_ISSUER` +
+`MCP_OIDC_AUDIENCE`, see [`configuration.md`](configuration.md#mcp-endpoint-authentication)),
+it has two consequences for anything sitting in front of the backend:
+
+- **The shared `HTTPRoute` needs one added rule.** [`docs/adr/0002`](adr/0002-mcp-endpoint-under-api.md)'s
+  "no ingress change needed" holds only while the endpoint is unauthenticated.
+  RFC 9728 protected-resource metadata is served at the host root
+  (`/.well-known/oauth-protected-resource/api/mcp`), outside the `/api`
+  prefix — the existing `/api` PathPrefix rule does not cover it, and the
+  catch-all `/` rule would hand it to the frontend instead of the backend.
+  Add a PathPrefix rule sending `/.well-known/oauth-protected-resource` to
+  the backend, unstripped:
+
+  ```yaml
+  apiVersion: gateway.networking.k8s.io/v1
+  kind: HTTPRoute
+  metadata:
+    name: platformup2date
+  spec:
+    rules:
+      - matches:
+          - path:
+              type: PathPrefix
+              value: /api
+        backendRefs:
+          - name: platformup2date-backend
+            port: 8080
+      - matches:
+          - path:
+              type: PathPrefix
+              value: /.well-known/oauth-protected-resource
+        backendRefs:
+          - name: platformup2date-backend
+            port: 8080
+      - matches:
+          - path:
+              type: PathPrefix
+              value: /
+        backendRefs:
+          - name: platformup2date-frontend
+            port: 80
+  ```
+
+  The metadata path is not relocated under `/api` — fighting the well-known
+  convention would break client-side URL derivation, so the extra rule is
+  required rather than optional.
+
+- **Any edge proxy in front of the host must get out of MCP's way.** If
+  `oauth2-proxy` (or similar) still fronts the host for the web UI/REST
+  interim posture below, it must bypass `/api/mcp` and
+  `/.well-known/oauth-protected-resource*` — e.g. oauth2-proxy's
+  `--skip-auth-route` — or it intercepts the challenge/discovery requests
+  before the backend can answer them, breaking native MCP client
+  authentication.
+
+With MCP endpoint authentication off (`MCP_OIDC_ISSUER` unset, the default),
+neither change applies and the endpoint behaves exactly as described in
+[ADR 0002](adr/0002-mcp-endpoint-under-api.md).
+
+### Interim posture for the web UI and REST API
+
+Only the MCP endpoint authenticates its own callers. The web UI and the REST
+API (`/api/v1`) have no in-app authentication — in-app web authentication is
+a planned separate feature. Until it lands, protect them the same way you
+would have protected the whole host before this feature existed: an edge
+proxy such as `oauth2-proxy` in front of the host, or a private network. If
+you turn on MCP endpoint authentication and keep such a proxy for the UI/REST,
+remember the bypass rules above so the two auth mechanisms don't collide.
+
 ## Metrics
 
 The backend exposes a Prometheus scrape endpoint at `/metrics`, hand-rendered
