@@ -24,6 +24,9 @@ dependencies {
     implementation 'org.semver4j:semver4j:6.0.0'
     implementation 'io.quarkus:quarkus-smallrye-openapi'
     implementation 'io.quarkiverse.mcp:quarkus-mcp-server-http:1.13.0'
+    // MCP endpoint OAuth resource-server auth (docs/adr/0026, issue 01): validates bearer JWTs
+    // against MCP_OIDC_ISSUER/MCP_OIDC_AUDIENCE when configured; inert (tenant disabled) otherwise.
+    implementation 'io.quarkus:quarkus-oidc'
     // SSH client for the 'ssh-os-release' current source (and the embedded SSHD server used by its
     // integration tests). BouncyCastle gives MINA SSHD broad private-key/host-key format support
     // (OpenSSH + classic PEM, RSA/ECDSA/ed25519) — its documented recommendation.
@@ -36,6 +39,10 @@ dependencies {
     testImplementation 'org.wiremock:wiremock:3.13.2'
     testImplementation 'io.quarkiverse.mcp:quarkus-mcp-server-test:1.13.0'
     testImplementation 'io.quarkus:quarkus-test-kubernetes-client'
+    // MCP OAuth resource-server auth-on ITs (docs/adr/0026, issue 01): Keycloak Dev Services
+    // (triggered once quarkus-oidc is on the classpath — added by the implementer) still relies on
+    // this dependency to import the realm configured in src/test/resources/mcp-oidc-test-realm.json.
+    testImplementation 'io.quarkus:quarkus-test-oidc-server'
 
     // Black-box integration tests (@QuarkusIntegrationTest) run via the `quarkusIntTest`
     // task against the built artifact (native in CI). Separate `integrationTest` source set.

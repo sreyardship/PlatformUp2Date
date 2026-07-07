@@ -37,6 +37,32 @@ quarkus:
         streamable:
           auto-init: true
 
+  # MCP endpoint OAuth resource-server authentication (docs/adr/0026, issue 01): presence-switched
+  # on MCP_OIDC_ISSUER/MCP_OIDC_AUDIENCE, the whole operator-visible surface. The derived internal
+  # properties below (tenant-enabled, auth-server-url, token audience, and the /api/mcp* permission
+  # policy) are produced at runtime by McpOidcRuntimeConfigSourceFactory from those two env vars —
+  # NOT by a static ${MCP_OIDC_ISSUER:} expansion here, because the auth-on test profile derives
+  # MCP_OIDC_ISSUER FROM quarkus.oidc.auth-server-url (Keycloak Dev Services' dynamic URL); a static
+  # reverse expansion here would create a circular property reference. When MCP_OIDC_ISSUER is
+  # absent/blank, tenant-enabled resolves to false and the OIDC extension stays fully inert; the
+  # policy below resolves to permit, preserving today's open endpoint. See McpOidcBootMode for the
+  # matching boot-time validation/log line and McpOidcConfigurationException for the illegal
+  # issuer-without-audience state.
+  #
+  # Keycloak Dev Services would otherwise auto-start for ANY test once quarkus-oidc is on the
+  # classpath (the extension's zero-config dev/test convenience); disabled by default so the
+  # auth-off regression suite (ApplicationMcpServerIT) stays fast and Docker-free, and re-enabled
+  # explicitly by the auth-on @TestProfile (McpOidcAuthTestProfile).
+  keycloak:
+    devservices:
+      enabled: false
+  http:
+    auth:
+      permission:
+        mcp:
+          paths: /api/mcp*
+          # policy is derived (authenticated | permit) by McpOidcRuntimeConfigSourceFactory above.
+
 # platform-config (the apps to monitor + scrape interval) is environment-specific.
 #
 # In production it is supplied exclusively by a mounted ConfigMap, pointed to via
