@@ -129,4 +129,33 @@ public sealed interface ValidationOutcome {
             return EXIT_CODE;
         }
     }
+
+    /**
+     * {@code changelog} validation succeeded: the template's placeholders were all legal for the
+     * configured scheme (and, for calver, declared in the {@code calver-format}), and it resolved
+     * against {@code --version} to produce a URL.
+     *
+     * <p><b>Design note (issue 04):</b> {@code changelog} is a pure-function check — no body, no
+     * network — so unlike {@code regex}/{@code pointer} there is no "candidates found, none
+     * usable" state: a template either fails fast at construction (a bad placeholder — reported as
+     * {@link ConfigInvalid}, reusing that case unchanged, same as an invalid {@code --scheme}/
+     * {@code --calver-format} combination) or resolves deterministically to exactly one URL. That
+     * collapses the four-way exit-code contract to two outcomes in practice for this subcommand:
+     * {@link ChangelogOk} (0) and {@link ConfigInvalid} (2). An unparseable {@code --version} is
+     * ALSO reported as {@link ConfigInvalid}: with no body source, {@code --version} is part of the
+     * CLI invocation itself (like {@code --scheme}/{@code --calver-format}), so a value that
+     * doesn't parse under the declared scheme is a malformed invocation, not a "fetched but empty"
+     * result — {@link FetchFailed} and {@link ValidButEmpty} both presuppose a body acquisition
+     * step that {@code changelog} doesn't have, so neither fits.
+     *
+     * @param resolvedUrl the fully-substituted URL.
+     */
+    record ChangelogOk(String resolvedUrl) implements ValidationOutcome {
+        public static final int EXIT_CODE = 0;
+
+        @Override
+        public int exitCode() {
+            return EXIT_CODE;
+        }
+    }
 }

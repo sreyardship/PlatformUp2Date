@@ -1,14 +1,16 @@
 package org.yardship.cli;
 
+import org.yardship.cli.command.ChangelogCommand;
 import org.yardship.cli.command.PointerCommand;
 import org.yardship.cli.command.RegexCommand;
 import picocli.CommandLine.Command;
 
 /**
- * The {@code cli} root: subcommands attach here one per issue (regex, pointer now; changelog/
- * calver-format/config in issues 04-06).
+ * The {@code cli} root: subcommands attach here one per issue (regex, pointer, changelog now;
+ * calver-format/config in issues 05-06).
  */
-@Command(name = "cli", mixinStandardHelpOptions = true, subcommands = {RegexCommand.class, PointerCommand.class})
+@Command(name = "cli", mixinStandardHelpOptions = true,
+        subcommands = {RegexCommand.class, PointerCommand.class, ChangelogCommand.class})
 public final class RootCommand implements Runnable {
 
     @Override

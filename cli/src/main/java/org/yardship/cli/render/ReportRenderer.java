@@ -28,6 +28,7 @@ public final class ReportRenderer {
             case ValidationOutcome.ValidButEmpty empty -> renderValidButEmpty(empty, out);
             case ValidationOutcome.PointerOk ok -> renderPointerOk(ok, out);
             case ValidationOutcome.PointerValidButEmpty empty -> renderPointerValidButEmpty(empty, out);
+            case ValidationOutcome.ChangelogOk ok -> renderChangelogOk(ok, out);
         }
         return outcome.exitCode();
     }
@@ -65,6 +66,10 @@ public final class ReportRenderer {
         empty.attempted().ifPresent(result ->
                 out.println("  - raw text: '" + result.rawText() + "'"
                         + (result.strippedPreRelease() ? " (pre-release stripped)" : "")));
+    }
+
+    private void renderChangelogOk(ValidationOutcome.ChangelogOk ok, PrintStream out) {
+        out.println("OK: changelog URL resolved to '" + ok.resolvedUrl() + "'.");
     }
 
     private void renderCandidates(List<RegexCandidate> candidates, RegexCandidate winner, PrintStream out) {
