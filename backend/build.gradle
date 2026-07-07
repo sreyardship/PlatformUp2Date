@@ -54,6 +54,13 @@ dependencies {
     // the SSHD server classes (+ BouncyCastle for ed25519 key handling, matching the unit/IT classpath).
     integrationTestImplementation 'org.apache.sshd:sshd-core:2.13.2'
     integrationTestImplementation 'org.bouncycastle:bcpkix-jdk18on:1.78.1'
+    // MCP OAuth resource-server native auth smoke (docs/adr/0026, issue 04): a
+    // @QuarkusIntegrationTest launches the built artifact as a standalone process, so Keycloak Dev
+    // Services (which the JVM @QuarkusTest auth-on suite relies on) cannot compose here — this
+    // resource manager starts a real Keycloak container itself via plain Testcontainers.
+    // Version comes from the Quarkus BOM (enforcedPlatform above), matching quarkus-oidc's own
+    // transitive testcontainers alignment.
+    integrationTestImplementation 'org.testcontainers:testcontainers'
 }
 
 group 'org.yardship'
