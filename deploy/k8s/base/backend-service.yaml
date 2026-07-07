@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: platformup2date-backend
+  labels:
+    app.kubernetes.io/name: platformup2date
+    app.kubernetes.io/component: backend
+spec:
+  selector:
+    app.kubernetes.io/name: platformup2date
+    app.kubernetes.io/component: backend
+  ports:
+    # Port name `http` is load-bearing: the ServiceMonitor example in
+    # docs/deployment.md scrapes /metrics via this named port.
+    - name: http
+      port: 8080
+      targetPort: http

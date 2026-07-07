@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platformup2date-frontend
+  labels:
+    app.kubernetes.io/name: platformup2date
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: platformup2date
+      app.kubernetes.io/component: frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: platformup2date
+        app.kubernetes.io/component: frontend
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: platformup2date
+              app.kubernetes.io/component: frontend
+      containers:
+        - name: frontend
+          image: ghcr.io/sreyardship/platformup2date/frontend
+          ports:
+            - name: http
+              containerPort: 80
+          env:
+            # Injected into window._env_ at container start. Empty means
+            # same-origin: the browser calls /api on whatever host served the
+            # page, and the ingress routes /api to the backend (unstripped).
+            - name: API_BASE_URL
+              value: ""
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi

@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platformup2date-backend
+  labels:
+    app.kubernetes.io/name: platformup2date
+    app.kubernetes.io/component: backend
+spec:
+  # Replicas are interchangeable by design: all scrape state lives in Valkey
+  # and every surface is a stateless projection of it (ADR-0003/0004), so two
+  # replicas give real HA with no session affinity.
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: platformup2date
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: platformup2date
+        app.kubernetes.io/component: backend
+    spec:
+      serviceAccountName: platformup2date
+      # Prefer spreading replicas across nodes, but ScheduleAnyway keeps the
+      # quickstart schedulable on single-node clusters (kind, minikube).
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: platformup2date
+              app.kubernetes.io/component: backend
+      containers:
+        - name: backend
+          image: ghcr.io/sreyardship/platformup2date/backend
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: QUARKUS_CONFIG_LOCATIONS
+              value: /config/platform-config.yaml
+            - name: QUARKUS_REDIS_HOSTS
+              value: redis://platformup2date-valkey:6379
+          # Well-known hook for the optional credentials (GITHUB_TOKEN,
+          # HARBOR_USER/HARBOR_PASS, …): create a Secret with this name and
+          # its keys land as env vars — no patch needed. `optional: true`
+          # means an absent Secret is fine.
+          envFrom:
+            - secretRef:
+                name: platformup2date-env
+                optional: true
+          volumeMounts:
+            - name: platform-config
+              mountPath: /config
+              readOnly: true
+          # Readiness reports DOWN when Valkey is unreachable (the backend
+          # fails closed with 503s without it), pulling the replica out of
+          # rotation for exactly the window it cannot serve.
+          readinessProbe:
+            httpGet:
+              path: /q/health/ready
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /q/health/live
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: platform-config
+          configMap:
+            name: platform-config

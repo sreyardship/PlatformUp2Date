@@ -1,0 +1,41 @@
+# Namespace-agnostic base: the two app workloads and nothing else — no
+# datastore, no ingress, no RBAC, no namespace. Compose those per environment:
+#
+#   quickstart:  kubectl apply -k ../overlays/quickstart
+#                (adds namespace + bundled Valkey + Ingress)
+#   GitOps:      reference this directory as a remote base pinned by git ref
+#                (…//deploy/k8s/base?ref=vX.Y.Z) and layer your own overlay —
+#                see docs/deployment.md for the full walkthrough.
+#
+# The backend expects Valkey at redis://platformup2date-valkey:6379 (what
+# components/valkey provides). Bring-your-own Valkey/Redis — including HA
+# Sentinel or cluster topologies — is an env patch, not a manifest change;
+# see docs/deployment.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - serviceaccount.yaml
+  - backend-deployment.yaml
+  - backend-service.yaml
+  - frontend-deployment.yaml
+  - frontend-service.yaml
+
+# The apps to monitor. This sample file is the canonical quickstart config
+# (compose.quickstart.yml mounts the same file); replace it wholesale in your
+# overlay with a configMapGenerator of the same name and `behavior: replace`.
+# The generated hash suffix rolls the backend Deployment on every config
+# change automatically.
+configMapGenerator:
+  - name: platform-config
+    files:
+      - platform-config.yaml
+
+# Image tags live here and only here (the Deployments reference the bare
+# image names). Bumped by release CI alongside compose.quickstart.yml; the
+# two images version independently.
+images:
+  - name: ghcr.io/sreyardship/platformup2date/backend
+    newTag: "0.0.48"
+  - name: ghcr.io/sreyardship/platformup2date/frontend
+    newTag: "0.0.46"

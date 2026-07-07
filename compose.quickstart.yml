@@ -9,9 +9,9 @@
 #
 # The backend needs Valkey (ADR-0003: scrape state is centralised there, not
 # per-replica) and a set of apps to monitor (ADR-0001), supplied here by the
-# sample config in docs/samples/platform-config.yaml — see docs/configuration.md
-# for the full config reference and docs/deployment.md for a real cluster
-# rollout.
+# canonical sample config in deploy/k8s/base/platform-config.yaml (shared with
+# the Kubernetes quickstart) — see docs/configuration.md for the full config
+# reference and docs/deployment.md for a real cluster rollout.
 services:
   valkey:
     image: valkey/valkey:8-alpine
@@ -28,7 +28,7 @@ services:
       # sample apps).
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     volumes:
-      - ./docs/samples/platform-config.yaml:/config/platform-config.yaml:ro
+      - ./deploy/k8s/base/platform-config.yaml:/config/platform-config.yaml:ro
     ports:
       - "8080:8080"
     depends_on:

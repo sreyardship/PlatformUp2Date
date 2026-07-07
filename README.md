@@ -51,7 +51,7 @@ should see two application rows:
 Both instances are live third-party services, so the exact colors on any
 given day depend on what they happen to be running. Both apps resolve
 without any credentials — see
-[`docs/samples/platform-config.yaml`](docs/samples/platform-config.yaml) for
+[`deploy/k8s/base/platform-config.yaml`](deploy/k8s/base/platform-config.yaml) for
 the exact config, and [`docs/configuration.md`](docs/configuration.md) for
 every source type and config key available for your own apps.
 

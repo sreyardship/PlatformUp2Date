@@ -17,7 +17,152 @@ with no session affinity, and a scrape on any replica updates what all of
 them serve (see [`docs/adr/0003`](adr/0003-scrape-state-centralised-in-valkey.md)
 and [`docs/adr/0004`](adr/0004-mcp-transport-stateless-for-ha.md)).
 
-## What the backend needs
+## The shipped manifests
+
+Deployable manifests live under [`deploy/k8s/`](../deploy/k8s/) as a kustomize
+tree (kustomize-only on purpose — see
+[`docs/adr/0027`](adr/0027-deploy-manifests-are-kustomize-only.md)):
+
+```
+deploy/k8s/
+├── base/                  # backend (2 replicas) + frontend, namespace-agnostic
+│   └── platform-config.yaml   # the canonical sample config (a ConfigMap you replace)
+├── components/
+│   ├── valkey/            # bundled single-replica Valkey (quickstart datastore)
+│   └── rbac/              # opt-in ClusterRole for the k8s-image source
+└── overlays/
+    └── quickstart/        # namespace + base + valkey + a host-less Ingress
+```
+
+### Try it on a cluster
+
+```bash
+kubectl apply -k deploy/k8s/overlays/quickstart
+```
+
+This creates the `platformup2date` namespace and serves the UI through a
+host-less, class-less Ingress on your cluster's default IngressClass (k3s and
+minikube ship one; elsewhere, patch `ingressClassName` — the patch is shown in
+[`overlays/quickstart/ingress.yaml`](../deploy/k8s/overlays/quickstart/ingress.yaml)).
+The routing contract is: `/api` → backend **unstripped**, everything else →
+frontend; the frontend's `API_BASE_URL` stays empty so browser calls are
+same-origin (no CORS).
+
+### Run it for real: write an overlay
+
+Reference the base as a remote base, pinned to a release tag so the image pins
+inside it match:
+
+```yaml
+# kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: my-namespace
+
+resources:
+  - https://github.com/sreyardship/PlatformUp2Date-public//deploy/k8s/base?ref=v0.0.48
+  - namespace.yaml
+
+# Your real monitoring config, replacing the sample wholesale. The generated
+# hash suffix rolls the backend automatically on every config change.
+configMapGenerator:
+  - name: platform-config
+    behavior: replace
+    files:
+      - platform-config.yaml
+```
+
+Argo CD and Flux both consume this directly (it's a plain kustomization).
+
+- **Credentials** (`GITHUB_TOKEN`, `HARBOR_USER`/`HARBOR_PASS`, …) need no
+  patching at all: the backend Deployment carries an `optional: true`
+  `envFrom` hook on a Secret named `platformup2date-env` — create it and its
+  keys become env vars:
+
+  ```bash
+  kubectl -n my-namespace create secret generic platformup2date-env \
+    --from-literal=GITHUB_TOKEN=ghp_…
+  ```
+
+  File-shaped secrets (the `ssh-os-release` private key, custom CAs) stay
+  volume mounts — add the Secret volume and `volumeMounts` patch in your
+  overlay (see [`configuration.md`](configuration.md#type-ssh-os-release-current--tier-b-requires-ssh-access)
+  for the paths the config expects).
+- **Ingress**: the base ships none (the quickstart's Ingress lives in the
+  overlay). Add your own Ingress/HTTPRoute honouring the routing contract
+  above.
+
+### Valkey: bundled or bring your own
+
+The base deliberately bundles **no** datastore. The quickstart adds
+`components/valkey`: a single replica, no persistence — honest for this
+workload, since scrape state is rebuildable (losing the pod costs one
+re-scrape; only the fleet staleness clock and manual-scrape budgets reset).
+
+For an HA datastore, run your own Valkey/Redis (operator, managed service,
+Sentinel — anything Redis-API-compatible) and point the backend at it with an
+env patch; the storage adapter uses only simple single-key commands, so
+standalone, Sentinel and cluster topologies all work:
+
+```yaml
+patches:
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: platformup2date-backend
+      spec:
+        template:
+          spec:
+            containers:
+              - name: backend
+                env:
+                  - name: QUARKUS_REDIS_HOSTS
+                    value: redis://my-valkey:6379
+```
+
+For Sentinel, set `QUARKUS_REDIS_CLIENT_TYPE=sentinel`,
+`QUARKUS_REDIS_HOSTS=redis://sentinel-0:26379,redis://sentinel-1:26379,…` and
+`QUARKUS_REDIS_MASTER_NAME=<master>` instead. One caveat worth knowing: with
+async replication a failover can lose the last few writes — here that means at
+worst one re-scrape, which is exactly why the state model is HA-friendly.
+
+While Valkey is unreachable the backend fails closed (503) and its readiness
+probe (`/q/health/ready`) reports DOWN, pulling replicas out of rotation until
+it returns.
+
+### k8s-image RBAC
+
+Only if an app in your config uses the `k8s-image` current source, add
+`components/rbac` to your overlay:
+
+```yaml
+components:
+  - https://github.com/sreyardship/PlatformUp2Date-public//deploy/k8s/components/rbac?ref=v0.0.48
+```
+
+It grants cluster-wide read-only `get` on Deployments/StatefulSets/DaemonSets —
+no `list`/`watch`, no writes, no secrets — to the `platformup2date`
+ServiceAccount the base always creates. **Namespace caveat**: a
+ClusterRoleBinding subject names a concrete namespace and kustomize's
+`namespace:` transformer does *not* rewrite it (it only rewrites subjects named
+`default`). Deploying anywhere other than a namespace literally called
+`platformup2date`, patch it:
+
+```yaml
+patches:
+  - patch: |-
+      - op: replace
+        path: /subjects/0/namespace
+        value: my-namespace
+    target: {kind: ClusterRoleBinding, name: platformup2date-read-workloads}
+```
+
+## What the backend needs (outside Kubernetes)
+
+Running on plain Docker/Podman/anything-OCI instead? The base manifests wire
+up exactly two things you'll need to reproduce (the compose quickstart shows
+both):
 
 - **A reachable Valkey (or Redis-API-compatible) instance.** All scrape state —
   the observed Applications, the fleet-wide staleness clock, and the manual-scrape
@@ -27,46 +172,15 @@ and [`docs/adr/0004`](adr/0004-mcp-transport-stateless-for-ha.md)).
   back to a per-instance cache. Point the backend at it with
   `QUARKUS_REDIS_HOSTS=redis://<host>:6379`.
 - **A mounted `platform-config` file**, supplied via
-  `QUARKUS_CONFIG_LOCATIONS=/config/platform-config.yaml` pointed at a mounted
-  `ConfigMap`. Nothing is baked into the image on purpose, so changing the
-  watched apps is a ConfigMap edit, not an image rebuild. See
-  [`configuration.md`](configuration.md) for every key.
-- **A ServiceAccount + ClusterRole**, only if any app uses the `k8s-image`
-  current source (Tier B: it reads a workload's running container image tag
-  from the Kubernetes API — see [`configuration.md`](configuration.md#type-k8s-image-current--tier-b-requires-cluster-access)).
-  The backend's Fabric8 client auto-configures from the in-cluster
-  ServiceAccount token; there is no client config in the app itself, only the
-  RBAC below:
-
-  ```yaml
-  apiVersion: rbac.authorization.k8s.io/v1
-  kind: ClusterRole
-  metadata:
-    name: platformup2date-read-workloads
-  rules:
-    - apiGroups: ["apps"]
-      resources: ["deployments", "statefulsets", "daemonsets"]
-      verbs: ["get"]
-  ---
-  apiVersion: rbac.authorization.k8s.io/v1
-  kind: ClusterRoleBinding
-  metadata:
-    name: platformup2date-read-workloads
-  roleRef:
-    apiGroup: rbac.authorization.k8s.io
-    kind: ClusterRole
-    name: platformup2date-read-workloads
-  subjects:
-    - kind: ServiceAccount
-      name: platformup2date
-      namespace: <your-namespace>
-  ```
-
-  This is cluster-wide read-only `get` access on the three workload kinds — no
-  `list`/`watch`, no write verbs, no secrets access. If any app instead uses
-  `ssh-os-release`, mount its private key and known-hosts/host-key as a Secret
-  volume instead (see [`configuration.md`](configuration.md#type-ssh-os-release-current--tier-b-requires-ssh-access));
-  that source needs no Kubernetes RBAC at all.
+  `QUARKUS_CONFIG_LOCATIONS=/config/platform-config.yaml`. Nothing is baked
+  into the image on purpose, so changing the watched apps is a config edit,
+  not an image rebuild. See [`configuration.md`](configuration.md) for every
+  key. The `k8s-image` current source auto-configures from the in-cluster
+  ServiceAccount (Fabric8) and needs the RBAC component above; it has no
+  out-of-cluster story. `ssh-os-release` instead needs its private key and
+  known-hosts/host-key mounted (see
+  [`configuration.md`](configuration.md#type-ssh-os-release-current--tier-b-requires-ssh-access))
+  and no Kubernetes RBAC at all.
 
 ## Metrics
 
@@ -105,7 +219,11 @@ metadata:
 spec:
   selector:
     matchLabels:
+      # These match the backend Service shipped in deploy/k8s/base — the
+      # component label matters, or Prometheus also scrapes the frontend
+      # Service (same name label, same `http` port name, no /metrics).
       app.kubernetes.io/name: platformup2date
+      app.kubernetes.io/component: backend
   endpoints:
     - port: http
       path: /metrics

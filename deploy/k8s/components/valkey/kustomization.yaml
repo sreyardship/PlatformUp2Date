@@ -1,0 +1,9 @@
+# Bundled single-replica Valkey — the quickstart datastore. Deliberately not
+# in the base: operators with an existing (often HA) Valkey/Redis consume the
+# base directly and patch QUARKUS_REDIS_* env instead of deleting resources.
+# See docs/deployment.md for the Sentinel/cluster patch.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - valkey.yaml

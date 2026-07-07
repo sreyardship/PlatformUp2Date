@@ -1,0 +1,60 @@
+# Single replica, no persistence — honest for this workload: scrape state is
+# rebuildable (ADR-0003), so losing the pod costs one re-scrape (the fleet
+# staleness clock and manual-scrape budgets reset), not data. While Valkey is
+# down the backend fails closed (503) and its readiness probe reports DOWN.
+# Need HA or persistence? Run your own Valkey/Redis and skip this component.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platformup2date-valkey
+  labels:
+    app.kubernetes.io/name: platformup2date
+    app.kubernetes.io/component: valkey
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: platformup2date
+      app.kubernetes.io/component: valkey
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: platformup2date
+        app.kubernetes.io/component: valkey
+    spec:
+      containers:
+        - name: valkey
+          image: valkey/valkey:8-alpine
+          ports:
+            - name: valkey
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["valkey-cli", "ping"]
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: valkey
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platformup2date-valkey
+  labels:
+    app.kubernetes.io/name: platformup2date
+    app.kubernetes.io/component: valkey
+spec:
+  selector:
+    app.kubernetes.io/name: platformup2date
+    app.kubernetes.io/component: valkey
+  ports:
+    - name: valkey
+      port: 6379
+      targetPort: valkey
