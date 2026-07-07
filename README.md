@@ -2,7 +2,7 @@
 
 You run a platform, a home lab, or just a pile of apps, and every single one of them is waaay out of date. Let's change that!
 
-If it exposes its version somehow: an HTTP endpoint, a container image tag, a
+If it exposes its version somehow: an HTTP endpoint, a container image tag, `ssh`/`os-release`, a
 Prometheus metric[^prom-source], it can be monitored!
 
 [^prom-source]: Reading `current` from a Prometheus metric is not implemented yet. But just you wait! It was a great idea, i just don't see where it would be used, so ehrm... Make an issue if you have a real world use for it? Or a PR <3.
