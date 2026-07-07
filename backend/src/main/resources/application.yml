@@ -72,6 +72,22 @@ quarkus:
       enabled: false
   http:
     auth:
+      # docs/adr/0026 issue 03: Quarkus's default (proactive: true) runs authentication against
+      # ANY request that carries credentials the enabled OIDC tenant recognises the shape of
+      # (an Authorization: Bearer header), on EVERY path — not just the ones with an authenticated
+      # permission policy. With the /api/mcp* tenant enabled, a stale/foreign/garbage bearer token
+      # attached to a permit-all request (e.g. a browser extension's leftover header, or a
+      # misconfigured client hitting /api/v1 or /q/health) would fail proactive auth and 401 a
+      # surface this feature was never meant to touch. Lazy auth defers authentication until a
+      # security constraint actually requires it, so permit-all paths ignore credential presence
+      # entirely while /api/mcp*'s `authenticated` policy below still triggers and still enforces
+      # (and its 401 challenge/WWW-Authenticate response, pinned by McpOidcDiscoveryIT, is
+      # unaffected — that challenge comes from the failed authorization check on the protected
+      # path, not from proactive authentication). This is a Quarkus BUILD_TIME property, so it
+      # cannot be presence-derived at runtime the way tenant-enabled is; that is harmless here
+      # because with auth off the OIDC tenant itself is disabled and proactive-vs-lazy has nothing
+      # to act on. Applies unconditionally (auth-on and auth-off alike).
+      proactive: false
       permission:
         mcp:
           paths: /api/mcp*
