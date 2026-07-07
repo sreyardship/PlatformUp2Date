@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'io.quarkus'
+    id 'org.gradle.test-retry' version '1.6.2'
 }
 
 repositories {
@@ -80,6 +81,19 @@ test {
     jvmArgs '-XX:+EnableDynamicAgentLoading', '-Djdk.instrument.traceUsage'
     useJUnitPlatform {
         excludeTags 'performance'
+    }
+
+    // CI-only flake shield: the integration suite leans on real sockets (WireMock keep-alive
+    // races → HttpClosedException) and Dev Services containers (Valkey startup races →
+    // ConnectException), which occasionally lose timing races on shared runners. Retry such
+    // failures up to twice within the same run — a genuine regression fails all three attempts
+    // and still fails the build. maxFailures aborts retrying when breakage is systemic rather
+    // than flaky. Local runs keep retries off so failures stay loud during development.
+    retry {
+        if (System.getenv('CI')) {
+            maxRetries = 2
+            maxFailures = 8
+        }
     }
 
     // One-off GraalVM reachability-metadata capture: run a focused test class under the
