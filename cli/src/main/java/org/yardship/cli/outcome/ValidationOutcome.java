@@ -158,4 +158,33 @@ public sealed interface ValidationOutcome {
             return EXIT_CODE;
         }
     }
+
+    /**
+     * {@code calver} validation succeeded: {@code --format} parsed as a legal
+     * {@link org.yardship.core.domain.primitives.CalverFormat} and {@code --version} parsed
+     * against it, producing the token -> displayed-value {@link CalverMapping}.
+     *
+     * <p><b>Design note (issue 05):</b> like {@code changelog} (issue 04), {@code calver} is a
+     * pure-function check with no body/network step, so it collapses to the same two-outcome
+     * shape: {@link CalverOk} (0) and {@link ConfigInvalid} (2). Consistent with issue 04's
+     * precedent, BOTH failure modes reuse {@link ConfigInvalid}: a malformed/unknown-token
+     * {@code --format} (rejected by {@code CalverFormat}'s constructor) and a {@code --version}
+     * that does not fit that format (rejected by {@code VersionParser#parse}) are both "the
+     * invocation itself is malformed" — there is no body-acquisition step for
+     * {@link FetchFailed}/{@link ValidButEmpty} to describe, and {@code --version} here is a
+     * fixed CLI argument (like {@code --format}), not data fetched from a remote source. Reusing
+     * {@link ConfigInvalid} for both keeps the exit-code contract's meaning ("kind of failure",
+     * not "which validation step") intact rather than minting a third failure case whose only
+     * distinguishing feature is which pure-function step produced the message.
+     *
+     * @param mapping the resolved token -> displayed-value pairs, in the format's declared order.
+     */
+    record CalverOk(CalverMapping mapping) implements ValidationOutcome {
+        public static final int EXIT_CODE = 0;
+
+        @Override
+        public int exitCode() {
+            return EXIT_CODE;
+        }
+    }
 }

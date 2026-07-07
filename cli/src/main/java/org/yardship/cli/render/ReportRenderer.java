@@ -1,5 +1,6 @@
 package org.yardship.cli.render;
 
+import org.yardship.cli.outcome.CalverMapping;
 import org.yardship.cli.outcome.PointerResult;
 import org.yardship.cli.outcome.RegexCandidate;
 import org.yardship.cli.outcome.ValidationOutcome;
@@ -29,6 +30,7 @@ public final class ReportRenderer {
             case ValidationOutcome.PointerOk ok -> renderPointerOk(ok, out);
             case ValidationOutcome.PointerValidButEmpty empty -> renderPointerValidButEmpty(empty, out);
             case ValidationOutcome.ChangelogOk ok -> renderChangelogOk(ok, out);
+            case ValidationOutcome.CalverOk ok -> renderCalverOk(ok, out);
         }
         return outcome.exitCode();
     }
@@ -70,6 +72,21 @@ public final class ReportRenderer {
 
     private void renderChangelogOk(ValidationOutcome.ChangelogOk ok, PrintStream out) {
         out.println("OK: changelog URL resolved to '" + ok.resolvedUrl() + "'.");
+    }
+
+    private void renderCalverOk(ValidationOutcome.CalverOk ok, PrintStream out) {
+        out.println("OK: " + formatMapping(ok.mapping()));
+    }
+
+    private String formatMapping(CalverMapping mapping) {
+        StringBuilder sb = new StringBuilder();
+        for (CalverMapping.TokenDisplay token : mapping.tokens()) {
+            if (sb.length() > 0) {
+                sb.append(", ");
+            }
+            sb.append(token.symbol()).append('=').append(token.displayedValue());
+        }
+        return sb.toString();
     }
 
     private void renderCandidates(List<RegexCandidate> candidates, RegexCandidate winner, PrintStream out) {
