@@ -4,6 +4,11 @@
 interval, the manual-scrape budgets, and the list of monitored Applications,
 each pairing a `current` version source with a `latest` version source.
 
+The harder keys to get right by hand (an `http-regex` regex, a `version-key`
+JSON Pointer, a `calver-format`, a `changelog-url` template) can be tested
+before deploying with the [`conf-check` CLI](conf-check.md), which also
+validates a whole `platform-config.yaml` in one run for CI gating.
+
 ## Top-level keys
 
 | Key | Type | Required | Default | Notes |

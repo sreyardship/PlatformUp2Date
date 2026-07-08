@@ -123,3 +123,67 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "chore(release): pin images to ${GITHUB_REF_NAME#v}"
           git push origin main
+
+  conf-check-native-release:
+    name: conf-check native (${{ matrix.os }}/${{ matrix.arch }})
+    needs: github-release
+    # Matrixed on a single entry today (issue 07: Linux/amd64 to start) so
+    # another OS/arch only needs a new matrix row — no job rewrite. Each row
+    # builds its own native binary and uploads it as a same-named asset on
+    # the release github-release already created.
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            runner: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    # Only this job (like github-release above) gets contents:write, scoped
+    # to uploading its own release asset — the image-publishing jobs stay at
+    # packages:write/contents:read throughout, unchanged by this addition.
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Same GraalVM CE 25 toolchain as pr.yml's `native` job (see its
+      # comment for the JDK 25/21 split rationale): native-image comes from
+      # GRAALVM_HOME, Gradle itself runs on JDK 21.
+      - name: Set up GraalVM CE 25 (native-image toolchain)
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm-community'
+          set-java-home: 'false'
+
+      - name: Set up JDK 21 (Gradle launcher)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.4'
+
+      - name: Build :conf-check native binary
+        run: gradle --no-daemon :backend:conf-check:nativeCompile
+
+      - name: Rename binary for its release asset
+        run: |
+          mkdir -p dist
+          cp backend/conf-check/build/native/nativeCompile/conf-check "dist/conf-check-${{ matrix.os }}-${{ matrix.arch }}"
+          chmod +x "dist/conf-check-${{ matrix.os }}-${{ matrix.arch }}"
+
+      # Uploads onto the release github-release already created for this
+      # tag; --clobber makes the step safely re-runnable (e.g. a retry after
+      # a transient failure) without failing on an existing asset.
+      - name: Upload native binary to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ github.ref_name }}"
+          gh release upload "$tag" "dist/conf-check-${{ matrix.os }}-${{ matrix.arch }}" --clobber

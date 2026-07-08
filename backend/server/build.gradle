@@ -1,0 +1,156 @@
+plugins {
+    id 'java'
+    id 'io.quarkus'
+    id 'org.gradle.test-retry' version '1.6.2'
+}
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+}
+
+dependencies {
+    implementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    implementation project(':backend:domain')
+    implementation 'io.quarkus:quarkus-rest'
+    implementation 'io.quarkus:quarkus-rest-client'
+    implementation 'io.quarkus:quarkus-arc'
+    implementation 'io.quarkus:quarkus-rest-jackson'
+    implementation 'io.quarkus:quarkus-rest-client-jackson'
+    implementation 'io.quarkus:quarkus-config-yaml'
+    implementation 'io.quarkus:quarkus-hibernate-validator'
+    implementation 'io.quarkus:quarkus-vertx'
+    implementation 'io.quarkus:quarkus-redis-client'
+    implementation 'io.quarkus:quarkus-smallrye-health'
+    implementation 'io.quarkus:quarkus-kubernetes-client'
+    implementation 'org.semver4j:semver4j:6.0.0'
+    implementation 'io.quarkus:quarkus-smallrye-openapi'
+    implementation 'io.quarkiverse.mcp:quarkus-mcp-server-http:1.13.0'
+    // MCP endpoint OAuth resource-server auth (docs/adr/0026, issue 01): validates bearer JWTs
+    // against MCP_OIDC_ISSUER/MCP_OIDC_AUDIENCE when configured; inert (tenant disabled) otherwise.
+    implementation 'io.quarkus:quarkus-oidc'
+    // SSH client for the 'ssh-os-release' current source (and the embedded SSHD server used by its
+    // integration tests). BouncyCastle gives MINA SSHD broad private-key/host-key format support
+    // (OpenSSH + classic PEM, RSA/ECDSA/ed25519) — its documented recommendation.
+    implementation 'org.apache.sshd:sshd-core:2.13.2'
+    implementation 'org.bouncycastle:bcpkix-jdk18on:1.78.1'
+
+    testImplementation 'io.quarkus:quarkus-junit5'
+    testImplementation 'io.quarkus:quarkus-junit5-mockito'
+    testImplementation 'io.rest-assured:rest-assured'
+    testImplementation 'org.wiremock:wiremock:3.13.2'
+    testImplementation 'io.quarkiverse.mcp:quarkus-mcp-server-test:1.13.0'
+    testImplementation 'io.quarkus:quarkus-test-kubernetes-client'
+    // MCP OAuth resource-server auth-on ITs (docs/adr/0026, issue 01): Keycloak Dev Services
+    // (triggered once quarkus-oidc is on the classpath — added by the implementer) still relies on
+    // this dependency to import the realm configured in src/test/resources/mcp-oidc-test-realm.json.
+    testImplementation 'io.quarkus:quarkus-test-oidc-server'
+
+    // Black-box integration tests (@QuarkusIntegrationTest) run via the `quarkusIntTest`
+    // task against the built artifact (native in CI). Separate `integrationTest` source set.
+    integrationTestImplementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    integrationTestImplementation project(':backend:domain')
+    integrationTestImplementation 'io.quarkus:quarkus-junit5'
+    integrationTestImplementation 'org.wiremock:wiremock:3.13.2'
+    // The ssh-os-release native guard (@QuarkusIntegrationTest) boots an embedded ed25519 MINA SSH
+    // server in the test JVM that the launched native binary connects to, so the test harness needs
+    // the SSHD server classes (+ BouncyCastle for ed25519 key handling, matching the unit/IT classpath).
+    integrationTestImplementation 'org.apache.sshd:sshd-core:2.13.2'
+    integrationTestImplementation 'org.bouncycastle:bcpkix-jdk18on:1.78.1'
+    // MCP OAuth resource-server native auth smoke (docs/adr/0026, issue 04): a
+    // @QuarkusIntegrationTest launches the built artifact as a standalone process, so Keycloak Dev
+    // Services (which the JVM @QuarkusTest auth-on suite relies on) cannot compose here — this
+    // resource manager starts a real Keycloak container itself via plain Testcontainers.
+    // Version comes from the Quarkus BOM (enforcedPlatform above), matching quarkus-oidc's own
+    // transitive testcontainers alignment.
+    integrationTestImplementation 'org.testcontainers:testcontainers'
+}
+
+group 'org.yardship'
+version '1.0.0-SNAPSHOT'
+
+if (project.hasProperty('customBuildDir')) {
+    layout.buildDirectory = layout.projectDirectory.dir(project.property('customBuildDir'))
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+test {
+    systemProperty "java.util.logging.manager", "org.jboss.logmanager.LogManager"
+    jvmArgs '-XX:+EnableDynamicAgentLoading', '-Djdk.instrument.traceUsage'
+    useJUnitPlatform {
+        excludeTags 'performance'
+    }
+
+    // CI-only flake shield: the integration suite leans on real sockets (WireMock keep-alive
+    // races → HttpClosedException) and Dev Services containers (Valkey startup races →
+    // ConnectException), which occasionally lose timing races on shared runners. Retry such
+    // failures up to twice within the same run — a genuine regression fails all three attempts
+    // and still fails the build. maxFailures aborts retrying when breakage is systemic rather
+    // than flaky. Local runs keep retries off so failures stay loud during development.
+    retry {
+        if (System.getenv('CI')) {
+            maxRetries = 2
+            maxFailures = 8
+        }
+    }
+
+    // One-off GraalVM reachability-metadata capture: run a focused test class under the
+    // native-image tracing agent to (re)generate META-INF/native-image config for the SSH path.
+    //   gradle test --tests '*SshOsReleaseCurrentSourceIT' -PnativeAgentDir=<abs-dir> --rerun-tasks
+    // See docs/adr/0018 for when to regenerate (MINA SSHD upgrades).
+    if (project.hasProperty('nativeAgentDir')) {
+        def graalHome = System.getenv('GRAALVM_HOME') ?: System.getProperty('java.home')
+        // The tracing agent must run on a JVM matching its major version (the GraalVM JDK), so fork
+        // the test workers with the GraalVM java rather than the default build toolchain.
+        executable = "${graalHome}/bin/java"
+        def agentOpts = "config-output-dir=${project.property('nativeAgentDir')}"
+        if (project.hasProperty('nativeAgentFilter')) {
+            agentOpts += ",access-filter-file=${project.property('nativeAgentFilter')}"
+        }
+        jvmArgs "-agentpath:${graalHome}/lib/libnative-image-agent.so=${agentOpts}"
+        maxParallelForks = 1
+    }
+}
+
+// Dedicated task for the deliberately-slow performance harness.
+// Run with: gradle perfTest
+// The default `test` task excludes the 'performance' tag so this harness never
+// runs during a normal build or CI test step.
+tasks.register('perfTest', Test) {
+    description = 'Runs the performance harness (@Tag("performance") tests only).'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    systemProperty "java.util.logging.manager", "org.jboss.logmanager.LogManager"
+    jvmArgs '-XX:+EnableDynamicAgentLoading', '-Djdk.instrument.traceUsage'
+    useJUnitPlatform {
+        includeTags 'performance'
+    }
+}
+compileJava {
+    options.encoding = 'UTF-8'
+    options.compilerArgs << '-parameters'
+
+    // When pre-built classes are available (CI test step), skip recompilation.
+    // Code generation tasks are also disabled below to avoid invalidating the cache.
+    if (project.hasProperty('preBuiltClasses')) {
+        outputs.upToDateWhen { true }
+    }
+}
+
+// Skip code generation when using pre-built classes — regenerating sources
+// would give them newer timestamps than the compiled classes, making Gradle
+// think compileJava is stale even though the output is identical.
+if (project.hasProperty('preBuiltClasses')) {
+    tasks.matching { it.name in ['quarkusGenerateCode', 'quarkusGenerateCodeDev'] }.configureEach {
+        enabled = false
+    }
+}
+
+compileTestJava {
+    options.encoding = 'UTF-8'
+}
