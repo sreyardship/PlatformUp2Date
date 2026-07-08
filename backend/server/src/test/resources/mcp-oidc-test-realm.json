@@ -4,7 +4,8 @@
   "sslRequired": "none",
   "roles": {
     "realm": [
-      { "name": "user" }
+      { "name": "user" },
+      { "name": "pu2d-mcp" }
     ]
   },
   "requiredActions": [
@@ -119,6 +120,19 @@
       "requiredActions": [],
       "credentials": [
         { "type": "password", "value": "alice", "temporary": false }
+      ],
+      "realmRoles": ["user", "pu2d-mcp"]
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "email": "bob@mcp-oidc-test.example",
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Test",
+      "requiredActions": [],
+      "credentials": [
+        { "type": "password", "value": "bob", "temporary": false }
       ],
       "realmRoles": ["user"]
     }

@@ -22,8 +22,8 @@ import static org.mockito.Mockito.when;
  * NOTHING for the REST API ({@code /api/v1/*}) or health ({@code /q/health}) — their protection
  * story (edge proxy / private network) is out of scope for this switch, and remains so.
  *
- * <p>Runs under the same auth-on {@link McpOidcAuthTestProfile} as {@link McpOidcAuthEnforcedIT}
- * (real Keycloak Dev Services tenant, MCP_OIDC_ISSUER/AUDIENCE set) — the exact condition under
+ * <p>Runs under the same auth-on {@link SurfaceAuthTestProfile} as {@link McpOidcAuthEnforcedIT}
+ * (real Keycloak Dev Services tenant, OIDC_ISSUER/OIDC_AUDIENCE set) — the exact condition under
  * which Quarkus's default proactive authentication could otherwise 401 a permit-all path just
  * because the request carries an {@code Authorization} header the configured tenant cannot
  * validate. A browser extension or misconfigured client attaching a stale/foreign bearer token
@@ -34,7 +34,7 @@ import static org.mockito.Mockito.when;
  * the controller actually serving the request, not an unrelated 500.
  */
 @QuarkusTest
-@TestProfile(McpOidcAuthTestProfile.class)
+@TestProfile(SurfaceAuthTestProfile.class)
 class McpOidcNonMcpSurfacesIT {
 
     @InjectMock

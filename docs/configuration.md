@@ -154,16 +154,21 @@ glossary entry in `CONTEXT.md`.
 
 | Key | Type | Required | Default | Notes |
 |---|---|---|---|---|
-| `MCP_OIDC_ISSUER` | string (issuer URL) | no | absent → MCP endpoint authentication disabled | Presence is the switch: setting this enforces bearer-token validation on `/api/mcp`; unset preserves the endpoint's open, unauthenticated behavior. |
-| `MCP_OIDC_AUDIENCE` | string | required when `MCP_OIDC_ISSUER` is set | — | Mandatory whenever the issuer is set — boot fails, naming `MCP_OIDC_AUDIENCE`, if it is missing. Prevents a token minted for another audience on the same issuer from being replayed against this endpoint. |
+| `OIDC_ISSUER` | string (issuer URL) | no | absent → MCP endpoint authentication disabled | Presence is the switch: setting this enforces bearer-token validation on `/api/mcp`; unset preserves the endpoint's open, unauthenticated behavior. |
+| `OIDC_AUDIENCE` | string | required when `OIDC_ISSUER` is set | — | Mandatory whenever the issuer is set — boot fails, naming `OIDC_AUDIENCE`, if it is missing. Prevents a token minted for another audience on the same issuer from being replayed against this endpoint. |
 
 Every boot logs which mode was resolved — `MCP endpoint authentication:
 enforced against issuer <url>` or `…disabled — endpoint relies on
 edge/network protection` — so a typo'd variable name is visible on first
-boot. `MCP_OIDC_AUDIENCE` set without `MCP_OIDC_ISSUER` is not a boot failure
+boot. `OIDC_AUDIENCE` set without `OIDC_ISSUER` is not a boot failure
 (there is nothing to validate an audience against without an issuer) but is
 surfaced as a startup warning, since it is probably a missing or typo'd
-`MCP_OIDC_ISSUER` rather than an intentional configuration.
+`OIDC_ISSUER` rather than an intentional configuration.
+
+<!-- NOTE for slice 05: this section still needs the MCP_OIDC_ROLE row, the
+     role-without-issuer boot-failure case, and updated log-line wording
+     ("Surface authentication: ..."); only the OIDC_ISSUER/OIDC_AUDIENCE
+     token rename was done in slice 01. -->
 
 This guards only the MCP Surface. It never covers the REST API (`/api/v1`),
 web UI, or `/metrics` — those stay behind an edge proxy or a trusted network;

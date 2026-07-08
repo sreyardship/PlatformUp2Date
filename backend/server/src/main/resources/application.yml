@@ -37,28 +37,30 @@ quarkus:
         streamable:
           auto-init: true
 
-  # MCP endpoint OAuth resource-server authentication (docs/adr/0026, issue 01): presence-switched
-  # on MCP_OIDC_ISSUER/MCP_OIDC_AUDIENCE, the whole operator-visible surface. The derived internal
-  # properties below (tenant-enabled, auth-server-url, token audience, and the /api/mcp* permission
-  # policy) are produced at runtime by McpOidcRuntimeConfigSourceFactory from those two env vars —
-  # NOT by a static ${MCP_OIDC_ISSUER:} expansion here, because the auth-on test profile derives
-  # MCP_OIDC_ISSUER FROM quarkus.oidc.auth-server-url (Keycloak Dev Services' dynamic URL); a static
-  # reverse expansion here would create a circular property reference. When MCP_OIDC_ISSUER is
-  # absent/blank, tenant-enabled resolves to false and the OIDC extension stays fully inert; the
-  # policy below resolves to permit, preserving today's open endpoint. See McpOidcBootMode for the
-  # matching boot-time validation/log line and McpOidcConfigurationException for the illegal
-  # issuer-without-audience state.
+  # Shared-issuer, role-gated surface authentication (docs/adr/0026, docs/adr/0028, issue 01):
+  # presence-switched on OIDC_ISSUER/OIDC_AUDIENCE, plus a per-surface role var (MCP_OIDC_ROLE,
+  # default pu2d-mcp) that gates /api/mcp*. These are the whole operator-visible surface. The
+  # derived internal properties below (tenant-enabled, auth-server-url, token audience, and each
+  # surface's HTTP permission policy) are produced at runtime by SurfaceAuthConfigSourceFactory
+  # from those env vars — NOT by a static ${OIDC_ISSUER:} expansion here, because the auth-on test
+  # profile derives OIDC_ISSUER FROM quarkus.oidc.auth-server-url (Keycloak Dev Services' dynamic
+  # URL); a static reverse expansion here would create a circular property reference. When
+  # OIDC_ISSUER is absent/blank, tenant-enabled resolves to false and the OIDC extension stays
+  # fully inert; the mcp policy below resolves to permit, preserving today's open endpoint. See
+  # SurfaceAuthMode for the matching boot-time validation/log line and
+  # SurfaceAuthConfigurationException for the illegal issuer-without-audience and
+  # role-without-issuer states.
   #
   # Keycloak Dev Services would otherwise auto-start for ANY test once quarkus-oidc is on the
   # classpath (the extension's zero-config dev/test convenience); disabled by default so the
   # auth-off regression suite (ApplicationMcpServerIT) stays fast and Docker-free, and re-enabled
-  # explicitly by the auth-on @TestProfile (McpOidcAuthTestProfile).
+  # explicitly by the auth-on @TestProfile (SurfaceAuthTestProfile).
   oidc:
     # RFC 9728 protected-resource metadata (docs/adr/0026, issue 02). Safe to enable
     # unconditionally here (no presence-derivation needed for this property): the extension only
     # registers the well-known route and appends the WWW-Authenticate `resource_metadata` pointer
     # for tenants whose tenant-enabled is true, and tenant-enabled is the very flag
-    # McpOidcRuntimeConfigSourceFactory derives from MCP_OIDC_ISSUER/MCP_OIDC_AUDIENCE above. So
+    # SurfaceAuthConfigSourceFactory derives from OIDC_ISSUER/OIDC_AUDIENCE above. So
     # with both env vars unset, tenant-enabled resolves to false, the metadata route never
     # registers, and the well-known path 404s exactly as before this issue. The explicit `resource`
     # value is what makes both the well-known route path and the metadata document's `resource`
@@ -80,7 +82,7 @@ quarkus:
       # misconfigured client hitting /api/v1 or /q/health) would fail proactive auth and 401 a
       # surface this feature was never meant to touch. Lazy auth defers authentication until a
       # security constraint actually requires it, so permit-all paths ignore credential presence
-      # entirely while /api/mcp*'s `authenticated` policy below still triggers and still enforces
+      # entirely while /api/mcp*'s derived `mcp-role` role policy below still triggers and enforces
       # (and its 401 challenge/WWW-Authenticate response, pinned by McpOidcDiscoveryIT, is
       # unaffected — that challenge comes from the failed authorization check on the protected
       # path, not from proactive authentication). This is a Quarkus BUILD_TIME property, so it
@@ -91,7 +93,9 @@ quarkus:
       permission:
         mcp:
           paths: /api/mcp*
-          # policy is derived (authenticated | permit) by McpOidcRuntimeConfigSourceFactory above.
+          # policy is derived (a named "mcp-role" role policy | permit) by
+          # SurfaceAuthConfigSourceFactory above; when enabled it also produces
+          # quarkus.http.auth.policy.mcp-role.roles-allowed=<the effective MCP_OIDC_ROLE>.
 
 # platform-config (the apps to monitor + scrape interval) is environment-specific.
 #

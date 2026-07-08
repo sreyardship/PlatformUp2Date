@@ -165,8 +165,8 @@ server — no wrapper script, no interactive login proxied through the app. Set 
 environment variables on the backend:
 
 ```
-MCP_OIDC_ISSUER=https://auth.example.com/realms/yourrealm
-MCP_OIDC_AUDIENCE=platformup2date-mcp
+OIDC_ISSUER=https://auth.example.com/realms/yourrealm
+OIDC_AUDIENCE=platformup2date-mcp
 ```
 
 and register the URL with any MCP client:
@@ -178,8 +178,8 @@ https://platformup2date.example.com/api/mcp
 A client that supports the MCP authorization spec discovers the issuer from the
 RFC 9728 protected-resource metadata the endpoint publishes, and logs in natively —
 no bearer token to fetch or attach by hand. Both variables are required together:
-`MCP_OIDC_ISSUER` unset leaves the endpoint unauthenticated; set
-without `MCP_OIDC_AUDIENCE` it refuses to boot, naming the missing variable. See
+`OIDC_ISSUER` unset leaves the endpoint exactly as before (unauthenticated); set
+without `OIDC_AUDIENCE` it refuses to boot, naming the missing variable. See
 [`docs/configuration.md`](docs/configuration.md#mcp-endpoint-authentication) for the
 full contract.
 

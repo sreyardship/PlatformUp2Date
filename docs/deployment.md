@@ -184,8 +184,8 @@ both):
 
 ## MCP endpoint authentication
 
-If you turn on MCP endpoint authentication (`MCP_OIDC_ISSUER` +
-`MCP_OIDC_AUDIENCE`, see [`configuration.md`](configuration.md#mcp-endpoint-authentication)),
+If you turn on MCP endpoint authentication (`OIDC_ISSUER` +
+`OIDC_AUDIENCE`, see [`configuration.md`](configuration.md#mcp-endpoint-authentication)),
 it has two consequences for anything sitting in front of the backend:
 
 - **The shared `HTTPRoute` needs one added rule.** [`docs/adr/0002`](adr/0002-mcp-endpoint-under-api.md)'s
@@ -239,7 +239,7 @@ it has two consequences for anything sitting in front of the backend:
   before the backend can answer them, breaking native MCP client
   authentication.
 
-With MCP endpoint authentication off (`MCP_OIDC_ISSUER` unset, the default),
+With MCP endpoint authentication off (`OIDC_ISSUER` unset, the default),
 neither change applies and the endpoint behaves exactly as described in
 [ADR 0002](adr/0002-mcp-endpoint-under-api.md).
 

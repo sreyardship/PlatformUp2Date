@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * (unrelocated to under {@code /api}, per ADR 0026's consequence about the HTTPRoute).
  */
 @QuarkusTest
-@TestProfile(McpOidcAuthTestProfile.class)
+@TestProfile(SurfaceAuthTestProfile.class)
 public class McpOidcDiscoveryIT {
 
     private static final Pattern RESOURCE_METADATA_PATTERN =

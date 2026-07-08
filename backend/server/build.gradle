@@ -26,8 +26,8 @@ dependencies {
     implementation 'org.semver4j:semver4j:6.0.0'
     implementation 'io.quarkus:quarkus-smallrye-openapi'
     implementation 'io.quarkiverse.mcp:quarkus-mcp-server-http:1.13.0'
-    // MCP endpoint OAuth resource-server auth (docs/adr/0026, issue 01): validates bearer JWTs
-    // against MCP_OIDC_ISSUER/MCP_OIDC_AUDIENCE when configured; inert (tenant disabled) otherwise.
+    // MCP endpoint OAuth resource-server auth (docs/adr/0026, docs/adr/0028, issue 01): validates
+    // bearer JWTs against OIDC_ISSUER/OIDC_AUDIENCE when configured; inert (tenant disabled) otherwise.
     implementation 'io.quarkus:quarkus-oidc'
     // SSH client for the 'ssh-os-release' current source (and the embedded SSHD server used by its
     // integration tests). BouncyCastle gives MINA SSHD broad private-key/host-key format support
