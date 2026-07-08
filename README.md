@@ -1,6 +1,6 @@
 # <img src="frontend/public/logo.svg" alt="PlatformUp2Date logo" align="absmiddle" height="45"/> PlatformUp2Date
 
-You run a platform, a home lab, or just a pile of apps, and every single one of them is waaay out of date. Let's change that!
+You run a platform, a home lab or just a pile of apps. They're all out of date... let's change that!
 
 If it exposes its version somehow: an HTTP endpoint, a container image tag, `ssh`/`os-release`, a
 Prometheus metric[^prom-source], it can be monitored!
@@ -67,19 +67,6 @@ without any credentials — see
 [`deploy/k8s/base/platform-config.yaml`](deploy/k8s/base/platform-config.yaml) for
 the exact config, and [`docs/configuration.md`](docs/configuration.md) for
 every source type and config key available for your own apps.
-
-## Build from source
-
-For contributing, or if you'd rather build the images yourself,
-`compose.yml` builds both from source instead of pulling from GHCR (the
-backend must be built with Gradle first):
-
-```bash
-cd backend && gradle build && cd ..
-docker compose up -d
-```
-
-Then go to [localhost:3000](http://localhost:3000).
 
 ## Documentation
 
@@ -207,7 +194,4 @@ the cluster changes MCP endpoint authentication requires.
 
 ## Contributing
 
-Build from source (above), make your change, and open a pull request. Every
-PR runs a fast JVM test job and a full GraalVM native build with native
-integration tests — both are required to merge, so native-only regressions
-never slip through.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md)
