@@ -170,12 +170,12 @@ jobs:
           gradle-version: '8.14.4'
 
       - name: Build :conf-check native binary
-        run: gradle --no-daemon :conf-check:nativeCompile
+        run: gradle --no-daemon :backend:conf-check:nativeCompile
 
       - name: Rename binary for its release asset
         run: |
           mkdir -p dist
-          cp conf-check/build/native/nativeCompile/conf-check "dist/conf-check-${{ matrix.os }}-${{ matrix.arch }}"
+          cp backend/conf-check/build/native/nativeCompile/conf-check "dist/conf-check-${{ matrix.os }}-${{ matrix.arch }}"
           chmod +x "dist/conf-check-${{ matrix.os }}-${{ matrix.arch }}"
 
       # Uploads onto the release github-release already created for this

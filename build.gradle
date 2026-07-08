@@ -1,2 +1,3 @@
 // Repo-root Gradle build. Intentionally minimal — each subproject
-// (:domain, :backend) owns its own plugins and dependencies.
+// (:backend:domain, :backend:server, :backend:conf-check) owns its own
+// plugins and dependencies.

@@ -41,7 +41,7 @@ jobs:
           gradle-version: '8.14.4'
 
       - name: Backend unit + integration tests
-        run: gradle --no-daemon :domain:test :backend:test
+        run: gradle --no-daemon :backend:domain:test :backend:server:test
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -111,7 +111,7 @@ jobs:
       # the native binary's boot just as for `fast`'s test JVM.
       - name: Native build + native integration tests
         run: >
-          gradle --no-daemon :backend:build :backend:quarkusIntTest
+          gradle --no-daemon :backend:server:build :backend:server:quarkusIntTest
           -Dquarkus.native.enabled=true
           -Dquarkus.package.jar.enabled=false
           -x test

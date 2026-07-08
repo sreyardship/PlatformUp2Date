@@ -10,6 +10,6 @@ pluginManagement {
 }
 rootProject.name = 'platform-up-2-date'
 
-include ':domain'
-include ':backend'
-include ':conf-check'
+include ':backend:domain'
+include ':backend:server'
+include ':backend:conf-check'

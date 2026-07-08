@@ -2,7 +2,7 @@
 
 `conf-check` is a standalone CLI that validates the parts of `platform-config.yaml` the backend can only prove wrong at boot or at scrape time. It lets you test a regex, a JSON Pointer, a changelog template, or a calver format before you deploy the config, and it can gate an entire config file in CI.
 
-The CLI lives in the `:conf-check` Gradle module. It depends only on `:domain`, so the validators it runs are the same domain primitives the backend uses (`VersionParser`, `CalverFormat`, `ChangelogTemplate`). If conf-check accepts a value, the backend will too.
+The CLI lives in the `:backend:conf-check` Gradle module. It depends only on `:backend:domain`, so the validators it runs are the same domain primitives the backend uses (`VersionParser`, `CalverFormat`, `ChangelogTemplate`). If conf-check accepts a value, the backend will too.
 
 ## Why it exists
 
@@ -106,8 +106,8 @@ Native binaries for tagged releases are attached to each `v*` GitHub Release as 
 To build locally (from the repo root):
 
 ```
-gradle :conf-check:build            # JAR + start scripts under conf-check/build
-gradle :conf-check:nativeCompile    # native binary at conf-check/build/native/nativeCompile/conf-check
+gradle :backend:conf-check:build            # JAR + start scripts under backend/conf-check/build
+gradle :backend:conf-check:nativeCompile    # native binary at backend/conf-check/build/native/nativeCompile/conf-check
 ```
 
 The native build needs GraalVM with native-image; the dev shell in `project-environment/` provides it.

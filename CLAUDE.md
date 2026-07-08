@@ -11,19 +11,19 @@ PlatformUp2Date is a version monitoring application that tracks deployed platfor
 ### Full stack (Docker Compose)
 ```bash
 # Build backend first (required before compose)
-gradle :backend:build
+gradle :backend:server:build
 docker compose up -d
 # Frontend: localhost:3000, Backend: localhost:8080
 ```
 
 ### Backend (Quarkus + Gradle)
-The Gradle root is the repo root (multi-module build: `:domain` + `:backend`); run these from the repo root, not `backend/`.
+The Gradle root is the repo root (multi-module build under `backend/`: `:backend:domain` + `:backend:server` + `:backend:conf-check`); run these from the repo root, not `backend/server/`.
 ```bash
-gradle :backend:quarkusDev          # Dev mode with live reload (localhost:8080)
-gradle :backend:build                # Build JAR
-gradle :backend:test                 # Run all backend tests
-gradle :backend:test --tests '*VersionTests'  # Run a single test class
-gradle :domain:test                  # Run :domain's own unit tests
+gradle :backend:server:quarkusDev          # Dev mode with live reload (localhost:8080)
+gradle :backend:server:build                # Build JAR
+gradle :backend:server:test                 # Run all backend tests
+gradle :backend:server:test --tests '*VersionTests'  # Run a single test class
+gradle :backend:domain:test                  # Run :backend:domain's own unit tests
 ```
 
 ### Frontend (Vite + Yarn)
@@ -50,7 +50,7 @@ The backend is a Quarkus 3.33.2 (Java 21) application structured as ports & adap
 - **`adapters/in/`** — REST controller (`VersionController` at `/api/v1/version`)
 - **`adapters/out/`** — Repository implementation using Quarkus REST clients to fetch current versions from deployed apps and latest versions from GitHub Releases API
 
-Application monitoring targets are configured in `backend/src/main/resources/application.yml`.
+Application monitoring targets are configured in `backend/server/src/main/resources/application.yml`.
 
 ### Frontend — React
 Vite + React with Material-UI. Component flow: `App` (data fetching) → `Display` (container) → `VersionList` → `Version` (card with color-coded status). API calls go through a centralized Axios client in `src/api/` configured via the runtime `window._env_.API_BASE_URL` value.

@@ -43,7 +43,7 @@ jobs:
   #     ran in CI.
   #   - it already expects the CI build-dir convention (`build-native/`, via
   #     Gradle's `customBuildDir` property, see build.gradle) that
-  #     backend/.dockerignore already whitelists
+  #     backend/server/.dockerignore already whitelists
   #     (`!build-native/*-runner`) — confirmed by running
   #     `gradle help -PcustomBuildDir=build-native` locally, which redirects
   #     the Gradle build directory as expected.
@@ -101,10 +101,10 @@ jobs:
       # so this job does not repeat them — it only compiles once more.
       # -PcustomBuildDir=build-native routes the output to the path
       # Dockerfile.native-ci's build context expects
-      # (backend/.dockerignore whitelists build-native/*-runner).
+      # (backend/server/.dockerignore whitelists build-native/*-runner).
       - name: Native build (backend)
         run: >
-          gradle --no-daemon :backend:build
+          gradle --no-daemon :backend:server:build
           -Dquarkus.native.enabled=true
           -Dquarkus.package.jar.enabled=false
           -x test
@@ -132,8 +132,8 @@ jobs:
       - name: Build and push backend image
         uses: docker/build-push-action@v6
         with:
-          context: backend
-          file: backend/src/main/docker/Dockerfile.native-ci
+          context: backend/server
+          file: backend/server/src/main/docker/Dockerfile.native-ci
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
