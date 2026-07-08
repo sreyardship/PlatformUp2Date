@@ -168,78 +168,42 @@ Most MCP-capable CLIs have a built-in subcommand for registering a remote HTTP
 server (consult your client's docs); the shape is generally
 `<your-mcp-client> mcp add --transport http platformup2date <url>`.
 
-### Security
+### MCP endpoint authentication
 
-The endpoint ships **unauthenticated** — it is meant to sit behind a reverse proxy that
-enforces access, exactly like the `/metrics` endpoint. Do not expose it directly on an
-untrusted network: it enumerates your infrastructure's version drift, which is useful recon
-for an attacker.
-
-A setup the author uses is [`oauth2-proxy`](https://oauth2-proxy.github.io/oauth2-proxy/) in front of
-`/api/mcp`, configured to accept bearer JWTs from your OIDC issuer:
+The MCP endpoint can authenticate its own callers directly, as an OAuth 2.1 resource
+server — no wrapper script, no interactive login proxied through the app. Set two
+environment variables on the backend:
 
 ```
---skip-jwt-bearer-tokens=true
---oidc-issuer-url=https://auth.example.com/realms/yourrealm
+MCP_OIDC_ISSUER=https://auth.example.com/realms/yourrealm
+MCP_OIDC_AUDIENCE=platformup2date-mcp
 ```
 
-Most MCP clients can't perform an interactive OIDC login on their own, so a small wrapper
-fetches a token with [`oauth2c`](https://github.com/cloudentity/oauth2c) and bridges the
-client's stdio to the protected Streamable HTTP endpoint via
-[`mcp-remote`](https://www.npmjs.com/package/mcp-remote).
+and register the URL with any MCP client as before:
 
-**1. Token helper — `oidc-token.sh`** (PKCE public-client flow, cached until the JWT expires):
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-OIDC_ISSUER="${OIDC_ISSUER:-https://auth.example.com/realms/yourrealm}"
-OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-platformup2date-mcp}"
-CACHE="${XDG_RUNTIME_DIR:-/tmp}/platformup2date-mcp-token"
-
-token_expired() {
-  local t="${1:-}"; [ -z "$t" ] && return 0
-  local exp
-  exp=$(echo "$t" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null | jq -r '.exp // 0')
-  [ "$(date +%s)" -ge "$exp" ]
-}
-
-token=$(cat "$CACHE" 2>/dev/null || true)
-if token_expired "$token"; then
-  token=$(oauth2c "$OIDC_ISSUER" \
-    --client-id "$OIDC_CLIENT_ID" \
-    --response-types code --grant-type authorization_code \
-    --auth-method none --pkce --scopes openid --silent \
-    | jq -r '.access_token // empty')
-  [ -n "$token" ] || { echo "failed to obtain OIDC token" >&2; exit 1; }
-  umask 177; printf '%s' "$token" > "$CACHE"
-fi
-printf '%s' "$token"
+```
+https://platformup2date.example.com/api/mcp
 ```
 
-**2. MCP wrapper — `platformup2date-mcp.sh`** (bridges the client to the protected MCP URL):
+A client that supports the MCP authorization spec discovers the issuer from the
+RFC 9728 protected-resource metadata the endpoint publishes, and logs in natively —
+no bearer token to fetch or attach by hand. Both variables are required together:
+`MCP_OIDC_ISSUER` unset leaves the endpoint exactly as before (unauthenticated); set
+without `MCP_OIDC_AUDIENCE` it refuses to boot, naming the missing variable. See
+[`docs/configuration.md`](docs/configuration.md#mcp-endpoint-authentication) for the
+full contract.
 
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
+> **DCR caveat.** Native discovery leans on your issuer supporting *dynamic client
+> registration*. If it doesn't, enable DCR or pre-register the client IDs your MCP
+> clients use — otherwise the flow dies mysteriously at registration, which is your
+> IdP's concern, not this app's.
 
-TOKEN=$("$(dirname "$0")/oidc-token.sh")
-MCP_URL="${PLATFORMUP2DATE_MCP_URL:-https://platformup2date.example.com/api/mcp}"
-
-exec npx -y mcp-remote "$MCP_URL" --header "Authorization: Bearer ${TOKEN}"
-```
-
-**3. Register the wrapper with your client** using its own "add a local MCP server
-command" mechanism, pointing it at `/path/to/platformup2date-mcp.sh`.
-
-The wrapper runs per session: it reuses the cached token, transparently re-runs the
-`oauth2c` login once the JWT expires, and oauth2-proxy validates the bearer token before
-the request reaches the backend. The application itself stays auth-agnostic.
-
-> If your client supports remote Streamable HTTP servers with custom headers directly, you can skip
-> `mcp-remote` and pass `Authorization: Bearer $(./oidc-token.sh)` as a header — but a
-> wrapper keeps the token fresh across expiries without editing client config.
+This only covers the MCP endpoint. The web UI and REST API (`/api/v1`) have no
+in-app authentication of their own — deploy them behind an edge proxy (e.g.
+`oauth2-proxy`) or on a network you trust, exactly as before. In-app web
+authentication is a planned separate feature; see
+[`docs/deployment.md`](docs/deployment.md) for the interim edge-proxy posture and
+the cluster changes MCP endpoint authentication requires.
 
 ## Contributing
 

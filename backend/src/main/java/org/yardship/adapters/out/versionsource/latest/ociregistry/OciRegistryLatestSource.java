@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -148,8 +149,8 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
             OciRegistryTagsClient authenticatedClient = buildAuthenticatedTagsClient(token);
             try {
                 // Re-use one authenticated client across all pages (one close at the end).
-                PagedTagsFetcher authenticatedFetcher =
-                        (n, last) -> toTagsPage(authenticatedClient.tagsList(n, last));
+                PagedTagsFetcher authenticatedFetcher = (n, last) -> toTagsPage(
+                        retryOnConnectionFailure(() -> authenticatedClient.tagsList(n, last)));
                 return paginateAndSelectVersion(authenticatedFetcher);
             } finally {
                 closeQuietly(authenticatedClient);
@@ -167,7 +168,7 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
     private TagsPage fetchRawPage(int n, String last) {
         OciRegistryTagsClient rawClient = buildRawTagsClient();
         try {
-            return toTagsPage(rawClient.tagsList(n, last));
+            return toTagsPage(retryOnConnectionFailure(() -> rawClient.tagsList(n, last)));
         } finally {
             closeQuietly(rawClient);
         }
@@ -265,7 +266,7 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
     private Response fetchTagsListRawResponse() {
         OciRegistryTagsClient rawClient = buildRawTagsClient();
         try {
-            return rawClient.tagsList(selection.pageSize(), null);
+            return retryOnConnectionFailure(() -> rawClient.tagsList(selection.pageSize(), null));
         } catch (jakarta.ws.rs.WebApplicationException wae) {
             Response response = wae.getResponse();
             if (response != null) {
@@ -321,7 +322,8 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
                 .ifPresent(builder::register);
         OciTokenClient tokenClient = builder.build(OciTokenClient.class);
         try {
-            Response tokenResponse = tokenClient.mint(challenge.service(), challenge.scope());
+            Response tokenResponse = retryOnConnectionFailure(
+                    () -> tokenClient.mint(challenge.service(), challenge.scope()));
             return extractToken(tokenResponse);
         } finally {
             closeQuietly(tokenClient);
@@ -383,6 +385,40 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("Failed to parse token response: " + json, ex);
         }
+    }
+
+    /**
+     * Invokes an idempotent HTTP call, retrying it once when it fails at the connection level —
+     * most commonly the HTTP/1.1 keep-alive close race, where the server closes a connection at
+     * the same moment the client sends a request on it. RFC 9112 §9.3.1 acknowledges this race
+     * and directs clients to automatically retry idempotent requests on it; every call this
+     * source makes is a GET, so the retry is always safe.
+     *
+     * <p>Only transport failures ({@link jakarta.ws.rs.ProcessingException} caused by an
+     * {@link IOException}) are retried. HTTP error responses (any status, including the expected
+     * 401 challenge) and non-I/O client errors propagate untouched on the first attempt.
+     */
+    private static <T> T retryOnConnectionFailure(Supplier<T> call) {
+        try {
+            return call.get();
+        } catch (jakarta.ws.rs.ProcessingException firstAttempt) {
+            if (!causedByIoFailure(firstAttempt)) {
+                throw firstAttempt;
+            }
+            LOG.debug("Connection-level failure on idempotent OCI registry call; retrying once "
+                    + "(RFC 9112 keep-alive close race)", firstAttempt);
+            return call.get();
+        }
+    }
+
+    /** Walks the cause chain looking for an {@link IOException} (connection-level failure). */
+    private static boolean causedByIoFailure(Throwable failure) {
+        for (Throwable cause = failure.getCause(); cause != null; cause = cause.getCause()) {
+            if (cause instanceof IOException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

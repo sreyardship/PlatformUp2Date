@@ -137,6 +137,35 @@ Fetches `url` as text and applies `regex`; capture group 1 of every match is a
 candidate version string, the largest wins (validated to compile with at
 least one group at startup).
 
+## MCP endpoint authentication
+
+These two environment variables are the entire operator-facing contract for
+the MCP endpoint authenticating its own callers as an OAuth 2.1 resource
+server (docs/adr/0026). This is *inbound* authentication the MCP Surface
+demands of its callers — deliberately distinct from an app's `auth.*` keys
+above, which are *outbound* credentials the scraper presents to a version
+source. Never call this bare "auth" — see the `MCP endpoint authentication`
+glossary entry in `CONTEXT.md`.
+
+| Key | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `MCP_OIDC_ISSUER` | string (issuer URL) | no | absent → MCP endpoint authentication disabled | Presence is the switch: setting this enforces bearer-token validation on `/api/mcp`; unset preserves the endpoint's open, unauthenticated behavior. |
+| `MCP_OIDC_AUDIENCE` | string | required when `MCP_OIDC_ISSUER` is set | — | Mandatory whenever the issuer is set — boot fails, naming `MCP_OIDC_AUDIENCE`, if it is missing. Prevents a token minted for another audience on the same issuer from being replayed against this endpoint. |
+
+Every boot logs which mode was resolved — `MCP endpoint authentication:
+enforced against issuer <url>` or `…disabled — endpoint relies on
+edge/network protection` — so a typo'd variable name is visible on first
+boot. `MCP_OIDC_AUDIENCE` set without `MCP_OIDC_ISSUER` is not a boot failure
+(there is nothing to validate an audience against without an issuer) but is
+surfaced as a startup warning, since it is probably a missing or typo'd
+`MCP_OIDC_ISSUER` rather than an intentional configuration.
+
+This guards only the MCP Surface. It never covers the REST API (`/api/v1`),
+web UI, or `/metrics` — those stay behind an edge proxy or a trusted network;
+see [`deployment.md`](deployment.md) for the interim posture. Everything
+beyond these two variables — the underlying `quarkus.oidc.*` properties — is
+reachable but deliberately undocumented as contract.
+
 ## Calver format
 
 `calver-format` is a calver.org grammar string built from these tokens,

@@ -179,6 +179,17 @@ names for semver, the app's declared calver-format tokens for calver). No
 template, or no known latest version, means no link.
 _Avoid_: release URL, changelog observation, html_url
 
+**MCP endpoint authentication**:
+The inbound credential check the MCP Surface demands of its callers — an OAuth
+bearer token from a configured issuer, with a mandatory audience naming this
+server. Off by default (configuring an issuer is the switch); it guards only the
+MCP Surface, never the REST API, web UI, or metrics. Distinct from a version
+source's `auth`, which is an *outbound* credential the scraper presents to the
+system it reads. See `docs/adr/0026`.
+_Avoid_: auth (bare — collides with version-source outbound credentials), MCP
+login (there is no session; every request presents a token), edge auth (that is
+a proxy's job, not the app's)
+
 **Surface**:
 A client-facing entry point that reads scrape state or requests a manual scrape —
 the REST API, the web UI's Refresh button, the MCP tools, and the Prometheus
