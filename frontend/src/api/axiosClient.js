@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { isWebAuthEnabled, getAccessToken } from '../auth/userManager'
 
 const apiBaseUrl = (window._env_ && window._env_.API_BASE_URL) || ''
 const baseUrl = `${apiBaseUrl}/api/v1`
@@ -8,11 +9,20 @@ const axiosClient = axios.create({
 })
 
 axiosClient.interceptors.request.use(async (config) => {
+  const headers = {
+    'Content-Type': 'application/json',
+  }
+
+  if (isWebAuthEnabled()) {
+    const accessToken = await getAccessToken()
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`
+    }
+  }
+
   return {
     ...config,
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
   }
 })
 

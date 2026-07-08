@@ -127,6 +127,18 @@ quarkus:
     # instance; otherwise Dev Services starts a throwaway container.
     redis:
       hosts: redis://localhost:6379
+    # Dev-only CORS (issue 03, docs/adr/0028): the Vite dev server serves the SPA from
+    # localhost:3000 while Quarkus serves the API from localhost:8080 — a cross-origin request
+    # in dev only. Production is same-origin behind /api (no CORS needed there), so this whole
+    # block is scoped to %dev and MUST NOT be duplicated outside it. `origins` is pinned to the
+    # exact dev origin (never "*") so an arbitrary origin cannot be granted access; `headers`
+    # allows `authorization` (the SPA's bearer token) and `content-type`.
+    http:
+      cors:
+        enabled: true
+        origins: http://localhost:3000
+        headers: authorization,content-type
+        methods: GET,POST,OPTIONS
   platform-config:
     scrape-interval: 1h
     scrape-concurrency: 15
