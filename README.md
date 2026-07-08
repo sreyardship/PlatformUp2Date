@@ -72,6 +72,9 @@ every source type and config key available for your own apps.
 
 - [`docs/configuration.md`](docs/configuration.md) — every version-source
   type, every config key, version schemes, changelog-link templates.
+- [`docs/conf-check.md`](docs/conf-check.md) — the `conf-check` CLI: test a
+  regex, JSON Pointer, calver format, or changelog template while writing
+  config, and gate a whole `platform-config.yaml` in CI before it ships.
 - [`docs/deployment.md`](docs/deployment.md) — running this for real:
   Kubernetes (the primary target, though any OCI runtime works), HA and
   replicas, Valkey, RBAC for the `k8s-image` source, Prometheus scraping,
