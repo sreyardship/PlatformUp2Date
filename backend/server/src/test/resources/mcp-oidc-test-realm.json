@@ -5,7 +5,8 @@
   "roles": {
     "realm": [
       { "name": "user" },
-      { "name": "pu2d-mcp" }
+      { "name": "pu2d-mcp" },
+      { "name": "pu2d-web" }
     ]
   },
   "requiredActions": [
@@ -121,7 +122,7 @@
       "credentials": [
         { "type": "password", "value": "alice", "temporary": false }
       ],
-      "realmRoles": ["user", "pu2d-mcp"]
+      "realmRoles": ["user", "pu2d-mcp", "pu2d-web"]
     },
     {
       "username": "bob",
@@ -135,6 +136,32 @@
         { "type": "password", "value": "bob", "temporary": false }
       ],
       "realmRoles": ["user"]
+    },
+    {
+      "username": "wanda",
+      "enabled": true,
+      "email": "wanda@mcp-oidc-test.example",
+      "emailVerified": true,
+      "firstName": "Wanda",
+      "lastName": "Test",
+      "requiredActions": [],
+      "credentials": [
+        { "type": "password", "value": "wanda", "temporary": false }
+      ],
+      "realmRoles": ["user", "pu2d-web"]
+    },
+    {
+      "username": "mona",
+      "enabled": true,
+      "email": "mona@mcp-oidc-test.example",
+      "emailVerified": true,
+      "firstName": "Mona",
+      "lastName": "Test",
+      "requiredActions": [],
+      "credentials": [
+        { "type": "password", "value": "mona", "temporary": false }
+      ],
+      "realmRoles": ["user", "pu2d-mcp"]
     }
   ],
   "clients": [

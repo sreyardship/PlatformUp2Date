@@ -37,17 +37,19 @@ quarkus:
         streamable:
           auto-init: true
 
-  # Shared-issuer, role-gated surface authentication (docs/adr/0026, docs/adr/0028, issue 01):
-  # presence-switched on OIDC_ISSUER/OIDC_AUDIENCE, plus a per-surface role var (MCP_OIDC_ROLE,
-  # default pu2d-mcp) that gates /api/mcp*. These are the whole operator-visible surface. The
-  # derived internal properties below (tenant-enabled, auth-server-url, token audience, and each
-  # surface's HTTP permission policy) are produced at runtime by SurfaceAuthConfigSourceFactory
-  # from those env vars — NOT by a static ${OIDC_ISSUER:} expansion here, because the auth-on test
-  # profile derives OIDC_ISSUER FROM quarkus.oidc.auth-server-url (Keycloak Dev Services' dynamic
-  # URL); a static reverse expansion here would create a circular property reference. When
-  # OIDC_ISSUER is absent/blank, tenant-enabled resolves to false and the OIDC extension stays
-  # fully inert; the mcp policy below resolves to permit, preserving today's open endpoint. See
-  # SurfaceAuthMode for the matching boot-time validation/log line and
+  # Shared-issuer, role-gated surface authentication (docs/adr/0026, docs/adr/0028, issues 01+02):
+  # presence-switched on OIDC_ISSUER/OIDC_AUDIENCE, plus a per-surface role var — MCP_OIDC_ROLE
+  # (conventionally pu2d-mcp) gates /api/mcp*, WEB_OIDC_ROLE (conventionally pu2d-web) gates
+  # /api/v1* — each surface gated INDEPENDENTLY of the other and of the tenant switch alone: a
+  # surface is only protected when its OWN role var is set. These are the whole operator-visible
+  # surface. The derived internal properties below (tenant-enabled, auth-server-url, token
+  # audience, and each surface's HTTP permission policy) are produced at runtime by
+  # SurfaceAuthConfigSourceFactory from those env vars — NOT by a static ${OIDC_ISSUER:} expansion
+  # here, because the auth-on test profile derives OIDC_ISSUER FROM quarkus.oidc.auth-server-url
+  # (Keycloak Dev Services' dynamic URL); a static reverse expansion here would create a circular
+  # property reference. When OIDC_ISSUER is absent/blank, tenant-enabled resolves to false and the
+  # OIDC extension stays fully inert; each surface's policy below resolves to permit, preserving
+  # today's open endpoints. See SurfaceAuthMode for the matching boot-time validation/log line and
   # SurfaceAuthConfigurationException for the illegal issuer-without-audience and
   # role-without-issuer states.
   #
@@ -95,7 +97,19 @@ quarkus:
           paths: /api/mcp*
           # policy is derived (a named "mcp-role" role policy | permit) by
           # SurfaceAuthConfigSourceFactory above; when enabled it also produces
-          # quarkus.http.auth.policy.mcp-role.roles-allowed=<the effective MCP_OIDC_ROLE>.
+          # quarkus.http.auth.policy.mcp-role.roles-allowed=<the raw MCP_OIDC_ROLE>.
+        web:
+          # The REST API surface (issue 02, docs/adr/0028): VersionController/ScrapeController
+          # under /api/v1. Deliberately does NOT catch /q/health, /metrics or the OpenAPI/Swagger
+          # routes — none of those live under /api/v1, so they stay permit-all regardless of this
+          # surface's gate state (pinned by McpOidcNonMcpSurfacesIT/CrossSurfaceIsolationIT/
+          # WebOnlyOpenMcpSurfaceIT's health+metrics-open assertions).
+          paths: /api/v1*
+          # policy is derived (a named "web-role" role policy | permit) by
+          # SurfaceAuthConfigSourceFactory above, independently of the mcp policy above; when
+          # enabled it also produces quarkus.http.auth.policy.web-role.roles-allowed=<the raw
+          # WEB_OIDC_ROLE>. Gated only when WEB_OIDC_ROLE is itself raw-present — never merely
+          # because the tenant (OIDC_ISSUER/OIDC_AUDIENCE) or the mcp role is on.
 
 # platform-config (the apps to monitor + scrape interval) is environment-specific.
 #

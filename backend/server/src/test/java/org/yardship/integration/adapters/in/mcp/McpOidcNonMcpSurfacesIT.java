@@ -95,4 +95,17 @@ class McpOidcNonMcpSurfacesIT {
                 .then()
                 .statusCode(not(401));
     }
+
+    @Test
+    void metrics_withNoCredentials_isReachable_whenMcpAuthIsOn() {
+        // issue 02 regression: /metrics is not under /api/v1* or /api/mcp*, so it must stay
+        // open regardless of which surfaces (if any) are role-gated.
+        stubOneApp();
+
+        given()
+                .when()
+                .get("/metrics")
+                .then()
+                .statusCode(not(401));
+    }
 }

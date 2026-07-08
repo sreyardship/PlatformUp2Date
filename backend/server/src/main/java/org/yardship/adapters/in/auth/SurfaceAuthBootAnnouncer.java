@@ -17,10 +17,11 @@ import java.util.Optional;
  * illegal state (issuer-without-audience, role-without-issuer), which propagates out of this
  * observer and fails application startup (never degrades to a warning).
  *
- * <p>Injects the RAW {@link SurfaceAuthMode#MCP_ROLE_ENV_VAR} value (no {@code :pu2d-mcp} default
- * in the {@code @ConfigProperty} expression) and passes it straight into {@link
- * SurfaceAuthMode#resolve} — see that method's Javadoc for why pre-applying the default here would
- * break the auth-off default / role-without-issuer boot-failure contract.
+ * <p>Injects the RAW {@link SurfaceAuthMode#MCP_ROLE_ENV_VAR}/{@link SurfaceAuthMode#WEB_ROLE_ENV_VAR}
+ * values (no {@code :pu2d-mcp}/{@code :pu2d-web} default in the {@code @ConfigProperty}
+ * expressions) and passes them straight into {@link SurfaceAuthMode#resolve} — see that method's
+ * Javadoc for why pre-applying the default here would break the auth-off default /
+ * role-without-issuer boot-failure contract.
  *
  * <p>The mirror-image case — {@link SurfaceAuthMode#AUDIENCE_ENV_VAR} configured without
  * {@link SurfaceAuthMode#ISSUER_ENV_VAR} — resolves to {@link SurfaceAuthMode.Disabled} rather
@@ -36,8 +37,9 @@ public class SurfaceAuthBootAnnouncer {
     void onStart(@Observes StartupEvent event,
             @ConfigProperty(name = SurfaceAuthMode.ISSUER_ENV_VAR) Optional<String> issuer,
             @ConfigProperty(name = SurfaceAuthMode.AUDIENCE_ENV_VAR) Optional<String> audience,
-            @ConfigProperty(name = SurfaceAuthMode.MCP_ROLE_ENV_VAR) Optional<String> mcpRole) {
-        SurfaceAuthMode mode = SurfaceAuthMode.resolve(issuer, audience, mcpRole);
+            @ConfigProperty(name = SurfaceAuthMode.MCP_ROLE_ENV_VAR) Optional<String> mcpRole,
+            @ConfigProperty(name = SurfaceAuthMode.WEB_ROLE_ENV_VAR) Optional<String> webRole) {
+        SurfaceAuthMode mode = SurfaceAuthMode.resolve(issuer, audience, mcpRole, webRole);
         LOG.info(mode.logMessage());
         warnIfAudienceConfiguredWithoutIssuer(issuer, audience);
     }
