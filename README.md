@@ -160,13 +160,14 @@ server (consult your client's docs); the shape is generally
 
 ### MCP endpoint authentication
 
-The MCP endpoint can authenticate its own callers directly, as an OAuth 2.1 resource
-server — no wrapper script, no interactive login proxied through the app. Set two
-environment variables on the backend:
+The MCP endpoint, the web UI and the REST API (`/api/v1`) all authenticate against
+one shared issuer, each gated independently by its own role. Set the shared pair
+on the backend, plus whichever surface's role you want enforced:
 
 ```
 OIDC_ISSUER=https://auth.example.com/realms/yourrealm
-OIDC_AUDIENCE=platformup2date-mcp
+OIDC_AUDIENCE=platformup2date
+MCP_OIDC_ROLE=pu2d-mcp
 ```
 
 and register the URL with any MCP client:
@@ -177,10 +178,15 @@ https://platformup2date.example.com/api/mcp
 
 A client that supports the MCP authorization spec discovers the issuer from the
 RFC 9728 protected-resource metadata the endpoint publishes, and logs in natively —
-no bearer token to fetch or attach by hand. Both variables are required together:
-`OIDC_ISSUER` unset leaves the endpoint exactly as before (unauthenticated); set
-without `OIDC_AUDIENCE` it refuses to boot, naming the missing variable. See
-[`docs/configuration.md`](docs/configuration.md#mcp-endpoint-authentication) for the
+no bearer token to fetch or attach by hand. `OIDC_ISSUER`/`OIDC_AUDIENCE` are
+required together (issuer unset leaves every surface exactly as before,
+unauthenticated; issuer set without audience refuses to boot, naming the missing
+variable). `MCP_OIDC_ROLE` is what actually switches the MCP surface on — it
+defaults to `pu2d-mcp` in docs/deploy manifests but is only enforced when the
+variable is *set*; unset, `/api/mcp` stays open even with the issuer/audience
+configured. Granting `pu2d-mcp` (or whatever value you set) to a user in the IdP
+is what admits them as an MCP caller. See
+[`docs/configuration.md`](docs/configuration.md#surface-authentication-mcp--web) for the
 full contract.
 
 > **DCR caveat.** Native discovery leans on your issuer supporting *dynamic client
@@ -188,12 +194,76 @@ full contract.
 > clients use — otherwise the flow dies mysteriously at registration, which is your
 > IdP's concern, not this app's.
 
-This only covers the MCP endpoint. The web UI and REST API (`/api/v1`) have no
-in-app authentication of their own — deploy them behind an edge proxy (e.g.
-`oauth2-proxy`) or on a network you trust. In-app web
-authentication is a planned separate feature; see
-[`docs/deployment.md`](docs/deployment.md) for the interim edge-proxy posture and
-the cluster changes MCP endpoint authentication requires.
+### Web UI authentication
+
+The web UI and REST API (`/api/v1`) authenticate against the same shared issuer,
+gated by their own role var, `WEB_OIDC_ROLE` (default `pu2d-web`). Same rules as
+MCP: the issuer/audience pair must be set, and the role var is what actually
+switches the web surface on:
+
+```
+OIDC_ISSUER=https://auth.example.com/realms/yourrealm
+OIDC_AUDIENCE=platformup2date
+WEB_OIDC_ROLE=pu2d-web
+```
+
+Unlike MCP, the backend alone isn't enough — the React SPA itself has to become
+an OIDC client. Point it at the same IdP with two runtime variables consumed by
+the frontend container at start (`window._env_`, injected by
+`docker-entrypoint.d/40-env-config.sh`, the same mechanism `API_BASE_URL` already
+uses):
+
+```
+OIDC_AUTHORITY=https://auth.example.com/realms/yourrealm
+OIDC_CLIENT_ID=platformup2date-web
+```
+
+`OIDC_SCOPE` is optional and defaults to `openid profile`. Both `OIDC_AUTHORITY`
+and `OIDC_CLIENT_ID` must be present for the SPA to enable auth; leaving either
+blank renders the app exactly as it does today — no login, no bearer token
+attached to `/api/v1` calls.
+
+The SPA runs Authorization Code + PKCE (`oidc-client-ts` / `react-oidc-context`),
+holds the access token in memory only (never `localStorage`/`sessionStorage`),
+and silently renews it in the background. A caller whose token lacks the
+`pu2d-web` role gets a distinct *Not authorized* screen (a 403 from the backend,
+not a login failure) with a log-out action.
+
+**Boundary notes:**
+
+- **Enabling web auth gates `/api/v1`, not the SPA static shell.** An anonymous
+  visitor still loads the page — the JS bundle has to run before it can redirect
+  anyone anywhere — and is then redirected to the IdP to log in. A BFF or edge
+  proxy could hide the page itself; this topology structurally cannot, by design
+  (see [ADR 0028](docs/adr/0028-web-and-mcp-surfaces-role-gated-behind-one-issuer.md)).
+- **`/metrics`, `/q/health`, and the OpenAPI spec (`/q/openapi`) stay open**
+  regardless of web-auth state — none of them live under `/api/v1`.
+- **No ingress change is needed for web auth**, unlike MCP. The SPA discovers the
+  IdP directly from its own runtime config (`OIDC_AUTHORITY`); there's no
+  server-side protected-resource metadata document to route to, so the
+  `/.well-known/oauth-protected-resource` HTTPRoute rule MCP needs has no web
+  equivalent.
+- **Dev mode needs CORS** — the Vite dev server (`localhost:3000`) calls the
+  backend (`localhost:8080`) cross-origin; the `%dev`-scoped CORS block in
+  `application.yml` allows the `Authorization` header for exactly that origin.
+  Production is same-origin behind `/api`, so no CORS is needed there.
+
+**IdP prerequisites.** Register the SPA as a **public client with PKCE**
+(no client secret — it can't keep one), with:
+
+- a redirect URI of the SPA's own origin, `/` (e.g. `https://platformup2date.example.com/`)
+- a matching post-logout / end-session redirect URI, since log-out ends the IdP
+  session (RP-initiated logout), not just the local token
+- silent-renew (refresh) enabled/expected, so the session survives a reload
+  without a full-page redirect
+- the `pu2d-web` role (or whatever value you set `WEB_OIDC_ROLE` to) granted as a
+  realm/group role to whichever users should reach the app — granting the role
+  is what actually admits a caller, independent of whether they can authenticate
+  against the IdP at all
+
+See [`docs/deployment.md`](docs/deployment.md#web-ui-authentication) for the
+cluster-level implications (and the contrast with MCP's ingress rule) and
+[`docs/configuration.md`](docs/configuration.md) for the full variable reference.
 
 ## Contributing
 

@@ -37,6 +37,22 @@ spec:
             # page, and the ingress routes /api to the backend (unstripped).
             - name: API_BASE_URL
               value: ""
+            # Web UI authentication (docs/adr/0028) — also injected into
+            # window._env_ at container start, OFF by default. Empty
+            # OIDC_AUTHORITY/OIDC_CLIENT_ID renders the SPA exactly as today:
+            # no login, no bearer token attached to /api/v1 calls. To turn it
+            # on, set both to your IdP's issuer URL and the SPA's public
+            # (PKCE, no secret) client ID; the backend's matching
+            # OIDC_ISSUER/OIDC_AUDIENCE/WEB_OIDC_ROLE live in the
+            # platformup2date-env Secret (see backend-deployment.yaml).
+            - name: OIDC_AUTHORITY
+              value: ""
+            - name: OIDC_CLIENT_ID
+              value: ""
+            # Optional; the frontend defaults this to "openid profile" itself
+            # when unset, so leaving it empty here is equivalent to omitting it.
+            - name: OIDC_SCOPE
+              value: ""
           readinessProbe:
             httpGet:
               path: /
