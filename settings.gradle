@@ -12,4 +12,4 @@ rootProject.name = 'platform-up-2-date'
 
 include ':domain'
 include ':backend'
-include ':cli'
+include ':conf-check'

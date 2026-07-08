@@ -124,8 +124,8 @@ jobs:
           git commit -am "chore(release): pin images to ${GITHUB_REF_NAME#v}"
           git push origin main
 
-  cli-native-release:
-    name: cli native (${{ matrix.os }}/${{ matrix.arch }})
+  conf-check-native-release:
+    name: conf-check native (${{ matrix.os }}/${{ matrix.arch }})
     needs: github-release
     # Matrixed on a single entry today (issue 07: Linux/amd64 to start) so
     # another OS/arch only needs a new matrix row — no job rewrite. Each row
@@ -169,14 +169,14 @@ jobs:
         with:
           gradle-version: '8.14.4'
 
-      - name: Build :cli native binary
-        run: gradle --no-daemon :cli:nativeCompile
+      - name: Build :conf-check native binary
+        run: gradle --no-daemon :conf-check:nativeCompile
 
       - name: Rename binary for its release asset
         run: |
           mkdir -p dist
-          cp cli/build/native/nativeCompile/cli "dist/cli-${{ matrix.os }}-${{ matrix.arch }}"
-          chmod +x "dist/cli-${{ matrix.os }}-${{ matrix.arch }}"
+          cp conf-check/build/native/nativeCompile/conf-check "dist/conf-check-${{ matrix.os }}-${{ matrix.arch }}"
+          chmod +x "dist/conf-check-${{ matrix.os }}-${{ matrix.arch }}"
 
       # Uploads onto the release github-release already created for this
       # tag; --clobber makes the step safely re-runnable (e.g. a retry after
@@ -186,4 +186,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${{ github.ref_name }}"
-          gh release upload "$tag" "dist/cli-${{ matrix.os }}-${{ matrix.arch }}" --clobber
+          gh release upload "$tag" "dist/conf-check-${{ matrix.os }}-${{ matrix.arch }}" --clobber

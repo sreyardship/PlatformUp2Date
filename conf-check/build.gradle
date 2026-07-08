@@ -1,0 +1,64 @@
+plugins {
+    id 'application'
+    id 'org.graalvm.buildtools.native' version '0.10.3'
+}
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+}
+
+dependencies {
+    implementation project(':domain')
+
+    implementation 'info.picocli:picocli:4.7.6'
+    annotationProcessor 'info.picocli:picocli-codegen:4.7.6'
+
+    // Standalone Jackson for the 'pointer' subcommand's JSON parsing / RFC 6901 pointer resolution
+    // (issue 03). :conf-check must not depend on :backend, so this is a separate, matching-generation
+    // version rather than the Quarkus-BOM-managed one backend gets via quarkus-rest-jackson
+    // (backend runs Quarkus 3.33.2, whose platform BOM manages Jackson 2.18.x) — pick a current
+    // 2.18.x release for parity; bump alongside backend's BOM if it moves.
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.2'
+
+    // YAML parsing for the 'config' gate's AppConfigReader (issue 06). Same 2.18.x generation as
+    // jackson-databind above, for the same reason: :conf-check must not depend on :backend's Quarkus BOM.
+    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.18.2'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testImplementation 'org.wiremock:wiremock:3.13.2'
+}
+
+group 'org.yardship'
+version '1.0.0-SNAPSHOT'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+application {
+    mainClass = 'org.yardship.confcheck.Main'
+}
+
+compileJava {
+    options.encoding = 'UTF-8'
+}
+
+compileTestJava {
+    options.encoding = 'UTF-8'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+graalvmNative {
+    binaries {
+        main {
+            imageName = 'conf-check'
+            mainClass = 'org.yardship.confcheck.Main'
+            buildArgs.add('--no-fallback')
+        }
+    }
+}
