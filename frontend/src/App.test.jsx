@@ -368,6 +368,51 @@ test('refresh-failure banner is dismissible; board data is retained after dismis
   expect(screen.getByText(/total apps/i)).toBeInTheDocument()
 })
 
+// ────────────────────────────────────────────────────────────────────────────
+// 403 (authenticated but not entitled) — Not authorized state — slice 04
+//
+// A 403 first-load must land on the Not-authorized screen, never Backend
+// unavailable and never the empty board. A 403 on REFRESH (after a
+// successful first load) is pinned to ALSO flip to the full-screen
+// Not-authorized state rather than a dismissible banner: unlike a transient
+// outage, missing entitlement does not self-heal by itself, so leaving stale
+// board data on screen under a banner would be misleading.
+// ────────────────────────────────────────────────────────────────────────────
+
+test('first-load 403: shows the Not authorized state, not Backend unavailable, not an empty board', async () => {
+  const forbiddenErr = { status: 403, data: 'Forbidden' }
+  versionClient.getVersions.mockRejectedValue(forbiddenErr)
+
+  render(<App />)
+
+  expect(await screen.findByText(/not authorized/i)).toBeInTheDocument()
+  expect(screen.queryByText(/backend unavailable/i)).not.toBeInTheDocument()
+  expect(screen.queryByText(/total apps/i)).not.toBeInTheDocument()
+})
+
+test('refresh 403 after a successful first load: flips to the full-screen Not authorized state (not a banner)', async () => {
+  const user = userEvent.setup()
+  const forbiddenErr = { status: 403, data: 'Forbidden' }
+
+  versionClient.getVersions
+    .mockResolvedValueOnce(fakeData)
+    .mockRejectedValueOnce(forbiddenErr)
+
+  versionClient.triggerScrape.mockResolvedValue(scrapedStatus)
+
+  render(<App />)
+
+  await screen.findByText(/total apps/i)
+  await user.click(screen.getByRole('button', { name: /refresh all/i }))
+
+  await waitFor(() => expect(versionClient.getVersions).toHaveBeenCalledTimes(2))
+
+  // Full-screen takeover, not a dismissible banner; the stale board must not linger.
+  expect(await screen.findByText(/not authorized/i)).toBeInTheDocument()
+  expect(screen.queryByText(/showing last loaded data/i)).not.toBeInTheDocument()
+  expect(screen.queryByText(/total apps/i)).not.toBeInTheDocument()
+})
+
 test('subsequent successful refresh after a failed refresh clears the error banner', async () => {
   const user = userEvent.setup()
   const networkErr = new Error('Network Error')

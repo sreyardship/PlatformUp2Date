@@ -19,7 +19,10 @@ const App = () => {
       setFetchError(null)
       setRefreshError(null)
     } catch (err) {
-      if (!hasLoadedOnce.current) {
+      if (!hasLoadedOnce.current || err?.status === 403) {
+        // A 403 always flips the whole screen to Not-authorized, even on refresh — missing
+        // entitlement does not self-heal, so leaving stale board data under a banner would be
+        // misleading.
         setFetchPhase('error')
         setFetchError(err)
       } else {

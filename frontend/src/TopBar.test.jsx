@@ -3,10 +3,24 @@ import userEvent from '@testing-library/user-event'
 
 import TopBar from './TopBar'
 import versionClient from './api/versionClient'
+import { isWebAuthEnabled, userManager } from './auth/userManager'
 
 vi.mock('./api/versionClient', () => ({
   __esModule: true,
   default: { triggerScrape: vi.fn(), getVersions: vi.fn() },
+}))
+
+// Issue 04 (SPA authorization UX) — the logout control.
+// Shown ONLY when web auth is enabled (isWebAuthEnabled()); absent otherwise (pinned both ways).
+// onClick performs RP-initiated logout: clears the in-memory user (removeUser()) AND redirects to
+// the IdP end-session endpoint (signoutRedirect()). The real IdP end-session round-trip is not
+// unit-testable — userManager is fully mocked here; that round-trip is a manual system test.
+vi.mock('./auth/userManager', () => ({
+  isWebAuthEnabled: vi.fn(),
+  userManager: {
+    removeUser: vi.fn(),
+    signoutRedirect: vi.fn(),
+  },
 }))
 
 const scrapedStatus = {
@@ -35,6 +49,9 @@ const rateLimitedResponse = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Default to disabled so the pre-existing tests below (which never touch auth) keep behaving
+  // exactly as before this slice.
+  isWebAuthEnabled.mockReturnValue(false)
 })
 
 test('renders the PlatformUp2Date wordmark, logo, and a Refresh All button', () => {
@@ -110,4 +127,36 @@ test('429/RATE_LIMITED: button disables and counts down from retryAfterSeconds, 
   } finally {
     vi.useRealTimers()
   }
+})
+
+// ────────────────────────────────────────────────────────────────────────────
+// Logout control — slice 04
+// ────────────────────────────────────────────────────────────────────────────
+
+test('no logout control is rendered when web auth is disabled', () => {
+  isWebAuthEnabled.mockReturnValue(false)
+
+  render(<TopBar onRefreshed={vi.fn()} />)
+
+  expect(screen.queryByRole('button', { name: /log out/i })).not.toBeInTheDocument()
+})
+
+test('a logout control is rendered when web auth is enabled', () => {
+  isWebAuthEnabled.mockReturnValue(true)
+
+  render(<TopBar onRefreshed={vi.fn()} />)
+
+  expect(screen.getByRole('button', { name: /log out/i })).toBeInTheDocument()
+})
+
+test('clicking Log out clears the in-memory user and redirects to the IdP end-session endpoint (RP-initiated logout)', async () => {
+  isWebAuthEnabled.mockReturnValue(true)
+  const user = userEvent.setup()
+
+  render(<TopBar onRefreshed={vi.fn()} />)
+
+  await user.click(screen.getByRole('button', { name: /log out/i }))
+
+  expect(userManager.removeUser).toHaveBeenCalledTimes(1)
+  expect(userManager.signoutRedirect).toHaveBeenCalledTimes(1)
 })

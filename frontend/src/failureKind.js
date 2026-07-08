@@ -8,6 +8,12 @@
  * @returns {{ kind: 'unreachable' | 'api-error', message: string }}
  */
 export function failureKind(error) {
+  if (error && error.status === 403) {
+    return {
+      kind: 'not-authorized',
+      message: "Your account isn't authorized for this app",
+    }
+  }
   if (error && error.status) {
     return {
       kind: 'api-error',
