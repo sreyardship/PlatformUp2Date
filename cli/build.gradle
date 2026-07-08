@@ -21,6 +21,10 @@ dependencies {
     // 2.18.x release for parity; bump alongside backend's BOM if it moves.
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.2'
 
+    // YAML parsing for the 'config' gate's AppConfigReader (issue 06). Same 2.18.x generation as
+    // jackson-databind above, for the same reason: :cli must not depend on :backend's Quarkus BOM.
+    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.18.2'
+
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     testImplementation 'org.wiremock:wiremock:3.13.2'
 }

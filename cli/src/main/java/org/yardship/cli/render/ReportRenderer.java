@@ -1,8 +1,10 @@
 package org.yardship.cli.render;
 
+import org.yardship.cli.outcome.AppValidationResult;
 import org.yardship.cli.outcome.CalverMapping;
 import org.yardship.cli.outcome.PointerResult;
 import org.yardship.cli.outcome.RegexCandidate;
+import org.yardship.cli.outcome.SurfaceResult;
 import org.yardship.cli.outcome.ValidationOutcome;
 
 import java.io.PrintStream;
@@ -31,6 +33,9 @@ public final class ReportRenderer {
             case ValidationOutcome.PointerValidButEmpty empty -> renderPointerValidButEmpty(empty, out);
             case ValidationOutcome.ChangelogOk ok -> renderChangelogOk(ok, out);
             case ValidationOutcome.CalverOk ok -> renderCalverOk(ok, out);
+            case ValidationOutcome.ChangelogTemplateValid ok -> renderChangelogTemplateValid(ok, out);
+            case ValidationOutcome.CalverFormatValid ok -> renderCalverFormatValid(ok, out);
+            case ValidationOutcome.ConfigFileResult result -> renderConfigFileResult(result, out);
         }
         return outcome.exitCode();
     }
@@ -87,6 +92,38 @@ public final class ReportRenderer {
             sb.append(token.symbol()).append('=').append(token.displayedValue());
         }
         return sb.toString();
+    }
+
+    private void renderChangelogTemplateValid(ValidationOutcome.ChangelogTemplateValid ok, PrintStream out) {
+        out.println("OK: changelog template '" + ok.template() + "' has only legal placeholders.");
+    }
+
+    private void renderCalverFormatValid(ValidationOutcome.CalverFormatValid ok, PrintStream out) {
+        out.println("OK: calver-format '" + ok.format() + "' is well-formed.");
+    }
+
+    private void renderConfigFileResult(ValidationOutcome.ConfigFileResult result, PrintStream out) {
+        for (AppValidationResult app : result.apps()) {
+            out.println((app.isFailure() ? "FAIL" : "OK") + " " + app.appName() + ":");
+            for (SurfaceResult surface : app.surfaces()) {
+                out.println("  - " + surface.surface() + ": " + describeSurface(surface));
+            }
+        }
+        int failedCount = (int) result.apps().stream().filter(AppValidationResult::isFailure).count();
+        out.println(failedCount == 0
+                ? "OK: all " + result.apps().size() + " app(s) passed."
+                : "FAILED: " + failedCount + "/" + result.apps().size() + " app(s) failed.");
+    }
+
+    private String describeSurface(SurfaceResult surface) {
+        return switch (surface.status()) {
+            case NOT_APPLICABLE -> "not applicable";
+            case SKIPPED_OFFLINE -> "skipped (offline)";
+            case RAN -> {
+                ValidationOutcome outcome = surface.outcome().orElseThrow();
+                yield (surface.isFailure() ? "FAILED (exit " + outcome.exitCode() + ")" : "OK");
+            }
+        };
     }
 
     private void renderCandidates(List<RegexCandidate> candidates, RegexCandidate winner, PrintStream out) {

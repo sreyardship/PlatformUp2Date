@@ -1,0 +1,14 @@
+# Fixture for YamlAppConfigReaderTests (issue 06): syntactically valid YAML, but the single app
+# entry is missing the required "name" field, used to assert AppConfigReader.ConfigReadException is
+# thrown with a message naming the missing field, rather than a null-valued AppConfig silently
+# passing through.
+platform-config:
+  apps:
+    - changelog-url: https://example.test/releases/{version}
+      current:
+        type: http
+        url: https://example.test/current
+      latest:
+        type: http-regex
+        url: https://example.test/latest
+        regex: '(\d+\.\d+\.\d+)'
