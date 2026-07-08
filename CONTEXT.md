@@ -166,6 +166,18 @@ value alongside a failed refresh.
 _Avoid_: Backend down (unproven — only our request failed), offline, connection
 lost, empty fleet / zero applications (the lie this term exists to prevent)
 
+**Not authorized**:
+The state of the web UI when the backend answered a data request with 403 — the
+caller's token validated, but it lacks the web Surface's required role
+(`pu2d-web`). The account is *authenticated but not entitled* to this app.
+Distinct from *Backend unavailable* (no answer, or an error answer — a
+connection-level fact) and from being logged out (a 401, which triggers
+re-authentication rather than a dead end): here the backend answered, and
+answered *no*. Shown as an explicit access-denied state, never an empty fleet.
+See *Surface authentication*.
+_Avoid_: forbidden (HTTP jargon), unauthenticated (that is the logged-out/401
+case), backend unavailable (the backend answered fine), no access (vague)
+
 **Changelog link**:
 The per-Application link to the release notes of the *latest* upstream release,
 offered on every Surface (the board's changelog icon, the REST payload, and the
@@ -179,16 +191,29 @@ names for semver, the app's declared calver-format tokens for calver). No
 template, or no known latest version, means no link.
 _Avoid_: release URL, changelog observation, html_url
 
-**MCP endpoint authentication**:
-The inbound credential check the MCP Surface demands of its callers — an OAuth
-bearer token from a configured issuer, with a mandatory audience naming this
-server. Off by default (configuring an issuer is the switch); it guards only the
-MCP Surface, never the REST API, web UI, or metrics. Distinct from a version
-source's `auth`, which is an *outbound* credential the scraper presents to the
-system it reads. See `docs/adr/0026`.
-_Avoid_: auth (bare — collides with version-source outbound credentials), MCP
-login (there is no session; every request presents a token), edge auth (that is
-a proxy's job, not the app's)
+**Surface authentication**:
+The inbound credential check a protected Surface demands of its callers. The app
+acts as an OAuth 2.1 resource server: it validates a bearer JWT against a single
+shared configured issuer (`OIDC_ISSUER`) and a mandatory audience naming this app
+(`OIDC_AUDIENCE`), then requires the caller to carry the *role* that Surface is
+gated on. Each protectable Surface is switched on independently by setting its
+required-role variable — `WEB_OIDC_ROLE` guards the REST API (`/api/v1`) and the
+web UI that consumes it, `MCP_OIDC_ROLE` guards the MCP Surface (`/api/mcp`). The
+variable's presence *is* the switch (set = that Surface demands that role, unset =
+that Surface stays open), and its value is the role string granted in the
+operator's IdP (default `pu2d-web` / `pu2d-mcp`). A caller is admitted only when
+its token both validates and carries the Surface's role — so an operator can mint
+identities that reach the web Surface only, the MCP Surface only, or both. Both
+Surfaces share one issuer and audience (one tenant) and differ only by required
+role. Never guards the metrics or health Surfaces. Setting a role variable with
+no issuer configured is a boot failure (a role to enforce, nothing to validate
+against). Distinct from a version source's `auth`, which is an *outbound*
+credential the scraper presents to a system it reads. See `docs/adr/0026`.
+_Avoid_: auth (bare — collides with version-source outbound credentials), login
+(there is no session; every request presents a token), edge auth (that is a
+proxy's job, not the app's), MCP endpoint authentication (now one case of the
+general Surface mechanism, not its own term), scopes (access is by role, not
+OAuth scope)
 
 **Surface**:
 A client-facing entry point that reads scrape state or requests a manual scrape —
