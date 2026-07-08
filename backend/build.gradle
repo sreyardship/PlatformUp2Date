@@ -24,7 +24,7 @@ dependencies {
     implementation 'io.quarkus:quarkus-kubernetes-client'
     implementation 'org.semver4j:semver4j:6.0.0'
     implementation 'io.quarkus:quarkus-smallrye-openapi'
-    implementation 'io.quarkiverse.mcp:quarkus-mcp-server-http:1.13.0'
+    implementation 'io.quarkiverse.mcp:quarkus-mcp-server-http:1.13.1'
     // MCP endpoint OAuth resource-server auth (docs/adr/0026, issue 01): validates bearer JWTs
     // against MCP_OIDC_ISSUER/MCP_OIDC_AUDIENCE when configured; inert (tenant disabled) otherwise.
     implementation 'io.quarkus:quarkus-oidc'
@@ -38,7 +38,7 @@ dependencies {
     testImplementation 'io.quarkus:quarkus-junit5-mockito'
     testImplementation 'io.rest-assured:rest-assured'
     testImplementation 'org.wiremock:wiremock:3.13.2'
-    testImplementation 'io.quarkiverse.mcp:quarkus-mcp-server-test:1.13.0'
+    testImplementation 'io.quarkiverse.mcp:quarkus-mcp-server-test:1.13.1'
     testImplementation 'io.quarkus:quarkus-test-kubernetes-client'
     // MCP OAuth resource-server auth-on ITs (docs/adr/0026, issue 01): Keycloak Dev Services
     // (triggered once quarkus-oidc is on the classpath — added by the implementer) still relies on
