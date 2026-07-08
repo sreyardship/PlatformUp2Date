@@ -3,7 +3,7 @@
 You run a platform, a home lab or just a pile of apps. They're all out of date... let's change that!
 
 If it exposes its version somehow: an HTTP endpoint, a container image tag, `ssh`/`os-release`, a
-Prometheus metric[^prom-source], it can be monitored!
+Prometheus metric[^prom-source], its version drift can be monitored!
 
 [^prom-source]: Reading `current` from a Prometheus metric is not implemented yet. But just you wait! It was a great idea, i just don't see where it would be used, so ehrm... Make an issue if you have a real world use for it? Or a PR <3.
 
@@ -166,7 +166,7 @@ MCP_OIDC_ISSUER=https://auth.example.com/realms/yourrealm
 MCP_OIDC_AUDIENCE=platformup2date-mcp
 ```
 
-and register the URL with any MCP client as before:
+and register the URL with any MCP client:
 
 ```
 https://platformup2date.example.com/api/mcp
@@ -175,7 +175,7 @@ https://platformup2date.example.com/api/mcp
 A client that supports the MCP authorization spec discovers the issuer from the
 RFC 9728 protected-resource metadata the endpoint publishes, and logs in natively —
 no bearer token to fetch or attach by hand. Both variables are required together:
-`MCP_OIDC_ISSUER` unset leaves the endpoint exactly as before (unauthenticated); set
+`MCP_OIDC_ISSUER` unset leaves the endpoint unauthenticated; set
 without `MCP_OIDC_AUDIENCE` it refuses to boot, naming the missing variable. See
 [`docs/configuration.md`](docs/configuration.md#mcp-endpoint-authentication) for the
 full contract.
@@ -187,7 +187,7 @@ full contract.
 
 This only covers the MCP endpoint. The web UI and REST API (`/api/v1`) have no
 in-app authentication of their own — deploy them behind an edge proxy (e.g.
-`oauth2-proxy`) or on a network you trust, exactly as before. In-app web
+`oauth2-proxy`) or on a network you trust. In-app web
 authentication is a planned separate feature; see
 [`docs/deployment.md`](docs/deployment.md) for the interim edge-proxy posture and
 the cluster changes MCP endpoint authentication requires.
