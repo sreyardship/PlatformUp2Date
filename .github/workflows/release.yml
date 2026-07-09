@@ -64,19 +64,48 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      # Semver prerelease tags (e.g. v0.9.9-rc.1, used to verify this
-      # workflow per issue 06 before the real v1.0.0) get flagged as GitHub
+      # Semver prerelease tags (e.g. v0.1.0-rc.1) get flagged as GitHub
       # prereleases so they don't show up as "Latest release" on the repo.
+      #
+      # The release body leads with an Artifacts section pointing at the
+      # actual deliverables — the GHCR image coordinates for this exact
+      # version and the conf-check binary — because --generate-notes alone
+      # produces only a commit changelog that never says where to pull the
+      # images from. --notes together with --generate-notes prepends the
+      # given notes above the generated changelog (documented gh behavior;
+      # --notes-file is not documented to combine). The heredoc is quoted so
+      # the markdown backticks aren't shell-expanded; the version is
+      # substituted afterwards. The conf-check asset is uploaded by a job
+      # that runs after this one (conf-check-native-release), so the body
+      # promises it a few minutes before it appears — accepted deliberately
+      # over a draft-then-publish dance (see RELEASE.md).
       - name: Create GitHub Release with generated notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${{ github.ref_name }}"
+          version="${tag#v}"
           prerelease_flag=()
           if [[ "$tag" == *-* ]]; then
             prerelease_flag=(--prerelease)
           fi
-          gh release create "$tag" --generate-notes "${prerelease_flag[@]}"
+          notes_file="$(mktemp)"
+          cat > "$notes_file" <<'EOF'
+          ## Artifacts
+
+          **Container images**
+
+          ```
+          docker pull ghcr.io/sreyardship/platformup2date/backend:__VERSION__
+          docker pull ghcr.io/sreyardship/platformup2date/frontend:__VERSION__
+          ```
+
+          **conf-check CLI** — native binary attached below as
+          `conf-check-linux-amd64`. Validates your `application.yml` before
+          deploying — see [docs/conf-check.md](docs/conf-check.md).
+          EOF
+          sed -i "s/__VERSION__/${version}/g" "$notes_file"
+          gh release create "$tag" --notes "$(cat "$notes_file")" --generate-notes "${prerelease_flag[@]}"
 
   # Keep the shipped pins pointing at the release that was just published:
   # the images: block in deploy/k8s/base/kustomization.yaml and the image
