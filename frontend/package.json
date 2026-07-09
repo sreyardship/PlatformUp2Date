@@ -9,7 +9,7 @@
     "@fontsource/inter": "^5.2.8",
     "@mui/icons-material": "^9.1.0",
     "@mui/material": "^9.1.0",
-    "axios": "^1.17.0",
+    "axios": "^1.18.1",
     "oidc-client-ts": "^3.5.0",
     "react": "19",
     "react-dom": "19",
