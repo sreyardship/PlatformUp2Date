@@ -142,34 +142,72 @@ Fetches `url` as text and applies `regex`; capture group 1 of every match is a
 candidate version string, the largest wins (validated to compile with at
 least one group at startup).
 
-## MCP endpoint authentication
+## Surface authentication (MCP + web)
 
-These two environment variables are the entire operator-facing contract for
-the MCP endpoint authenticating its own callers as an OAuth 2.1 resource
-server (docs/adr/0026). This is *inbound* authentication the MCP Surface
-demands of its callers — deliberately distinct from an app's `auth.*` keys
-above, which are *outbound* credentials the scraper presents to a version
-source. Never call this bare "auth" — see the `MCP endpoint authentication`
-glossary entry in `CONTEXT.md`.
+These environment variables are the entire operator-facing contract for the
+backend authenticating its own callers as an OAuth 2.1 resource server
+(docs/adr/0026, docs/adr/0028). This is *inbound* authentication a protected
+surface demands of its callers — deliberately distinct from an app's `auth.*`
+keys above, which are *outbound* credentials the scraper presents to a
+version source. Never call this bare "auth" — see the `MCP endpoint
+authentication` glossary entry in `CONTEXT.md`.
+
+`OIDC_ISSUER`/`OIDC_AUDIENCE` are shared by both surfaces (one issuer, one
+audience for the whole app); `MCP_OIDC_ROLE` and `WEB_OIDC_ROLE` gate the MCP
+(`/api/mcp`) and web (`/api/v1`) surfaces **independently of one another** —
+each is only enforced when its own role var is set.
 
 | Key | Type | Required | Default | Notes |
 |---|---|---|---|---|
-| `MCP_OIDC_ISSUER` | string (issuer URL) | no | absent → MCP endpoint authentication disabled | Presence is the switch: setting this enforces bearer-token validation on `/api/mcp`; unset preserves the endpoint's open, unauthenticated behavior. |
-| `MCP_OIDC_AUDIENCE` | string | required when `MCP_OIDC_ISSUER` is set | — | Mandatory whenever the issuer is set — boot fails, naming `MCP_OIDC_AUDIENCE`, if it is missing. Prevents a token minted for another audience on the same issuer from being replayed against this endpoint. |
+| `OIDC_ISSUER` | string (issuer URL) | no | absent → surface authentication disabled | Presence is the switch: setting this enables bearer-token validation for the whole app. Unset preserves every surface's open, unauthenticated behavior. |
+| `OIDC_AUDIENCE` | string | required when `OIDC_ISSUER` is set | — | Mandatory whenever the issuer is set — boot fails, naming `OIDC_AUDIENCE`, if it is missing. Prevents a token minted for another audience on the same issuer from being replayed against this app. |
+| `MCP_OIDC_ROLE` | string (role name) | no | absent → `/api/mcp` stays open | The role a bearer token must carry to reach the MCP endpoint. Presence — not the value — is the per-surface switch; conventionally `pu2d-mcp`. Requires `OIDC_ISSUER` to be set — see the boot-failure case below. |
+| `WEB_OIDC_ROLE` | string (role name) | no | absent → `/api/v1` stays open | The role a bearer token must carry to reach the REST API (and, by extension, what the SPA requires after login). Presence — not the value — is the per-surface switch; conventionally `pu2d-web`. Requires `OIDC_ISSUER` to be set — see the boot-failure case below. |
 
-Every boot logs which mode was resolved — `MCP endpoint authentication:
-enforced against issuer <url>` or `…disabled — endpoint relies on
-edge/network protection` — so a typo'd variable name is visible on first
-boot. `MCP_OIDC_AUDIENCE` set without `MCP_OIDC_ISSUER` is not a boot failure
-(there is nothing to validate an audience against without an issuer) but is
-surfaced as a startup warning, since it is probably a missing or typo'd
-`MCP_OIDC_ISSUER` rather than an intentional configuration.
+Every boot logs which mode was resolved: `Surface authentication: enabled
+against issuer <url>` or `Surface authentication: disabled — protected
+surfaces rely on edge/network protection` — so a typo'd variable name is
+visible on first boot.
 
-This guards only the MCP Surface. It never covers the REST API (`/api/v1`),
-web UI, or `/metrics` — those stay behind an edge proxy or a trusted network;
-see [`deployment.md`](deployment.md) for the interim posture. Everything
-beyond these two variables — the underlying `quarkus.oidc.*` properties — is
-reachable but deliberately undocumented as contract.
+`OIDC_AUDIENCE` set without `OIDC_ISSUER` is not a boot failure (there is
+nothing to validate an audience against without an issuer) but is surfaced as
+a startup warning, since it is probably a missing or typo'd `OIDC_ISSUER`
+rather than an intentional configuration.
+
+**Role-without-issuer is a boot failure.** Either `MCP_OIDC_ROLE` or
+`WEB_OIDC_ROLE` set while `OIDC_ISSUER` is absent/blank refuses to boot,
+naming `OIDC_ISSUER` in the error — a role requirement is unambiguous
+evidence the operator intended auth on, so a role with nothing to validate
+against is a loud failure, never a silent fallback to disabled. This check is
+independent per role var (either one alone trips it) and happens before the
+audience check, so an issuer-less config with a role set never gets masked by
+the audience error instead.
+
+This section guards the MCP endpoint and the REST API/web UI. `/metrics` and
+`/q/health` are never gated by either surface's role — see
+[`deployment.md`](deployment.md#web-ui-authentication) for the full boundary
+notes and the interim edge-proxy posture for whichever surface you leave
+disabled. Everything beyond these four variables — the underlying
+`quarkus.oidc.*` properties — is reachable but deliberately undocumented as
+contract.
+
+## Frontend runtime configuration
+
+Like `platform-config`, the frontend's configuration is supplied at container
+start, not baked into the image. The nginx-based frontend image regenerates
+`window._env_` from environment variables via
+`docker-entrypoint.d/40-env-config.sh` on every start:
+
+| Key | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `API_BASE_URL` | string (base URL) | no | `""` (same-origin) | Where the SPA sends its API calls. Empty means same-origin — the browser calls `/api` on whatever host served the page. |
+| `OIDC_AUTHORITY` | string (issuer URL) | no | `""` | The IdP the SPA authenticates against. Must match `OIDC_ISSUER` on the backend. Both `OIDC_AUTHORITY` and `OIDC_CLIENT_ID` must be non-blank for the SPA to enable login — either blank leaves the app exactly as it is today. |
+| `OIDC_CLIENT_ID` | string | no | `""` | The SPA's public (PKCE, no secret) client ID registered in the IdP. |
+| `OIDC_SCOPE` | string (space-separated scopes) | no | `openid profile` | Passed as-is to the authorization request. |
+
+See [README.md's web UI authentication section](../README.md#web-ui-authentication)
+for the full contract, including IdP prerequisites (public PKCE client,
+redirect/end-session URIs, role grants).
 
 ## Calver format
 

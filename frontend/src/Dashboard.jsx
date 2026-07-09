@@ -2,6 +2,7 @@ import { Alert, Box, CircularProgress, Container } from '@mui/material'
 
 import ApplicationTable from './ApplicationTable'
 import BackendUnavailable from './BackendUnavailable'
+import NotAuthorized from './NotAuthorized'
 import SummaryCards from './SummaryCards'
 import TopBar from './TopBar'
 import { failureKind } from './failureKind'
@@ -24,7 +25,11 @@ const RefreshErrorBanner = ({ refreshError, onDismiss }) => {
 
 const DashboardBody = ({ versions, onRefreshed, phase, fetchError, refreshError, onDismissRefreshError }) => {
   if (phase === 'loading') return <LoadingSpinner />
-  if (phase === 'error') return <BackendUnavailable failure={failureKind(fetchError)} onRetry={onRefreshed} />
+  if (phase === 'error') {
+    const failure = failureKind(fetchError)
+    if (failure.kind === 'not-authorized') return <NotAuthorized />
+    return <BackendUnavailable failure={failure} onRetry={onRefreshed} />
+  }
   return (
     <>
       <RefreshErrorBanner refreshError={refreshError} onDismiss={onDismissRefreshError} />

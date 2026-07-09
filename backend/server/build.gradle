@@ -26,8 +26,8 @@ dependencies {
     implementation 'org.semver4j:semver4j:6.0.0'
     implementation 'io.quarkus:quarkus-smallrye-openapi'
     implementation 'io.quarkiverse.mcp:quarkus-mcp-server-http:1.13.0'
-    // MCP endpoint OAuth resource-server auth (docs/adr/0026, issue 01): validates bearer JWTs
-    // against MCP_OIDC_ISSUER/MCP_OIDC_AUDIENCE when configured; inert (tenant disabled) otherwise.
+    // MCP endpoint OAuth resource-server auth (docs/adr/0026, docs/adr/0028, issue 01): validates
+    // bearer JWTs against OIDC_ISSUER/OIDC_AUDIENCE when configured; inert (tenant disabled) otherwise.
     implementation 'io.quarkus:quarkus-oidc'
     // SSH client for the 'ssh-os-release' current source (and the embedded SSHD server used by its
     // integration tests). BouncyCastle gives MINA SSHD broad private-key/host-key format support
@@ -84,6 +84,22 @@ test {
     useJUnitPlatform {
         excludeTags 'performance'
     }
+
+    // Bound the single test-fork JVM's heap explicitly instead of relying on JVM ergonomics
+    // (~1/4 of physical RAM, i.e. multiple GB and host-dependent). Each @QuarkusTest profile
+    // (SurfaceAuthTestProfile, WebOnlyAuthTestProfile, BothSurfacesAuthTestProfile,
+    // DevCorsTestProfile, WireMockTestProfile, ...) forces a full Quarkus application restart
+    // within this one JVM, and Mockito's inline mock maker (byte-buddy agent) leaks
+    // instrumentation state per restart via a WeakConcurrentMap that never fully drains
+    // (see org.mockito.internal.creation.bytebuddy.MockMethodAdvice) — heap usage climbs with
+    // every extra restart until the fork dies with OutOfMemoryError: Java heap space partway
+    // through the suite (observed after ~4-5 restarts even with an ergonomic ~8g heap on a
+    // 30g box). forkEvery periodically kills and restarts the worker JVM, resetting the leak
+    // before it can accumulate across the full profile count; maxHeapSize/MaxMetaspaceSize make
+    // the ceiling explicit and reproducible across machines rather than host-RAM-dependent.
+    maxHeapSize = '3g'
+    jvmArgs '-XX:MaxMetaspaceSize=1g'
+    forkEvery = 10
 
     // CI-only flake shield: the integration suite leans on real sockets (WireMock keep-alive
     // races → HttpClosedException) and Dev Services containers (Valkey startup races →

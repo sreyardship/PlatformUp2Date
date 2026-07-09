@@ -1,5 +1,12 @@
 # The MCP endpoint authenticates its own callers as an OAuth resource server, configurable and off by default
 
+> **Amended by [docs/adr/0028](0028-web-and-mcp-surfaces-role-gated-behind-one-issuer.md):**
+> the `MCP_OIDC_ISSUER` / `MCP_OIDC_AUDIENCE` vars below are renamed to the shared
+> `OIDC_ISSUER` / `OIDC_AUDIENCE`, and the MCP surface now requires the `pu2d-mcp`
+> role rather than trusting any valid token. The resource-server posture and the
+> presence-switch idiom described here are unchanged; read this ADR for the *why*,
+> 0028 for the current config contract.
+
 MCP clients could not authenticate against the edge oauth2-proxy without the
 wrapper-script hack (`oidc-token.sh` + `mcp-remote`), because the MCP
 authorization spec expects the *server itself* to act as an OAuth 2.1 resource

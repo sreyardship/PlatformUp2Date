@@ -37,28 +37,32 @@ quarkus:
         streamable:
           auto-init: true
 
-  # MCP endpoint OAuth resource-server authentication (docs/adr/0026, issue 01): presence-switched
-  # on MCP_OIDC_ISSUER/MCP_OIDC_AUDIENCE, the whole operator-visible surface. The derived internal
-  # properties below (tenant-enabled, auth-server-url, token audience, and the /api/mcp* permission
-  # policy) are produced at runtime by McpOidcRuntimeConfigSourceFactory from those two env vars —
-  # NOT by a static ${MCP_OIDC_ISSUER:} expansion here, because the auth-on test profile derives
-  # MCP_OIDC_ISSUER FROM quarkus.oidc.auth-server-url (Keycloak Dev Services' dynamic URL); a static
-  # reverse expansion here would create a circular property reference. When MCP_OIDC_ISSUER is
-  # absent/blank, tenant-enabled resolves to false and the OIDC extension stays fully inert; the
-  # policy below resolves to permit, preserving today's open endpoint. See McpOidcBootMode for the
-  # matching boot-time validation/log line and McpOidcConfigurationException for the illegal
-  # issuer-without-audience state.
+  # Shared-issuer, role-gated surface authentication (docs/adr/0026, docs/adr/0028, issues 01+02):
+  # presence-switched on OIDC_ISSUER/OIDC_AUDIENCE, plus a per-surface role var — MCP_OIDC_ROLE
+  # (conventionally pu2d-mcp) gates /api/mcp*, WEB_OIDC_ROLE (conventionally pu2d-web) gates
+  # /api/v1* — each surface gated INDEPENDENTLY of the other and of the tenant switch alone: a
+  # surface is only protected when its OWN role var is set. These are the whole operator-visible
+  # surface. The derived internal properties below (tenant-enabled, auth-server-url, token
+  # audience, and each surface's HTTP permission policy) are produced at runtime by
+  # SurfaceAuthConfigSourceFactory from those env vars — NOT by a static ${OIDC_ISSUER:} expansion
+  # here, because the auth-on test profile derives OIDC_ISSUER FROM quarkus.oidc.auth-server-url
+  # (Keycloak Dev Services' dynamic URL); a static reverse expansion here would create a circular
+  # property reference. When OIDC_ISSUER is absent/blank, tenant-enabled resolves to false and the
+  # OIDC extension stays fully inert; each surface's policy below resolves to permit, preserving
+  # today's open endpoints. See SurfaceAuthMode for the matching boot-time validation/log line and
+  # SurfaceAuthConfigurationException for the illegal issuer-without-audience and
+  # role-without-issuer states.
   #
   # Keycloak Dev Services would otherwise auto-start for ANY test once quarkus-oidc is on the
   # classpath (the extension's zero-config dev/test convenience); disabled by default so the
   # auth-off regression suite (ApplicationMcpServerIT) stays fast and Docker-free, and re-enabled
-  # explicitly by the auth-on @TestProfile (McpOidcAuthTestProfile).
+  # explicitly by the auth-on @TestProfile (SurfaceAuthTestProfile).
   oidc:
     # RFC 9728 protected-resource metadata (docs/adr/0026, issue 02). Safe to enable
     # unconditionally here (no presence-derivation needed for this property): the extension only
     # registers the well-known route and appends the WWW-Authenticate `resource_metadata` pointer
     # for tenants whose tenant-enabled is true, and tenant-enabled is the very flag
-    # McpOidcRuntimeConfigSourceFactory derives from MCP_OIDC_ISSUER/MCP_OIDC_AUDIENCE above. So
+    # SurfaceAuthConfigSourceFactory derives from OIDC_ISSUER/OIDC_AUDIENCE above. So
     # with both env vars unset, tenant-enabled resolves to false, the metadata route never
     # registers, and the well-known path 404s exactly as before this issue. The explicit `resource`
     # value is what makes both the well-known route path and the metadata document's `resource`
@@ -80,7 +84,7 @@ quarkus:
       # misconfigured client hitting /api/v1 or /q/health) would fail proactive auth and 401 a
       # surface this feature was never meant to touch. Lazy auth defers authentication until a
       # security constraint actually requires it, so permit-all paths ignore credential presence
-      # entirely while /api/mcp*'s `authenticated` policy below still triggers and still enforces
+      # entirely while /api/mcp*'s derived `mcp-role` role policy below still triggers and enforces
       # (and its 401 challenge/WWW-Authenticate response, pinned by McpOidcDiscoveryIT, is
       # unaffected — that challenge comes from the failed authorization check on the protected
       # path, not from proactive authentication). This is a Quarkus BUILD_TIME property, so it
@@ -91,7 +95,21 @@ quarkus:
       permission:
         mcp:
           paths: /api/mcp*
-          # policy is derived (authenticated | permit) by McpOidcRuntimeConfigSourceFactory above.
+          # policy is derived (a named "mcp-role" role policy | permit) by
+          # SurfaceAuthConfigSourceFactory above; when enabled it also produces
+          # quarkus.http.auth.policy.mcp-role.roles-allowed=<the raw MCP_OIDC_ROLE>.
+        web:
+          # The REST API surface (issue 02, docs/adr/0028): VersionController/ScrapeController
+          # under /api/v1. Deliberately does NOT catch /q/health, /metrics or the OpenAPI/Swagger
+          # routes — none of those live under /api/v1, so they stay permit-all regardless of this
+          # surface's gate state (pinned by McpOidcNonMcpSurfacesIT/CrossSurfaceIsolationIT/
+          # WebOnlyOpenMcpSurfaceIT's health+metrics-open assertions).
+          paths: /api/v1*
+          # policy is derived (a named "web-role" role policy | permit) by
+          # SurfaceAuthConfigSourceFactory above, independently of the mcp policy above; when
+          # enabled it also produces quarkus.http.auth.policy.web-role.roles-allowed=<the raw
+          # WEB_OIDC_ROLE>. Gated only when WEB_OIDC_ROLE is itself raw-present — never merely
+          # because the tenant (OIDC_ISSUER/OIDC_AUDIENCE) or the mcp role is on.
 
 # platform-config (the apps to monitor + scrape interval) is environment-specific.
 #
@@ -109,6 +127,18 @@ quarkus:
     # instance; otherwise Dev Services starts a throwaway container.
     redis:
       hosts: redis://localhost:6379
+    # Dev-only CORS (issue 03, docs/adr/0028): the Vite dev server serves the SPA from
+    # localhost:3000 while Quarkus serves the API from localhost:8080 — a cross-origin request
+    # in dev only. Production is same-origin behind /api (no CORS needed there), so this whole
+    # block is scoped to %dev and MUST NOT be duplicated outside it. `origins` is pinned to the
+    # exact dev origin (never "*") so an arbitrary origin cannot be granted access; `headers`
+    # allows `authorization` (the SPA's bearer token) and `content-type`.
+    http:
+      cors:
+        enabled: true
+        origins: http://localhost:3000
+        headers: authorization,content-type
+        methods: GET,POST,OPTIONS
   platform-config:
     scrape-interval: 1h
     scrape-concurrency: 15

@@ -27,23 +27,30 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.when;
-import static org.yardship.integration.adapters.in.mcp.McpOidcAuthTestProfile.CONFIGURED_AUDIENCE;
-import static org.yardship.integration.adapters.in.mcp.McpOidcAuthTestProfile.RIGHT_AUDIENCE_CLIENT_ID;
-import static org.yardship.integration.adapters.in.mcp.McpOidcAuthTestProfile.TEST_CLIENT_SECRET;
-import static org.yardship.integration.adapters.in.mcp.McpOidcAuthTestProfile.TEST_PASSWORD;
-import static org.yardship.integration.adapters.in.mcp.McpOidcAuthTestProfile.TEST_USERNAME;
-import static org.yardship.integration.adapters.in.mcp.McpOidcAuthTestProfile.WRONG_AUDIENCE_CLIENT_ID;
+import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.CONFIGURED_AUDIENCE;
+import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.NO_ROLE_PASSWORD;
+import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.NO_ROLE_USERNAME;
+import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.RIGHT_AUDIENCE_CLIENT_ID;
+import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.TEST_CLIENT_SECRET;
+import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.TEST_PASSWORD;
+import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.TEST_USERNAME;
+import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.WRONG_AUDIENCE_CLIENT_ID;
 
 /**
- * Auth-ON integration coverage for the MCP endpoint (docs/adr/0026, issue 01), run against real
- * Keycloak Dev Services under {@link McpOidcAuthTestProfile} (real issuer discovery + JWKS — no
- * mocked identities, per the shared plan). The auth-OFF regression stays entirely in
+ * Auth-ON integration coverage for the MCP endpoint (docs/adr/0026, docs/adr/0028, issue 01), run
+ * against real Keycloak Dev Services under {@link SurfaceAuthTestProfile} (real issuer discovery
+ * + JWKS — no mocked identities, per the shared plan). The auth-OFF regression stays entirely in
  * {@link ApplicationMcpServerIT}, which this class does not touch.
  *
- * <p>The two rejection cases (no token / wrong-audience token) go through {@link McpAssured}
+ * <p>Now covers the role-gated model (generalized from "any valid token" to "a valid token
+ * carrying the {@code pu2d-mcp} role"): a token for the right audience but the wrong/missing role
+ * (user {@code bob}, who has no {@code pu2d-mcp} realm role) must be rejected with 403, distinct
+ * from the 401s below (which are pure authentication failures — no/invalid/wrong-audience token).
+ *
+ * <p>The two 401 rejection cases (no token / wrong-audience token) go through {@link McpAssured}
  * itself via {@code setExpectConnectFailure(Consumer)}, which asserts the HTTP status code of the
- * (failed) connect attempt — no need to hand-roll a raw HTTP call. The happy path also goes
- * through {@link McpAssured}, adding the bearer token as an additional header via
+ * (failed) connect attempt — no need to hand-roll a raw HTTP call. The happy path and the 403 case
+ * also go through {@link McpAssured}, adding the bearer token as an additional header via
  * {@code setAdditionalHeaders(...)} (this McpAssured version has no direct
  * {@code setBearerToken}), per the acceptance criteria.
  *
@@ -56,7 +63,7 @@ import static org.yardship.integration.adapters.in.mcp.McpOidcAuthTestProfile.WR
  * same realm, same clients, just a different (verified-working) HTTP client.
  */
 @QuarkusTest
-@TestProfile(McpOidcAuthTestProfile.class)
+@TestProfile(SurfaceAuthTestProfile.class)
 public class McpOidcAuthEnforcedIT {
 
     // The tool-call happy-path test below needs a resolvable app so it doesn't hit the real
@@ -75,11 +82,16 @@ public class McpOidcAuthEnforcedIT {
 
     /** Password-grant token request against the Dev-Services-backed test realm's token endpoint. */
     private static String fetchAccessToken(String clientId, String clientSecret) {
+        return fetchAccessToken(clientId, clientSecret, TEST_USERNAME, TEST_PASSWORD);
+    }
+
+    /** Password-grant token request for a specific user, e.g. the role-less {@code bob}. */
+    private static String fetchAccessToken(String clientId, String clientSecret, String username, String password) {
         String issuer = ConfigProvider.getConfig().getValue("quarkus.oidc.auth-server-url", String.class);
         String tokenUrl = issuer + "/protocol/openid-connect/token";
         String form = "grant_type=password"
-                + "&username=" + TEST_USERNAME
-                + "&password=" + TEST_PASSWORD
+                + "&username=" + username
+                + "&password=" + password
                 + "&client_id=" + clientId
                 + "&client_secret=" + clientSecret;
         try {
@@ -121,6 +133,24 @@ public class McpOidcAuthEnforcedIT {
                 .setExpectConnectFailure(failure -> assertEquals(401, failure.statusCode(),
                         "a token from the right issuer but the wrong audience ("
                                 + WRONG_AUDIENCE_CLIENT_ID + ") must be rejected with 401"))
+                .build()
+                .connect();
+    }
+
+    @Test
+    void mcpEndpoint_withValidTokenButWithoutRequiredRole_isRejectedWithForbidden() {
+        // bob carries the right audience (mcp-client) but lacks the pu2d-mcp realm role — this
+        // must be distinguished from the 401s above: authentication succeeds (the token itself is
+        // valid for the configured issuer+audience), but authorization fails.
+        String tokenWithoutRole = fetchAccessToken(RIGHT_AUDIENCE_CLIENT_ID, TEST_CLIENT_SECRET,
+                NO_ROLE_USERNAME, NO_ROLE_PASSWORD);
+
+        McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
+                .setAdditionalHeaders(message -> bearerHeader(tokenWithoutRole))
+                .setExpectConnectFailure(failure -> assertEquals(403, failure.statusCode(),
+                        "a valid token for the configured audience but missing the required "
+                                + "pu2d-mcp role must be rejected with 403, not 401"))
                 .build()
                 .connect();
     }

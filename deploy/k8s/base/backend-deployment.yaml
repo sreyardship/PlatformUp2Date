@@ -46,6 +46,20 @@ spec:
           # HARBOR_USER/HARBOR_PASS, …): create a Secret with this name and
           # its keys land as env vars — no patch needed. `optional: true`
           # means an absent Secret is fine.
+          #
+          # Surface authentication (docs/adr/0026, docs/adr/0028) also lands
+          # this way — none of it is hardcoded here, and it is OFF by default
+          # (no Secret = no auth = today's fully open behavior). To turn it
+          # on, add these keys to the platformup2date-env Secret:
+          #   OIDC_ISSUER      - the shared issuer URL (both-or-neither with
+          #                      OIDC_AUDIENCE)
+          #   OIDC_AUDIENCE    - the shared audience naming this app
+          #   MCP_OIDC_ROLE    - set to gate /api/mcp (conventionally pu2d-mcp);
+          #                      unset leaves the MCP endpoint open
+          #   WEB_OIDC_ROLE    - set to gate /api/v1 (conventionally pu2d-web);
+          #                      unset leaves the REST API/web UI open
+          # See docs/configuration.md#surface-authentication-mcp--web and
+          # docs/deployment.md#web-ui-authentication for the full contract.
           envFrom:
             - secretRef:
                 name: platformup2date-env

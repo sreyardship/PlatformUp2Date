@@ -1,8 +1,24 @@
 import { AppBar, Box, Button, Snackbar, Alert, Toolbar, Typography } from '@mui/material'
 import RefreshIcon from '@mui/icons-material/Refresh'
+import LogoutIcon from '@mui/icons-material/Logout'
 import { useEffect, useRef, useState } from 'react'
 
 import versionClient from './api/versionClient'
+import { isWebAuthEnabled, userManager } from './auth/userManager'
+
+const handleLogout = () => {
+  userManager.removeUser()
+  userManager.signoutRedirect()
+}
+
+const LogoutButton = () => {
+  if (!isWebAuthEnabled()) return null
+  return (
+    <Button variant="outlined" startIcon={<LogoutIcon />} onClick={handleLogout}>
+      Log out
+    </Button>
+  )
+}
 
 const TopBar = ({ onRefreshed }) => {
   const [busy, setBusy] = useState(false)
@@ -75,14 +91,17 @@ const TopBar = ({ onRefreshed }) => {
             PlatformUp2Date
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<RefreshIcon />}
-          disabled={disabled}
-          onClick={handleClick}
-        >
-          {label}
-        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <LogoutButton />
+          <Button
+            variant="contained"
+            startIcon={<RefreshIcon />}
+            disabled={disabled}
+            onClick={handleClick}
+          >
+            {label}
+          </Button>
+        </Box>
       </Toolbar>
       <Snackbar
         open={snackbarOpen}

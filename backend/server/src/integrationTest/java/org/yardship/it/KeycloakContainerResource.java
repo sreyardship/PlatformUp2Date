@@ -19,8 +19,8 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
  * Boots a real Keycloak container (Testcontainers {@link GenericContainer}, not Dev Services) for
  * the native auth-on MCP smoke test (issue 04, docs/adr/0026).
  *
- * <p>Keycloak Dev Services cannot be reused here the way {@code McpOidcAuthTestProfile} (JVM
- * {@code @QuarkusTest} suite) reuses it: that profile derives {@code MCP_OIDC_ISSUER} from the
+ * <p>Keycloak Dev Services cannot be reused here the way {@code SurfaceAuthTestProfile} (JVM
+ * {@code @QuarkusTest} suite) reuses it: that profile derives {@code OIDC_ISSUER} from the
  * Dev-Services-assigned {@code quarkus.oidc.auth-server-url} via a SmallRye property expression
  * resolved lazily inside the launched JVM. A {@code @QuarkusIntegrationTest} artifact (a
  * standalone process — the native binary in CI) is launched with a fixed environment computed
@@ -35,8 +35,9 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
  * the same Keycloak version as the JVM auth-on suite's Dev-Services container. The realm import
  * ({@code mcp-oidc-test-realm.json}, copied into {@code src/integrationTest/resources} from the
  * slice-01 fixture in {@code src/test/resources}) defines the same two clients: {@code mcp-client}
- * (audience {@code mcp-api}) and {@code other-client} (audience {@code other-api}), plus user
- * {@code alice}/{@code alice}.
+ * (audience {@code mcp-api}) and {@code other-client} (audience {@code other-api}), user
+ * {@code alice}/{@code alice} (carrying the {@code pu2d-mcp} realm role), and user
+ * {@code bob}/{@code bob} (without it, for the 403 case).
  */
 public class KeycloakContainerResource implements QuarkusTestResourceLifecycleManager {
 
@@ -45,9 +46,10 @@ public class KeycloakContainerResource implements QuarkusTestResourceLifecycleMa
     private static final String REALM_NAME = "mcp-oidc-test";
 
     public static final String AUDIENCE = "mcp-api";
+    public static final String MCP_ROLE = "pu2d-mcp";
 
     /**
-     * The issuer URL handed to the launched artifact (via {@code MCP_OIDC_ISSUER}), also exposed
+     * The issuer URL handed to the launched artifact (via {@code OIDC_ISSUER}), also exposed
      * to the test JVM itself: the resource manager and the {@code @QuarkusIntegrationTest} class
      * run in the same (test) JVM, only the artifact under test is a separate process, so the test
      * class needs this value directly (e.g. to fetch a token via password grant) rather than via
@@ -97,8 +99,9 @@ public class KeycloakContainerResource implements QuarkusTestResourceLifecycleMa
         int httpPort = wireMockServer.port();
 
         return Map.of(
-                "MCP_OIDC_ISSUER", issuerUrl,
-                "MCP_OIDC_AUDIENCE", AUDIENCE,
+                "OIDC_ISSUER", issuerUrl,
+                "OIDC_AUDIENCE", AUDIENCE,
+                "MCP_OIDC_ROLE", MCP_ROLE,
                 "platform-config.scrape-interval", "1h",
                 "platform-config.apps[0].name", "auth-smoke-app",
                 "platform-config.apps[0].current.type", "http",

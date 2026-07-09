@@ -184,8 +184,8 @@ both):
 
 ## MCP endpoint authentication
 
-If you turn on MCP endpoint authentication (`MCP_OIDC_ISSUER` +
-`MCP_OIDC_AUDIENCE`, see [`configuration.md`](configuration.md#mcp-endpoint-authentication)),
+If you turn on MCP endpoint authentication (`OIDC_ISSUER` +
+`OIDC_AUDIENCE`, see [`configuration.md`](configuration.md#surface-authentication-mcp--web)),
 it has two consequences for anything sitting in front of the backend:
 
 - **The shared `HTTPRoute` needs one added rule.** [`docs/adr/0002`](adr/0002-mcp-endpoint-under-api.md)'s
@@ -239,19 +239,65 @@ it has two consequences for anything sitting in front of the backend:
   before the backend can answer them, breaking native MCP client
   authentication.
 
-With MCP endpoint authentication off (`MCP_OIDC_ISSUER` unset, the default),
+With MCP endpoint authentication off (`OIDC_ISSUER` unset, the default),
 neither change applies and the endpoint behaves exactly as described in
 [ADR 0002](adr/0002-mcp-endpoint-under-api.md).
 
-### Interim posture for the web UI and REST API
+## Web UI authentication
 
-Only the MCP endpoint authenticates its own callers. The web UI and the REST
-API (`/api/v1`) have no in-app authentication — in-app web authentication is
-a planned separate feature. Until it lands, protect them the same way you
-would have protected the whole host before this feature existed: an edge
-proxy such as `oauth2-proxy` in front of the host, or a private network. If
-you turn on MCP endpoint authentication and keep such a proxy for the UI/REST,
-remember the bypass rules above so the two auth mechanisms don't collide.
+The web UI and REST API (`/api/v1`) authenticate against the same shared
+issuer as MCP, gated by their own role var (`WEB_OIDC_ROLE`, default
+`pu2d-web` — see [`configuration.md`](configuration.md#surface-authentication-mcp--web)).
+Turning it on has different cluster-level consequences than MCP:
+
+- **No ingress change is needed.** Unlike MCP's
+  `/.well-known/oauth-protected-resource` HTTPRoute rule above, the SPA
+  discovers the IdP directly from its own runtime config
+  (`OIDC_AUTHORITY`/`OIDC_CLIENT_ID`, injected into `window._env_` the same
+  way `API_BASE_URL` already is). There is no server-side protected-resource
+  metadata document for the web surface, so nothing new needs routing at the
+  host root. The existing `/api` PathPrefix rule (unstripped, to the backend)
+  and the catch-all `/` rule (to the frontend) are unchanged.
+- **Enabling web auth gates `/api/v1`, not the SPA static shell.** The
+  frontend `Service`/`Deployment` still serves the page to anyone — the JS
+  bundle has to load and run before it can redirect an anonymous visitor to
+  the IdP. A BFF or an edge proxy in front of the host *would* hide the page
+  itself; this SPA-as-OIDC-client topology structurally cannot (see
+  [ADR 0028](adr/0028-web-and-mcp-surfaces-role-gated-behind-one-issuer.md)).
+  If hiding the page itself matters to you, that's still an edge-proxy
+  decision, not something this feature does for you.
+- **`/metrics`, `/q/health`, and the OpenAPI spec (`/q/openapi`) stay open**
+  regardless of web-auth state — none of them live under `/api/v1`, so
+  neither surface's role gate touches them.
+- **Dev-mode CORS**: the Vite dev server serves the SPA from
+  `localhost:3000` while Quarkus serves the API from `localhost:8080` — a
+  cross-origin request in dev only. The `%dev`-scoped CORS block in
+  `application.yml` pins `origins` to that exact dev origin (never `*`) and
+  allows the `authorization` header so the bearer token can be attached.
+  Production is same-origin behind `/api` (no CORS needed there).
+- **Any edge proxy in front of the host must still bypass MCP's paths**
+  (as above) if you keep one for defense-in-depth once web auth is in-app —
+  the two mechanisms are independent and can coexist, but the proxy must not
+  intercept `/api/mcp` or the well-known path.
+
+**IdP prerequisites.** Register the SPA as a **public client with PKCE** (no
+client secret) in your IdP:
+
+- redirect URI = the SPA's own origin, `/` (e.g.
+  `https://platformup2date.example.com/`)
+- a matching post-logout / end-session redirect URI — log-out is RP-initiated
+  (it ends the IdP session, not just the local token)
+- silent-renew (refresh) enabled/expected, so a page reload doesn't force a
+  full re-login
+- grant the `pu2d-web` role (or whatever `WEB_OIDC_ROLE` is set to) as a
+  realm/group role to whichever users should reach the app — granting the
+  role is what actually admits a caller, independent of whether they can
+  authenticate against the IdP at all
+
+If you leave `WEB_OIDC_ROLE` (or `OIDC_ISSUER` entirely) unset, protect the
+web UI and REST API the same way you would have protected the whole host
+before this feature existed: an edge proxy such as `oauth2-proxy` in front of
+the host, or a private network.
 
 ## Metrics
 

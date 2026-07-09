@@ -65,3 +65,38 @@ describe('failureKind — api-error (HTTP error response)', () => {
     expect(result.kind).toBe('unreachable')
   })
 })
+
+// ────────────────────────────────────────────────────────────────────────────
+// not-authorized (403) — slice 04
+//
+// A 403 means the caller's token validated but lacks the web Surface's role
+// (pu2d-web) — authenticated but not entitled. This is a DISTINCT kind from
+// 'api-error' so Dashboard can render <NotAuthorized/> instead of
+// <BackendUnavailable/>: the backend answered, and answered no — never an
+// empty fleet, never lumped in with "backend didn't answer" (see CONTEXT.md's
+// Not authorized vs Backend unavailable definitions).
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('failureKind — not-authorized (403 Not authorized)', () => {
+  test('returns kind "not-authorized" for a 403, not "api-error"', () => {
+    const forbiddenErr = { status: 403 }
+    const result = failureKind(forbiddenErr)
+    expect(result.kind).toBe('not-authorized')
+  })
+
+  test('the not-authorized message names the account, not "backend unavailable"', () => {
+    const forbiddenErr = { status: 403 }
+    const result = failureKind(forbiddenErr)
+    // Pinned copy for this slice — matches the issue's framing exactly.
+    expect(result.message).toBe("Your account isn't authorized for this app")
+    expect(result.message.toLowerCase()).not.toMatch(/backend unavailable/)
+    expect(result.message.toLowerCase()).not.toMatch(/forbidden/)
+  })
+
+  test('other 4xx/5xx statuses are unaffected and stay "api-error" (regression)', () => {
+    expect(failureKind({ status: 404 }).kind).toBe('api-error')
+    expect(failureKind({ status: 500 }).kind).toBe('api-error')
+    expect(failureKind({ status: 503 }).kind).toBe('api-error')
+    expect(failureKind({ status: 401 }).kind).toBe('api-error')
+  })
+})
