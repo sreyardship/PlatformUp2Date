@@ -79,6 +79,8 @@ every source type and config key available for your own apps.
   Kubernetes (the primary target, though any OCI runtime works), HA and
   replicas, Valkey, RBAC for the `k8s-image` source, Prometheus scraping,
   alert rules, the Grafana dashboard.
+- [`RELEASE.md`](RELEASE.md) — image channels (`edge`, `sha-<short>`, semver),
+  what each CI trigger publishes, and how a release is cut.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — the design principles behind the
   substrate-agnostic version-source model.
 - [`CONTEXT.md`](CONTEXT.md) — glossary of project-specific terms.
