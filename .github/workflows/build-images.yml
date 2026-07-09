@@ -72,7 +72,7 @@ jobs:
       packages: write
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Same split as pr.yml's native job: GraalVM CE 25 provides
       # native-image (via GRAALVM_HOME, which Quarkus prefers over
@@ -152,7 +152,7 @@ jobs:
       packages: write
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
