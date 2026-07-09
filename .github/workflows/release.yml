@@ -62,7 +62,7 @@ jobs:
       contents: write
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Semver prerelease tags (e.g. v0.1.0-rc.1) get flagged as GitHub
       # prereleases so they don't show up as "Latest release" on the repo.
@@ -123,7 +123,7 @@ jobs:
       contents: write
     steps:
       - name: Check out main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
 
@@ -175,7 +175,7 @@ jobs:
       contents: write
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Same GraalVM CE 25 toolchain as pr.yml's `native` job (see its
       # comment for the JDK 25/21 split rationale): native-image comes from
