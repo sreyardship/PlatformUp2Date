@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
@@ -91,7 +91,7 @@ jobs:
       # Must run AFTER setup-graalvm so this JAVA_HOME (and PATH `java`) wins
       # for the Gradle launcher and test-harness JVMs.
       - name: Set up JDK 21 (Gradle launcher)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
