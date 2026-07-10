@@ -6,9 +6,10 @@ locally. This page is for running it for real, on your own cluster.
 Kubernetes is the primary deployment target (it's where the tool is developed
 and run) but nothing requires it: both images are plain OCI images that run on
 any OCI-compatible runtime (Docker, Podman, containerd), as the compose
-quickstart shows. The one Kubernetes-only piece is the `k8s-image` current
+quickstart shows. The one Kubernetes specific piece is the `k8s-image` current
 source, which reads workloads from the Kubernetes API and auto-configures
-in-cluster.
+in-cluster. But it's not necessarily dependent on where PlatformUp2Date 
+lives, it's just a bit easier to setup if it runs in a k8s cluster.
 
 The backend is designed to run highly available. All scrape state lives in
 Valkey and every surface (REST, frontend, metrics, MCP) is a stateless
