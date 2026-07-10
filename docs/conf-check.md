@@ -13,6 +13,19 @@ The backend validates config in two places, and both are late:
 
 conf-check moves both checks to the point where you edit the file. You can run a single surface interactively while writing an app entry, or run the `config` gate over the whole file in a pipeline and fail the merge before the config ships.
 
+## Building and getting the binary
+
+Native binaries for tagged releases are attached to each `v*` GitHub Release as `conf-check-<os>-<arch>`, built with GraalVM native-image. Download one, `chmod +x` it, and run it; no JVM required.
+
+To build locally (from the repo root):
+
+```
+gradle :backend:conf-check:build            # JAR + start scripts under backend/conf-check/build
+gradle :backend:conf-check:nativeCompile    # native binary at backend/conf-check/build/native/nativeCompile/conf-check
+```
+
+The native build needs GraalVM with native-image; the dev shell in `project-environment/` provides it.
+
 ## Subcommands
 
 | Subcommand | Checks | Needs a body? |
@@ -98,19 +111,6 @@ When adding an app to `platform-config.yaml`, use the single-surface subcommands
 In CI, run `conf-check config` on any change to the config file. `--offline` catches structural mistakes (bad placeholders, malformed formats, missing required fields) without network flakiness; the full online run also proves the configured URLs actually yield a version today.
 
 conf-check is not a monitoring tool. It validates that a config *can* work, once, at the moment you run it. Continuous scraping, comparison against latest releases, and status reporting belong to the backend.
-
-## Building and getting the binary
-
-Native binaries for tagged releases are attached to each `v*` GitHub Release as `conf-check-<os>-<arch>`, built with GraalVM native-image. Download one, `chmod +x` it, and run it; no JVM required.
-
-To build locally (from the repo root):
-
-```
-gradle :backend:conf-check:build            # JAR + start scripts under backend/conf-check/build
-gradle :backend:conf-check:nativeCompile    # native binary at backend/conf-check/build/native/nativeCompile/conf-check
-```
-
-The native build needs GraalVM with native-image; the dev shell in `project-environment/` provides it.
 
 ## Design notes
 
