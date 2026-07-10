@@ -60,7 +60,7 @@ kind: Kustomization
 namespace: my-namespace
 
 resources:
-  - https://github.com/sreyardship/PlatformUp2Date-public//deploy/k8s/base?ref=v0.0.48
+  - https://github.com/sreyardship/PlatformUp2Date//deploy/k8s/base?ref=v0.0.48
   - namespace.yaml
 
 # Your real monitoring config, replacing the sample wholesale. The generated
@@ -138,7 +138,7 @@ Only if an app in your config uses the `k8s-image` current source, add
 
 ```yaml
 components:
-  - https://github.com/sreyardship/PlatformUp2Date-public//deploy/k8s/components/rbac?ref=v0.0.48
+  - https://github.com/sreyardship/PlatformUp2Date//deploy/k8s/components/rbac?ref=v0.0.48
 ```
 
 It grants cluster-wide read-only `get` on Deployments/StatefulSets/DaemonSets
