@@ -51,7 +51,7 @@ Each application picks the best probe it can support. Most apps only ever need T
 Substrate-agnostic. Works whether the app runs in k8s, on a VM, or on the moon (assuming the moon gets hooked up to the world wide web), because it only talks to the running app over the network.
 
 A list of possible adapters (not all implemented at the time of writing)
-- **HTTP version endpoint** — `GET <url>` and select a field (e.g. JSONPath `$.version`).
+- **HTTP version endpoint** — `GET <url>` and select a field (e.g. JSON Pointer `/version`).
 - **Prometheus `*_build_info` scrape** — hit `/metrics`, read the `version=` label.
 - **HTTP header probe** — `Server:`, `X-Version`, or other custom headers.
 - **HTML/regex scrape** — `<meta name="generator">`, a footer or login-page version string.
@@ -94,10 +94,10 @@ Upstream ("latest") probe sources include:
 The hexagonal backend expresses the above as two out-ports, each with many adapters,
 selected per application by a discriminated config:
 
-- `CurrentVersionProbe` → `HttpEndpointProbe`, `PrometheusBuildInfoProbe`,
-  `HttpHeaderProbe`, `HtmlRegexProbe`, `KubernetesPodProbe`, …
-- `LatestVersionProbe` → `GithubReleasesProbe`, `RegistryTagsProbe`, `HelmIndexProbe`,
-  `HtmlRegexProbe`, …
+- `CurrentVersionSource` → `HttpCurrentSource`, `K8sImageCurrentSource`,
+  `SshOsReleaseCurrentSource`, …
+- `LatestVersionSource` → `GithubReleaseLatestSource`, `OciRegistryLatestSource`,
+  `HttpRegexLatestSource`, …
 
 The core service (`ApplicationVersionService`) stays oblivious to deployment substrate; it
 only asks "current?" and "latest?" and compares. Each application is configured as simply
@@ -106,35 +106,41 @@ or a new upstream is *one new adapter*, with no change to the core.
 
 ### Resulting config shape
 
+The syntax as implemented today (see [`docs/configuration.md`](docs/configuration.md)
+for every source type and key):
+
 ```yaml
 platform-config:
   scrape-interval: 1h
   apps:
     - name: git-tea
       current:
-        type: http-endpoint          # Tier A
+        type: http                   # Tier A
         url: https://git.sreyardship.com/api/v1/version
-        field: $.version
+        version-key: /version
       latest:
-        type: github-releases
+        type: github-release
         repo: go-gitea/gitea
 
     - name: rook-ceph
       current:
         type: k8s-image              # Tier B — reads the RUNNING pod
         namespace: storage-operator
-        selector: app=rook-ceph-operator
+        workload: deployment/rook-ceph-operator
+        container: rook-ceph-operator
       latest:
-        type: github-releases
+        type: github-release
         repo: rook/rook
 
-    - name: some-legacy-vm-app
+    - name: edge-router
       current:
-        type: html-regex             # Tier A — scrape the login page
-        url: https://legacy.example.com/login
-        regex: 'v(\d+\.\d+\.\d+)'
+        type: ssh-os-release         # Tier B — asks the running host itself
+        host: router.example.com
+        user: pu2d
+        private-key-file: /secrets/router_ed25519
+        known-hosts: /secrets/known_hosts
       latest:
-        type: html-regex
+        type: http-regex             # Tier A — scrape the vendor's release page
         url: https://vendor.example.com/downloads
         regex: 'Latest:\s*v?(\d+\.\d+\.\d+)'
 ```
