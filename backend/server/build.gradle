@@ -23,6 +23,9 @@ dependencies {
     implementation 'io.quarkus:quarkus-redis-client'
     implementation 'io.quarkus:quarkus-smallrye-health'
     implementation 'io.quarkus:quarkus-kubernetes-client'
+    // Lets quarkusIntTest boot the real Dockerfile.native-ci image (via -Dquarkus.container-image.build=true)
+    // instead of the raw native executable, so the native ITs exercise the exact artifact that ships.
+    implementation 'io.quarkus:quarkus-container-image-docker'
     implementation 'org.semver4j:semver4j:6.0.0'
     implementation 'io.quarkus:quarkus-smallrye-openapi'
     implementation 'io.quarkiverse.mcp:quarkus-mcp-server-http:1.13.0'
