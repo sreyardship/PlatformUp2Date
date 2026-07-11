@@ -146,6 +146,10 @@ public class SshOsReleaseResource implements QuarkusTestResourceLifecycleManager
         int httpPort = wireMockServer.port();
 
         return Map.ofEntries(
+                // TEMP DIAGNOSTIC: surface MINA SSH client connect/verify failures from the
+                // launched container's stdout (captured by CI) so we can see why the SSH scrape
+                // does not resolve when the artifact runs as the shipped container image.
+                Map.entry("quarkus.log.category.\"org.apache.sshd\".level", "DEBUG"),
                 Map.entry("platform-config.scrape-interval", "1s"),
                 Map.entry("platform-config.apps[0].name", "ssh-vm"),
                 Map.entry("platform-config.apps[0].version-scheme", "semver"),
