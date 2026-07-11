@@ -13,11 +13,19 @@ RUN patchelf \
         --remove-rpath \
         /work/application
 
+# The native binary is linked against libz.so.1 (zlib), which the ubi-micro
+# runtime image does not ship — without it the app dies at startup with
+# "libz.so.1: cannot open shared object file". zlib is part of the full UBI9
+# base image, so grab just that library and drop it into /lib64 where the
+# patched loader resolves libc et al.
+FROM registry.access.redhat.com/ubi9/ubi:9.8 AS libz
+
 FROM registry.access.redhat.com/ubi9/ubi-micro:9.8
 WORKDIR /work/
 RUN chown 1001 /work \
     && chmod "g+rwX" /work \
     && chown 1001:root /work
+COPY --from=libz /usr/lib64/libz.so.1* /lib64/
 COPY --from=patcher --chown=1001:root /work/application /work/application
 
 EXPOSE 8080
