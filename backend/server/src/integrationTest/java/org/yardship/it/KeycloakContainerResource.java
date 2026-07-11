@@ -80,7 +80,19 @@ public class KeycloakContainerResource implements QuarkusTestResourceLifecycleMa
                         .withStartupTimeout(Duration.ofMinutes(2)));
         keycloak.start();
 
-        issuerUrl = "http://" + keycloak.getHost() + ":" + keycloak.getMappedPort(KEYCLOAK_PORT)
+        // The issuer host has to be one string that works from three vantage points at once: the
+        // launched artifact (which fetches OIDC discovery/JWKS), this test JVM (which fetches a
+        // token by password grant), and Keycloak itself (dev mode derives the token's `iss` claim
+        // from the request host, so it must match what the artifact validates against). As a host
+        // process everything is localhost; as the shipped container image (the native PR job) the
+        // artifact can't reach localhost, so CI sets PU2D_IT_CALLBACK_HOST=host.docker.internal,
+        // adds the matching --add-host to the container, and maps host.docker.internal to loopback
+        // on the runner so this test JVM resolves the very same issuer string. Keycloak's published
+        // port is reachable through the host gateway, so the mapped port stays correct either way.
+        // Defaults to the Testcontainers host so host-process runs are unchanged.
+        String callbackHost = System.getenv().getOrDefault("PU2D_IT_CALLBACK_HOST", keycloak.getHost());
+
+        issuerUrl = "http://" + callbackHost + ":" + keycloak.getMappedPort(KEYCLOAK_PORT)
                 + "/realms/" + REALM_NAME;
 
         // platform-config is unset in the default/prod profile the launched artifact boots under
@@ -105,9 +117,9 @@ public class KeycloakContainerResource implements QuarkusTestResourceLifecycleMa
                 "platform-config.scrape-interval", "1h",
                 "platform-config.apps[0].name", "auth-smoke-app",
                 "platform-config.apps[0].current.type", "http",
-                "platform-config.apps[0].current.url", "http://localhost:" + httpPort + "/current",
+                "platform-config.apps[0].current.url", "http://" + callbackHost + ":" + httpPort + "/current",
                 "platform-config.apps[0].latest.type", "http-regex",
-                "platform-config.apps[0].latest.url", "http://localhost:" + httpPort + "/current",
+                "platform-config.apps[0].latest.url", "http://" + callbackHost + ":" + httpPort + "/current",
                 "platform-config.apps[0].latest.regex", "(\\d+\\.\\d+\\.\\d+)");
     }
 

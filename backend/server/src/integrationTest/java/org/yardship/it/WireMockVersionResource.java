@@ -48,17 +48,25 @@ public class WireMockVersionResource implements QuarkusTestResourceLifecycleMana
         wireMockServer.stubFor(get(urlPathEqualTo("/repos/bad/latest/releases"))
                 .willReturn(json("[]")));
 
+        // The launched artifact reaches this WireMock back over the network. When it runs as a
+        // host process (JVM jar / raw native binary) that is localhost; when it runs as the shipped
+        // container image (the native PR job, -Dquarkus.container-image.build=true) localhost is the
+        // container itself, so CI sets PU2D_IT_CALLBACK_HOST=host.docker.internal and adds the
+        // matching --add-host to the container. WireMock binds all interfaces, so the host gateway
+        // reaches it either way. Defaults to localhost so host-process runs are unchanged.
+        String callbackHost = System.getenv().getOrDefault("PU2D_IT_CALLBACK_HOST", "localhost");
+
         return Map.ofEntries(
                 Map.entry("platform-config.scrape-interval", "1s"),
-                Map.entry("platform-config.github.api-base-url", "http://localhost:" + PORT),
+                Map.entry("platform-config.github.api-base-url", "http://" + callbackHost + ":" + PORT),
                 Map.entry("platform-config.apps[0].name", "good-app"),
                 Map.entry("platform-config.apps[0].current.type", "http"),
-                Map.entry("platform-config.apps[0].current.url", "http://localhost:" + PORT + "/good/current"),
+                Map.entry("platform-config.apps[0].current.url", "http://" + callbackHost + ":" + PORT + "/good/current"),
                 Map.entry("platform-config.apps[0].latest.type", "github-release"),
                 Map.entry("platform-config.apps[0].latest.repo", "good/latest"),
                 Map.entry("platform-config.apps[1].name", "bad-app"),
                 Map.entry("platform-config.apps[1].current.type", "http"),
-                Map.entry("platform-config.apps[1].current.url", "http://localhost:" + PORT + "/bad/current"),
+                Map.entry("platform-config.apps[1].current.url", "http://" + callbackHost + ":" + PORT + "/bad/current"),
                 Map.entry("platform-config.apps[1].latest.type", "github-release"),
                 Map.entry("platform-config.apps[1].latest.repo", "bad/latest"));
     }

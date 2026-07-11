@@ -116,7 +116,23 @@ jobs:
       # jar; -x test skips the JVM unit/integration suite the `fast` job owns.
       # Valkey comes from Quarkus Dev Services (this runner has Docker), same
       # as for `fast`'s test JVM.
+      #
+      # Booting the container (rather than the raw binary) means the ITs' host-side
+      # test doubles (WireMock, the embedded SSH server, the Keycloak Testcontainer)
+      # are no longer reachable on localhost from the artifact under test. The env +
+      # /etc/hosts wiring below bridges that: PU2D_IT_CALLBACK_HOST makes the doubles
+      # hand the container `host.docker.internal`; QUARKUS_TEST_ARG_LINE feeds Quarkus'
+      # container launcher an --add-host so the container resolves that name to the host
+      # gateway; and the /etc/hosts entry maps it to loopback for this test JVM, so the
+      # OIDC issuer string is identical on both sides (the artifact validates the token's
+      # `iss` against it, and this JVM fetches the token from it).
+      - name: Map host.docker.internal to loopback (host-side test doubles)
+        run: echo "127.0.0.1 host.docker.internal" | sudo tee -a /etc/hosts
+
       - name: Native build + native integration tests (against the shipped image)
+        env:
+          PU2D_IT_CALLBACK_HOST: host.docker.internal
+          QUARKUS_TEST_ARG_LINE: --add-host=host.docker.internal:host-gateway
         run: >
           gradle --no-daemon :backend:server:build :backend:server:quarkusIntTest
           -Dquarkus.native.enabled=true

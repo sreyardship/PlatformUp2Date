@@ -122,13 +122,22 @@ public class SshOsReleaseResource implements QuarkusTestResourceLifecycleManager
         sshServer.start();
         int sshPort = sshServer.getPort();
 
+        // The launched artifact connects back to this embedded SSH/HTTP server. As a host process
+        // (JVM jar / raw native binary) that is 127.0.0.1; as the shipped container image (the
+        // native PR job) 127.0.0.1 is the container itself, so CI sets
+        // PU2D_IT_CALLBACK_HOST=host.docker.internal and adds the matching --add-host to the
+        // container. The MINA server binds all interfaces, so the host gateway reaches it either
+        // way. The known-hosts entry must be keyed on whatever host the client dials, so it uses
+        // the same value. Defaults to 127.0.0.1 so host-process runs are unchanged.
+        String callbackHost = System.getenv().getOrDefault("PU2D_IT_CALLBACK_HOST", "127.0.0.1");
+
         // Materialise the client key + known-hosts as temp files so only plain paths are injected.
         tempDir = Files.createTempDirectory("ssh-os-release-it");
         Path keyFile = tempDir.resolve("client_ed25519");
         Files.writeString(keyFile, ED25519_CLIENT_PRIVATE_KEY);
         Path knownHostsFile = tempDir.resolve("known_hosts");
         Files.writeString(knownHostsFile,
-                "[127.0.0.1]:" + sshPort + " " + ED25519_SERVER_PUBLIC_LINE + System.lineSeparator());
+                "[" + callbackHost + "]:" + sshPort + " " + ED25519_SERVER_PUBLIC_LINE + System.lineSeparator());
 
         // Latest leg: a trivial http-regex source so the app fully resolves and is published.
         wireMockServer = new WireMockServer(options().dynamicPort());
@@ -141,13 +150,13 @@ public class SshOsReleaseResource implements QuarkusTestResourceLifecycleManager
                 Map.entry("platform-config.apps[0].name", "ssh-vm"),
                 Map.entry("platform-config.apps[0].version-scheme", "semver"),
                 Map.entry("platform-config.apps[0].current.type", "ssh-os-release"),
-                Map.entry("platform-config.apps[0].current.host", "127.0.0.1"),
+                Map.entry("platform-config.apps[0].current.host", callbackHost),
                 Map.entry("platform-config.apps[0].current.port", Integer.toString(sshPort)),
                 Map.entry("platform-config.apps[0].current.user", "testuser"),
                 Map.entry("platform-config.apps[0].current.private-key-file", keyFile.toString()),
                 Map.entry("platform-config.apps[0].current.known-hosts", knownHostsFile.toString()),
                 Map.entry("platform-config.apps[0].latest.type", "http-regex"),
-                Map.entry("platform-config.apps[0].latest.url", "http://localhost:" + httpPort + "/latest"),
+                Map.entry("platform-config.apps[0].latest.url", "http://" + callbackHost + ":" + httpPort + "/latest"),
                 Map.entry("platform-config.apps[0].latest.regex", "(\\d+\\.\\d+\\.\\d+)"));
     }
 
