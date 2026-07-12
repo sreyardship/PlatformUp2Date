@@ -23,13 +23,21 @@ import java.util.Map;
  *       below;</li>
  *   <li>{@code other-client} mints tokens carrying {@link #WRONG_AUDIENCE} — same issuer
  *       (same realm/Dev Services container), different audience, for the mismatch case;</li>
+ *   <li>{@code second-client} mints tokens carrying the SAME {@link #CONFIGURED_AUDIENCE} as
+ *       {@code mcp-client} but under its own {@code azp} — the foreign-azp case for
+ *       {@code AzpClientRolesAugmentor} (a client role granted under {@code mcp-client} must NOT
+ *       be honored from a token whose {@code azp} is {@code second-client});</li>
  *   <li>{@code alice} carries BOTH {@code pu2d-mcp} and {@code pu2d-web} realm roles (the
  *       both-surfaces-reachable user, and this profile's 200/happy-path user for MCP);</li>
  *   <li>{@code bob} carries NEITHER role (the roleless/403 case on any gated surface), but can
  *       still mint a token with the right audience via {@code mcp-client};</li>
  *   <li>{@code wanda} carries ONLY {@code pu2d-web} — the web-only isolation case;</li>
  *   <li>{@code mona} carries ONLY {@code pu2d-mcp} — the mcp-only isolation case (distinct from
- *       {@code alice}, who now also carries {@code pu2d-web}).</li>
+ *       {@code alice}, who now also carries {@code pu2d-web});</li>
+ *   <li>{@code clara} carries {@code pu2d-web} ONLY as a CLIENT role of {@code mcp-client} (no
+ *       pu2d realm roles) — the {@code resource_access/<azp>/roles} extraction case
+ *       ({@code AzpClientRolesAugmentor}), mirroring a production realm where the surface role is
+ *       scoped to the calling client instead of the realm.</li>
  * </ul>
  * Real issuer discovery + JWKS run against the Dev Services container; no identity is mocked.
  *
@@ -46,6 +54,8 @@ public class SurfaceAuthTestProfile implements QuarkusTestProfile {
 
     public static final String RIGHT_AUDIENCE_CLIENT_ID = "mcp-client";
     public static final String WRONG_AUDIENCE_CLIENT_ID = "other-client";
+    /** Same audience as {@link #RIGHT_AUDIENCE_CLIENT_ID}, but a different {@code azp}. */
+    public static final String SECOND_RIGHT_AUDIENCE_CLIENT_ID = "second-client";
     public static final String TEST_CLIENT_SECRET = "secret";
 
     /** Carries BOTH pu2d-mcp and pu2d-web — the both-surfaces-reachable user. */
@@ -63,6 +73,10 @@ public class SurfaceAuthTestProfile implements QuarkusTestProfile {
     /** Carries ONLY pu2d-mcp — the mcp-only cross-surface isolation case. */
     public static final String MCP_ONLY_USERNAME = "mona";
     public static final String MCP_ONLY_PASSWORD = "mona";
+
+    /** Carries pu2d-web ONLY as a client role of {@link #RIGHT_AUDIENCE_CLIENT_ID}. */
+    public static final String CLIENT_ROLE_ONLY_USERNAME = "clara";
+    public static final String CLIENT_ROLE_ONLY_PASSWORD = "clara";
 
     public static final String MCP_ROLE = "pu2d-mcp";
     public static final String WEB_ROLE = "pu2d-web";

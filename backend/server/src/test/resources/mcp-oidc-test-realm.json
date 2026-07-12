@@ -7,7 +7,12 @@
       { "name": "user" },
       { "name": "pu2d-mcp" },
       { "name": "pu2d-web" }
-    ]
+    ],
+    "client": {
+      "mcp-client": [
+        { "name": "pu2d-web" }
+      ]
+    }
   },
   "requiredActions": [
     {
@@ -162,6 +167,20 @@
         { "type": "password", "value": "mona", "temporary": false }
       ],
       "realmRoles": ["user", "pu2d-mcp"]
+    },
+    {
+      "username": "clara",
+      "enabled": true,
+      "email": "clara@mcp-oidc-test.example",
+      "emailVerified": true,
+      "firstName": "Clara",
+      "lastName": "Test",
+      "requiredActions": [],
+      "credentials": [
+        { "type": "password", "value": "clara", "temporary": false }
+      ],
+      "realmRoles": ["user"],
+      "clientRoles": { "mcp-client": ["pu2d-web"] }
     }
   ],
   "clients": [
@@ -176,6 +195,28 @@
       "protocolMappers": [
         {
           "name": "mcp-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "mcp-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "second-client",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "secret",
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "protocolMappers": [
+        {
+          "name": "second-audience",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-audience-mapper",
           "consentRequired": false,

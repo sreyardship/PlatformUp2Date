@@ -54,6 +54,10 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Each test starts with the full-page-redirect loop guard re-armed (its sessionStorage marker
+  // would otherwise leak between tests). The guard's own contract is pinned in
+  // axiosClient.redirect-loop.test.js.
+  window.sessionStorage.clear()
 })
 
 const httpErr401 = () => ({

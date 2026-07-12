@@ -22,9 +22,12 @@ import java.util.regex.Pattern;
 
 import static io.restassured.RestAssured.given;
 import static org.mockito.Mockito.when;
+import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.CLIENT_ROLE_ONLY_PASSWORD;
+import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.CLIENT_ROLE_ONLY_USERNAME;
 import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.NO_ROLE_PASSWORD;
 import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.NO_ROLE_USERNAME;
 import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.RIGHT_AUDIENCE_CLIENT_ID;
+import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.SECOND_RIGHT_AUDIENCE_CLIENT_ID;
 import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.TEST_CLIENT_SECRET;
 import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.WEB_ONLY_PASSWORD;
 import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.WEB_ONLY_USERNAME;
@@ -102,6 +105,40 @@ class WebAuthEnforcedIT {
                 .get("/api/v1/version")
                 .then()
                 .statusCode(200);
+    }
+
+    @Test
+    void versionEndpoint_withPu2dWebAsClientRoleOfTheMintingClient_isServed() {
+        // clara's pu2d-web is a CLIENT role of mcp-client — it arrives in the token as
+        // resource_access/mcp-client/roles (azp=mcp-client), not realm_access/roles. Quarkus's
+        // default extraction alone cannot see it (no quarkus.oidc.client-id on a bearer-only
+        // resource server); AzpClientRolesAugmentor keys the lookup off the token's own azp.
+        stubOneApp();
+        String token = fetchAccessToken(RIGHT_AUDIENCE_CLIENT_ID, TEST_CLIENT_SECRET,
+                CLIENT_ROLE_ONLY_USERNAME, CLIENT_ROLE_ONLY_PASSWORD);
+
+        given()
+                .header("Authorization", "Bearer " + token)
+                .when()
+                .get("/api/v1/version")
+                .then()
+                .statusCode(200);
+    }
+
+    @Test
+    void versionEndpoint_withClientRoleOfAForeignClient_isRejectedWithForbidden() {
+        // Same user, same (correct) audience — but minted via second-client, so azp=second-client.
+        // clara's pu2d-web lives under resource_access/mcp-client, NOT under the token's own azp;
+        // the augmentor must only honor the azp's entry, so this stays a 403.
+        String token = fetchAccessToken(SECOND_RIGHT_AUDIENCE_CLIENT_ID, TEST_CLIENT_SECRET,
+                CLIENT_ROLE_ONLY_USERNAME, CLIENT_ROLE_ONLY_PASSWORD);
+
+        given()
+                .header("Authorization", "Bearer " + token)
+                .when()
+                .get("/api/v1/version")
+                .then()
+                .statusCode(403);
     }
 
     @Test

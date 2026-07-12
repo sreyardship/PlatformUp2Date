@@ -71,11 +71,20 @@ per-user *authorization* decision, which is what roles/groups are for.
 - **Role names are operator-chosen** so they match an existing realm taxonomy and
   do not collide with a generic role in a realm shared with other apps; the
   namespaced defaults keep the zero-config case safe.
-- **Claim source is Quarkus's default role extraction** (Keycloak realm/client
-  roles, or a top-level `groups`/`roles` claim), overridable via
-  `quarkus.oidc.roles.role-claim-path`. As in ADR 0026, the two `OIDC_*` env vars
-  plus the two role vars are the whole operator contract; the underlying
-  `quarkus.oidc.*` properties are deliberately undocumented as contract.
+- **Claim source is Quarkus's default role extraction, extended with the token's
+  own client's Keycloak client roles.** The default extraction covers a top-level
+  `groups` claim and Keycloak realm roles (`realm_access/roles`), but it only
+  reads client roles (`resource_access/<client-id>/roles`) when
+  `quarkus.oidc.client-id` is configured — and a bearer-only resource server has
+  no client-id, nor could one static id cover every calling client.
+  `AzpClientRolesAugmentor` closes that gap by keying the client-role lookup off
+  the token's own `azp` (authorized party) claim, so the effective chain is
+  `groups` → `realm_access/roles` → `resource_access/<azp>/roles` and an operator
+  may grant a surface role either as a realm role or as a client role on the
+  calling client. Still overridable via `quarkus.oidc.roles.role-claim-path`. As
+  in ADR 0026, the two `OIDC_*` env vars plus the two role vars are the whole
+  operator contract; the underlying `quarkus.oidc.*` properties are deliberately
+  undocumented as contract.
 - **A valid token carrying the surface's role is fully trusted** — no finer
   scopes gating individual endpoints or tools. Same all-or-nothing spirit as ADR
   0026, now applied per surface; finer scopes stay an additive future change.
