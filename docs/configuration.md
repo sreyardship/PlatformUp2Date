@@ -57,6 +57,7 @@ the tier model is defined in
 | `version-key` | JSON Pointer string | no | `/version` |
 | `strip-prerelease` | boolean | no | `false` |
 | `ca-cert` | path to PEM file | no | absent → JVM default trust |
+| `insecure-skip-tls-verify` | boolean | no | `false` |
 | `auth.type` | `basic` \| `bearer` | required if `auth` present | — |
 | `auth.username` / `auth.password` | string | required for `auth.type: basic` | — |
 | `auth.token` | string | exactly one of `token`/`token-file` required for `auth.type: bearer` | — |
@@ -65,6 +66,12 @@ the tier model is defined in
 A present-but-blank `ca-cert`, or one that fails to load, shows up as a
 failed scrape for that app, not a boot crash. Missing/blank `url` fails
 boot.
+
+`insecure-skip-tls-verify` gives full `curl -k` semantics — it skips both
+certificate chain validation and hostname verification for that app's REST
+client only, never JVM-global TLS state. Enabling it logs a WARN naming the
+app's url. It is mutually exclusive with `ca-cert`: configuring both is
+refused (a value-level failure, not a boot crash).
 
 ### `type: k8s-image` (current) — Tier B, requires cluster access
 

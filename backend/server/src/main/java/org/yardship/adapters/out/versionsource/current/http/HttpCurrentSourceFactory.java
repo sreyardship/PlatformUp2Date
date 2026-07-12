@@ -77,8 +77,15 @@ public class HttpCurrentSourceFactory implements CurrentVersionSourceFactory {
         }
         Optional<KeyStore> trustStore = caCert.trustStore();
 
+        boolean insecureSkipTlsVerify = cfg.insecureSkipTlsVerify().orElse(false);
+        if (insecureSkipTlsVerify) {
+            logger.warn("The 'http' current source has 'insecure-skip-tls-verify' enabled; TLS "
+                    + "certificate and hostname verification are disabled for url '" + url + "'.");
+        }
+
         if (cfg.auth().isEmpty()) {
-            HttpCurrentVersionClient client = clientFactory.build(url, Optional.empty(), trustStore);
+            HttpCurrentVersionClient client =
+                    clientFactory.build(url, Optional.empty(), trustStore, insecureSkipTlsVerify);
             return new HttpCurrentSource(client, versionKey, stripPrerelease, parser);
         }
 
@@ -90,7 +97,8 @@ public class HttpCurrentSourceFactory implements CurrentVersionSourceFactory {
         }
 
         ClientRequestFilter authFilter = buildAuthFilter(auth);
-        HttpCurrentVersionClient client = clientFactory.build(url, Optional.of(authFilter), trustStore);
+        HttpCurrentVersionClient client =
+                clientFactory.build(url, Optional.of(authFilter), trustStore, insecureSkipTlsVerify);
         return new HttpCurrentSource(client, versionKey, stripPrerelease, parser);
     }
 

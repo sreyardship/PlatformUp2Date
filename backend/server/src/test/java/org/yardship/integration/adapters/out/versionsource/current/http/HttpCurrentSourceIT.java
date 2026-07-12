@@ -79,7 +79,7 @@ class HttpCurrentSourceIT {
                 .willReturn(jsonResponse(200, "{\"version\":\"1.0.0\"}")));
 
         HttpCurrentSource source = new HttpCurrentSource(
-                clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty()), "/version", false, SEMVER_PARSER);
+                clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty(), false), "/version", false, SEMVER_PARSER);
 
         VersionValue result = source.version();
 
@@ -92,7 +92,7 @@ class HttpCurrentSourceIT {
                 .willReturn(jsonResponse(403, "{\"message\":\"forbidden\"}")));
 
         HttpCurrentSource source = new HttpCurrentSource(
-                clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty()), "/version", false, SEMVER_PARSER);
+                clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty(), false), "/version", false, SEMVER_PARSER);
 
         // A non-2xx is mapped to a thrown exception by the reused VersionResponseExceptionMapper,
         // so the service's per-app loop can count this app as failed.
@@ -265,6 +265,11 @@ class HttpCurrentSourceIT {
             }
 
             @Override
+            public Optional<Boolean> insecureSkipTlsVerify() {
+                return Optional.empty();
+            }
+
+            @Override
             public Optional<String> registry() {
                 return Optional.empty();
             }
@@ -385,6 +390,11 @@ class HttpCurrentSourceIT {
 
             @Override
             public Optional<String> caCert() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<Boolean> insecureSkipTlsVerify() {
                 return Optional.empty();
             }
 

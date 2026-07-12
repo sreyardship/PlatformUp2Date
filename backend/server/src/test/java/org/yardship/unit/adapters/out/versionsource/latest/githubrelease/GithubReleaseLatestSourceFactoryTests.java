@@ -227,6 +227,11 @@ class GithubReleaseLatestSourceFactoryTests {
             public Optional<String> caCert() {
                 return Optional.empty();
             }
+            @Override
+            public Optional<Boolean> insecureSkipTlsVerify() {
+                return Optional.empty();
+            }
+
 
             @Override
             public Optional<String> registry() {

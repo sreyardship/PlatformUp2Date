@@ -402,6 +402,11 @@ class OciRegistryLatestSourceFactoryTests {
             public Optional<String> caCert() {
                 return Optional.empty();
             }
+            @Override
+            public Optional<Boolean> insecureSkipTlsVerify() {
+                return Optional.empty();
+            }
+
         };
     }
 
@@ -437,6 +442,11 @@ class OciRegistryLatestSourceFactoryTests {
             @Override public Optional<Integer> maxTags() { return Optional.empty(); }
             @Override public Optional<String> prereleaseFilter() { return prereleaseFilter; }
             @Override public Optional<String> caCert() { return Optional.empty(); }
+            @Override
+            public Optional<Boolean> insecureSkipTlsVerify() {
+                return Optional.empty();
+            }
+
         };
     }
 

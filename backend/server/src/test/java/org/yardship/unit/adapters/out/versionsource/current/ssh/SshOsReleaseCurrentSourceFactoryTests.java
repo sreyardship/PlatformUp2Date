@@ -383,6 +383,7 @@ class SshOsReleaseCurrentSourceFactoryTests {
                 @Override public String type()                          { return "ssh-os-release"; }
                 @Override public Optional<String> url()                { return Optional.empty(); }
                 @Override public Optional<String> caCert()             { return Optional.empty(); }
+                @Override public Optional<Boolean> insecureSkipTlsVerify() { return Optional.empty(); }
                 @Override
                 public Optional<String> registry() { return Optional.empty(); }
 

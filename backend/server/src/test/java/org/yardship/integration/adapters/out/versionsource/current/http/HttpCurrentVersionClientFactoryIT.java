@@ -69,7 +69,7 @@ class HttpCurrentVersionClientFactoryIT {
                 .willReturn(jsonResponse(200, "{\"version\":\"1.0.0\"}")));
 
         HttpCurrentVersionClient client =
-                clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty());
+                clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty(), false);
         JsonNode body = client.getCurrentVersion();
 
         assertEquals("1.0.0", body.at("/version").textValue());
@@ -81,7 +81,7 @@ class HttpCurrentVersionClientFactoryIT {
                 .willReturn(jsonResponse(403, "{\"message\":\"forbidden\"}")));
 
         HttpCurrentVersionClient client =
-                clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty());
+                clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty(), false);
 
         assertThrows(RuntimeException.class, client::getCurrentVersion);
     }
@@ -95,7 +95,7 @@ class HttpCurrentVersionClientFactoryIT {
         wireMockServer.stubFor(get(urlEqualTo("/current"))
                 .willReturn(jsonResponse(200, "{\"version\":\"1.0.0\"}")));
 
-        clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty())
+        clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty(), false)
                 .getCurrentVersion();
 
         wireMockServer.verify(getRequestedFor(urlEqualTo("/current"))
@@ -110,7 +110,7 @@ class HttpCurrentVersionClientFactoryIT {
                 .willReturn(jsonResponse(200, "{\"version\":\"1.0.0\"}")));
 
         clientFactory.build("http://localhost:8089/current",
-                        Optional.of(new FileBearerAuthFilter(tokenFile.toString())), Optional.empty())
+                        Optional.of(new FileBearerAuthFilter(tokenFile.toString())), Optional.empty(), false)
                 .getCurrentVersion();
 
         wireMockServer.verify(getRequestedFor(urlEqualTo("/current"))

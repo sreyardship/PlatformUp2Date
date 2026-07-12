@@ -91,6 +91,18 @@ public interface ApplicationConfigLoader {
         Optional<String> caCert();
 
         /**
+         * Optional flag read only by the {@code http} current source: when {@code true}, the built
+         * REST client trusts ANY TLS server certificate and does not verify the server hostname
+         * against it — full {@code curl -k} semantics, scoped to THIS app's client only (never a
+         * JVM-global TLS setting). A transport concern (sibling of {@link #url()} and
+         * {@link #caCert()}). Absent defaults to {@code false}, preserving today's behaviour for
+         * every existing app. Mutually exclusive with {@link #caCert()}: configuring both is refused
+         * by the {@code HttpCurrentSourceFactory} as a value-level misconfiguration (mapped to a
+         * {@code FailedCurrentSource}, never a boot crash) rather than silently picking one.
+         */
+        Optional<Boolean> insecureSkipTlsVerify();
+
+        /**
          * Optional {@code owner/repo} slug read only by the {@code github-release} latest source.
          * The factory builds the full GitHub API URL itself from this value.
          */

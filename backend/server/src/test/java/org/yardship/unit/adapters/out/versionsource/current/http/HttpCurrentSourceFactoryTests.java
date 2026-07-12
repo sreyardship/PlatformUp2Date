@@ -479,6 +479,61 @@ class HttpCurrentSourceFactoryTests {
                         Optional.of("/no/such/path/ca.crt")), SEMVER_PARSER));
     }
 
+    // --- Issue 01: insecure-skip-tls-verify -------------------------------------------------
+
+    @Test
+    void create_withInsecureSkipTlsVerifyAbsent_buildsTheClient_withInsecureFalse() {
+        // Absent 'insecure-skip-tls-verify' must preserve today's behaviour: the collaborator is
+        // called with insecureSkipTlsVerify=false.
+        CurrentVersionSource result = factory.create(
+                sourceWithInsecureSkipTlsVerify("http://localhost:8089/current", Optional.empty()), SEMVER_PARSER);
+
+        assertInstanceOf(HttpCurrentSource.class, result);
+        assertEquals(1, clientFactory.buildCalls.size());
+        assertFalse(clientFactory.lastInsecureSkipTlsVerify,
+                "an absent insecure-skip-tls-verify must resolve to false");
+    }
+
+    @Test
+    void create_withInsecureSkipTlsVerifyExplicitlyFalse_buildsTheClient_withInsecureFalse() {
+        CurrentVersionSource result = factory.create(
+                sourceWithInsecureSkipTlsVerify("http://localhost:8089/current", Optional.of(false)), SEMVER_PARSER);
+
+        assertInstanceOf(HttpCurrentSource.class, result);
+        assertEquals(1, clientFactory.buildCalls.size());
+        assertFalse(clientFactory.lastInsecureSkipTlsVerify);
+    }
+
+    @Test
+    void create_withInsecureSkipTlsVerifyTrue_buildsTheClient_withInsecureTrue() {
+        CurrentVersionSource result = factory.create(
+                sourceWithInsecureSkipTlsVerify("https://localhost:8443/current", Optional.of(true)), SEMVER_PARSER);
+
+        assertInstanceOf(HttpCurrentSource.class, result);
+        assertEquals(1, clientFactory.buildCalls.size());
+        assertTrue(clientFactory.lastInsecureSkipTlsVerify,
+                "insecure-skip-tls-verify: true must be resolved and passed through to the collaborator");
+    }
+
+    @Test
+    void create_withInsecureSkipTlsVerifyTrueAndBasicAuth_registersTheAuthFilter_andPassesInsecureTrue() {
+        // An insecure client must still be able to send credentials — the two concerns compose.
+        Auth basic = auth("basic", Optional.of("harbor-bot"), Optional.of("s3cr3t"), Optional.empty());
+
+        CurrentVersionSource result = factory.create(
+                sourceWithAuthAndInsecureSkipTlsVerify(
+                        "https://localhost:8443/systeminfo", Optional.of(basic), Optional.of(true)),
+                SEMVER_PARSER);
+
+        assertInstanceOf(HttpCurrentSource.class, result);
+        assertEquals(1, clientFactory.buildCalls.size());
+        assertTrue(clientFactory.lastAuthFilter.isPresent(),
+                "an insecure client must still register the auth filter");
+        assertInstanceOf(BasicAuthFilter.class, clientFactory.lastAuthFilter.get());
+        assertTrue(clientFactory.lastInsecureSkipTlsVerify,
+                "insecure-skip-tls-verify: true must be passed through even when auth is present");
+    }
+
     @Test
     void create_withFailedAuth_doesNotThrow_soOneBadAppCannotBlockTheOthersAtStartup() {
         // VersionSourceResolver builds every app's sources eagerly at CDI construction; a thrown
@@ -503,6 +558,18 @@ class HttpCurrentSourceFactoryTests {
         return source(Optional.of(url), Optional.empty(), Optional.empty(), Optional.empty(), caCert);
     }
 
+    private static ApplicationConfigLoader.VersionSource sourceWithInsecureSkipTlsVerify(
+            String url, Optional<Boolean> insecureSkipTlsVerify) {
+        return source(Optional.of(url), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                insecureSkipTlsVerify);
+    }
+
+    private static ApplicationConfigLoader.VersionSource sourceWithAuthAndInsecureSkipTlsVerify(
+            String url, Optional<Auth> auth, Optional<Boolean> insecureSkipTlsVerify) {
+        return source(Optional.of(url), Optional.empty(), Optional.empty(), auth, Optional.empty(),
+                insecureSkipTlsVerify);
+    }
+
     private static ApplicationConfigLoader.VersionSource source(
             Optional<String> url, Optional<String> versionKey, Optional<Boolean> stripPrerelease,
             Optional<Auth> auth) {
@@ -512,6 +579,12 @@ class HttpCurrentSourceFactoryTests {
     private static ApplicationConfigLoader.VersionSource source(
             Optional<String> url, Optional<String> versionKey, Optional<Boolean> stripPrerelease,
             Optional<Auth> auth, Optional<String> caCert) {
+        return source(url, versionKey, stripPrerelease, auth, caCert, Optional.empty());
+    }
+
+    private static ApplicationConfigLoader.VersionSource source(
+            Optional<String> url, Optional<String> versionKey, Optional<Boolean> stripPrerelease,
+            Optional<Auth> auth, Optional<String> caCert, Optional<Boolean> insecureSkipTlsVerify) {
         return new ApplicationConfigLoader.VersionSource() {
             @Override
             public String type() {
@@ -603,6 +676,11 @@ class HttpCurrentSourceFactoryTests {
             }
 
             @Override
+            public Optional<Boolean> insecureSkipTlsVerify() {
+                return insecureSkipTlsVerify;
+            }
+
+            @Override
             public Optional<String> registry() {
                 return Optional.empty();
             }
@@ -691,13 +769,16 @@ class HttpCurrentSourceFactoryTests {
         private final List<String> buildCalls = new ArrayList<>();
         private Optional<ClientRequestFilter> lastAuthFilter = Optional.empty();
         private Optional<KeyStore> lastTrustStore = Optional.empty();
+        private boolean lastInsecureSkipTlsVerify = false;
 
         @Override
         public HttpCurrentVersionClient build(
-                String url, Optional<ClientRequestFilter> authFilter, Optional<KeyStore> trustStore) {
+                String url, Optional<ClientRequestFilter> authFilter, Optional<KeyStore> trustStore,
+                boolean insecureSkipTlsVerify) {
             buildCalls.add(url);
             lastAuthFilter = authFilter;
             lastTrustStore = trustStore;
+            lastInsecureSkipTlsVerify = insecureSkipTlsVerify;
             return stubClient();
         }
 
