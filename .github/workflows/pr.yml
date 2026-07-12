@@ -103,17 +103,42 @@ jobs:
 
       # `quarkusIntTest` runs the @QuarkusIntegrationTest suite (e.g.
       # SshOsReleaseResourceIT, docs/adr/0025) against the artifact `build`
-      # just produced — with -Dquarkus.native.enabled=true that is the native
-      # binary, so native-image regressions fail this job, not the release.
+      # just produced. -Dquarkus.container-image.build=true (+ the
+      # quarkus-container-image-docker extension, wired to Dockerfile.native-ci
+      # via quarkus.docker.dockerfile-native-path in application.yml) makes
+      # Quarkus build that exact image and boot *it* for the ITs instead of the
+      # raw native executable, so a broken runtime image (e.g. a missing shared
+      # library the binary needs but the image doesn't ship) fails this job
+      # instead of shipping to prod undetected. -PcustomBuildDir=build-native
+      # matches Dockerfile.native-ci's expected COPY source. Nothing is pushed —
+      # the image is built into the local Docker daemon only.
       # -Dquarkus.package.jar.enabled=false skips packaging the redundant JVM
       # jar; -x test skips the JVM unit/integration suite the `fast` job owns.
-      # Valkey comes from Quarkus Dev Services (this runner has Docker), for
-      # the native binary's boot just as for `fast`'s test JVM.
-      - name: Native build + native integration tests
+      # Valkey comes from Quarkus Dev Services (this runner has Docker), same
+      # as for `fast`'s test JVM.
+      #
+      # Booting the container (rather than the raw binary) means the ITs' host-side
+      # test doubles (WireMock, the embedded SSH server, the Keycloak Testcontainer)
+      # are no longer reachable on localhost from the artifact under test. The env +
+      # /etc/hosts wiring below bridges that: PU2D_IT_CALLBACK_HOST makes the doubles
+      # hand the container `host.docker.internal`; QUARKUS_TEST_ARG_LINE feeds Quarkus'
+      # container launcher an --add-host so the container resolves that name to the host
+      # gateway; and the /etc/hosts entry maps it to loopback for this test JVM, so the
+      # OIDC issuer string is identical on both sides (the artifact validates the token's
+      # `iss` against it, and this JVM fetches the token from it).
+      - name: Map host.docker.internal to loopback (host-side test doubles)
+        run: echo "127.0.0.1 host.docker.internal" | sudo tee -a /etc/hosts
+
+      - name: Native build + native integration tests (against the shipped image)
+        env:
+          PU2D_IT_CALLBACK_HOST: host.docker.internal
+          QUARKUS_TEST_ARG_LINE: --add-host=host.docker.internal:host-gateway
         run: >
           gradle --no-daemon :backend:server:build :backend:server:quarkusIntTest
           -Dquarkus.native.enabled=true
           -Dquarkus.package.jar.enabled=false
+          -Dquarkus.container-image.build=true
+          -PcustomBuildDir=build-native
           -x test
 
   # Keeps deploy/k8s from rotting: kustomize-build every shipped composition

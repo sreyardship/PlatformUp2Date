@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyPair;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
@@ -122,13 +123,15 @@ public class SshOsReleaseResource implements QuarkusTestResourceLifecycleManager
         sshServer.start();
         int sshPort = sshServer.getPort();
 
-        // Materialise the client key + known-hosts as temp files so only plain paths are injected.
-        tempDir = Files.createTempDirectory("ssh-os-release-it");
-        Path keyFile = tempDir.resolve("client_ed25519");
-        Files.writeString(keyFile, ED25519_CLIENT_PRIVATE_KEY);
-        Path knownHostsFile = tempDir.resolve("known_hosts");
-        Files.writeString(knownHostsFile,
-                "[127.0.0.1]:" + sshPort + " " + ED25519_SERVER_PUBLIC_LINE + System.lineSeparator());
+        // The launched artifact connects back to this embedded SSH/HTTP server. As a host process
+        // (JVM jar / raw native binary) that is 127.0.0.1; as the shipped container image (the
+        // native PR job) 127.0.0.1 is the container itself, so CI sets
+        // PU2D_IT_CALLBACK_HOST=host.docker.internal and adds the matching --add-host to the
+        // container. The MINA server binds all interfaces, so the host gateway reaches it either
+        // way. Defaults to 127.0.0.1 so host-process runs are unchanged.
+        String containerCallbackHost = System.getenv("PU2D_IT_CALLBACK_HOST");
+        boolean containerMode = containerCallbackHost != null;
+        String callbackHost = containerMode ? containerCallbackHost : "127.0.0.1";
 
         // Latest leg: a trivial http-regex source so the app fully resolves and is published.
         wireMockServer = new WireMockServer(options().dynamicPort());
@@ -136,19 +139,41 @@ public class SshOsReleaseResource implements QuarkusTestResourceLifecycleManager
         wireMockServer.stubFor(get(urlEqualTo("/latest")).willReturn(text(EXPECTED_LATEST_VERSION)));
         int httpPort = wireMockServer.port();
 
-        return Map.ofEntries(
-                Map.entry("platform-config.scrape-interval", "1s"),
-                Map.entry("platform-config.apps[0].name", "ssh-vm"),
-                Map.entry("platform-config.apps[0].version-scheme", "semver"),
-                Map.entry("platform-config.apps[0].current.type", "ssh-os-release"),
-                Map.entry("platform-config.apps[0].current.host", "127.0.0.1"),
-                Map.entry("platform-config.apps[0].current.port", Integer.toString(sshPort)),
-                Map.entry("platform-config.apps[0].current.user", "testuser"),
-                Map.entry("platform-config.apps[0].current.private-key-file", keyFile.toString()),
-                Map.entry("platform-config.apps[0].current.known-hosts", knownHostsFile.toString()),
-                Map.entry("platform-config.apps[0].latest.type", "http-regex"),
-                Map.entry("platform-config.apps[0].latest.url", "http://localhost:" + httpPort + "/latest"),
-                Map.entry("platform-config.apps[0].latest.regex", "(\\d+\\.\\d+\\.\\d+)"));
+        Map<String, String> config = new LinkedHashMap<>();
+        config.put("platform-config.scrape-interval", "1s");
+        config.put("platform-config.apps[0].name", "ssh-vm");
+        config.put("platform-config.apps[0].version-scheme", "semver");
+        config.put("platform-config.apps[0].current.type", "ssh-os-release");
+        config.put("platform-config.apps[0].current.host", callbackHost);
+        config.put("platform-config.apps[0].current.port", Integer.toString(sshPort));
+        config.put("platform-config.apps[0].current.user", "testuser");
+        config.put("platform-config.apps[0].latest.type", "http-regex");
+        config.put("platform-config.apps[0].latest.url", "http://" + callbackHost + ":" + httpPort + "/latest");
+        config.put("platform-config.apps[0].latest.regex", "(\\d+\\.\\d+\\.\\d+)");
+
+        if (containerMode) {
+            // The artifact runs in a container, so host filesystem paths are not visible to it.
+            // Inject the client key and pinned host-key inline instead — the container launcher
+            // passes each config value as its own `--env` argument, so multi-line/spaced values
+            // survive intact (unlike the JVM/native-binary launchers, which pass config as `-D`
+            // args and cannot). The pinned host-key verifies the server by key alone, so it needs
+            // no host/port-keyed known-hosts entry.
+            config.put("platform-config.apps[0].current.private-key", ED25519_CLIENT_PRIVATE_KEY);
+            config.put("platform-config.apps[0].current.host-key", ED25519_SERVER_PUBLIC_LINE);
+        } else {
+            // Host-process run: materialise the client key + known-hosts as temp files so only
+            // plain paths (no multi-line PEM / spaced key line) are injected via `-D`.
+            tempDir = Files.createTempDirectory("ssh-os-release-it");
+            Path keyFile = tempDir.resolve("client_ed25519");
+            Files.writeString(keyFile, ED25519_CLIENT_PRIVATE_KEY);
+            Path knownHostsFile = tempDir.resolve("known_hosts");
+            Files.writeString(knownHostsFile,
+                    "[" + callbackHost + "]:" + sshPort + " " + ED25519_SERVER_PUBLIC_LINE + System.lineSeparator());
+            config.put("platform-config.apps[0].current.private-key-file", keyFile.toString());
+            config.put("platform-config.apps[0].current.known-hosts", knownHostsFile.toString());
+        }
+
+        return config;
     }
 
     @Override

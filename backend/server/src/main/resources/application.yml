@@ -16,6 +16,12 @@ quarkus:
       # in the runtime provider list by name. Without this the native scrape fails with
       # "no such provider: BC" / "provider ... not registered at build time". See docs/adr/0018.
       - -H:AdditionalSecurityProviders=org.bouncycastle.jce.provider.BouncyCastleProvider
+  # Only takes effect when quarkus.container-image.build=true is passed on the CLI (the `native`
+  # PR job's quarkusIntTest run). Points at the one Dockerfile that actually ships
+  # (Dockerfile.native-ci, see build-images.yml) instead of letting quarkus-container-image-docker
+  # generate its own, so the native ITs boot the exact image that gets deployed.
+  docker:
+    dockerfile-native-path: src/main/docker/Dockerfile.native-ci
   mcp:
     server:
       server-info:
