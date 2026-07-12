@@ -28,8 +28,10 @@ import java.util.Optional;
 
 /**
  * Factory for the {@code http} current-version kind. Discovered as a CDI bean; validates its own
- * config fragment ({@code http} requires a non-blank {@code url}, and {@code version-key} — if
- * present — must be a syntactically valid JSON Pointer), then EAGERLY builds the
+ * config fragment ({@code http} requires a non-blank {@code url}, {@code version-key} — if
+ * present — must be a syntactically valid JSON Pointer, and {@code ca-cert} together with
+ * {@code insecure-skip-tls-verify: true} is refused as ambiguous before any file is resolved),
+ * then EAGERLY builds the
  * {@link HttpCurrentVersionClient} via the injected {@link HttpCurrentVersionClientFactory} and constructs a
  * per-app {@link HttpCurrentSource} wrapping it.
  *
@@ -69,6 +71,15 @@ public class HttpCurrentSourceFactory implements CurrentVersionSourceFactory {
         String versionKey = cfg.versionKey().orElse(DEFAULT_VERSION_KEY);
         validatePointerSyntax(versionKey);
         boolean stripPrerelease = cfg.stripPrerelease().orElse(false);
+        boolean insecureSkipTlsVerify = cfg.insecureSkipTlsVerify().orElse(false);
+
+        if (insecureSkipTlsVerify && cfg.caCert().isPresent()) {
+            String message = "The 'http' current source has both 'ca-cert' and "
+                    + "'insecure-skip-tls-verify: true'; this is ambiguous and refused, no "
+                    + "precedence rule (url: '" + url + "').";
+            logger.warn(message);
+            return new FailedCurrentSource(message);
+        }
 
         CaCertResolution caCert = resolveCaCert(cfg.caCert(), url);
         if (caCert.failureMessage().isPresent()) {
@@ -77,7 +88,6 @@ public class HttpCurrentSourceFactory implements CurrentVersionSourceFactory {
         }
         Optional<KeyStore> trustStore = caCert.trustStore();
 
-        boolean insecureSkipTlsVerify = cfg.insecureSkipTlsVerify().orElse(false);
         if (insecureSkipTlsVerify) {
             logger.warn("The 'http' current source has 'insecure-skip-tls-verify' enabled; TLS "
                     + "certificate and hostname verification are disabled for url '" + url + "'.");

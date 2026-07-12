@@ -479,6 +479,87 @@ class HttpCurrentSourceFactoryTests {
                         Optional.of("/no/such/path/ca.crt")), SEMVER_PARSER));
     }
 
+    // --- Issue 02: ca-cert + insecure-skip-tls-verify: true is refused (ambiguous) ------------
+
+    @Test
+    void create_withCaCertAndInsecureSkipTlsVerifyTrue_returnsAFailedCurrentSource_withMessageNamingBothKeysAndUrl_withoutInvokingTheCollaborator(
+            @TempDir Path dir) throws IOException {
+        // A plain, unvalidated path string is fine here: refusal must happen BEFORE ca-cert file
+        // resolution — this is a config-shape problem, not a file problem (mirrors the bearer
+        // both-set refusal, which never touches token files either).
+        Path pem = dir.resolve("ca.crt");
+        Files.writeString(pem, VALID_CA_PEM);
+        String url = "https://localhost:8443/current";
+
+        CurrentVersionSource result = factory.create(
+                sourceWithCaCertAndInsecureSkipTlsVerify(url, Optional.of(pem.toString()), Optional.of(true)),
+                SEMVER_PARSER);
+
+        assertInstanceOf(FailedCurrentSource.class, result,
+                "ca-cert together with insecure-skip-tls-verify: true is ambiguous and must be refused");
+        IllegalStateException thrown = assertThrows(IllegalStateException.class, result::version,
+                "a FailedCurrentSource re-throws its message on version()");
+        String message = thrown.getMessage();
+        assertTrue(message.contains("ca-cert"),
+                "the refusal message must name 'ca-cert'; was: " + message);
+        assertTrue(message.contains("insecure-skip-tls-verify"),
+                "the refusal message must name 'insecure-skip-tls-verify'; was: " + message);
+        assertTrue(message.contains(url),
+                "the refusal message must name the url; was: " + message);
+        assertTrue(clientFactory.buildCalls.isEmpty(),
+                "ca-cert + insecure-skip-tls-verify: true must fail before any client is built");
+    }
+
+    @Test
+    void create_withCaCertAndInsecureSkipTlsVerifyTrue_usingAPlainUnvalidatedPath_returnsAFailedCurrentSource_beforeAnyFileResolution() {
+        // Refusal happens BEFORE ca-cert file resolution: even a nonexistent/garbage path must be
+        // refused with the both-set message, not surfaced as a file-read failure. A plain path string
+        // is enough — if the factory ever tried to resolve the file first, this test would instead see
+        // a "could not be read as X.509 PEM" message (today's behaviour), not the both-set refusal.
+        String url = "https://localhost:8443/current";
+
+        CurrentVersionSource result = factory.create(
+                sourceWithCaCertAndInsecureSkipTlsVerify(
+                        url, Optional.of("/no/such/path/ca.crt"), Optional.of(true)),
+                SEMVER_PARSER);
+
+        assertInstanceOf(FailedCurrentSource.class, result);
+        IllegalStateException thrown = assertThrows(IllegalStateException.class, result::version);
+        assertTrue(thrown.getMessage().contains("insecure-skip-tls-verify"),
+                "refusal must happen before file resolution, so the message must be the both-set "
+                        + "refusal, not a ca-cert file-read failure; was: " + thrown.getMessage());
+        assertTrue(clientFactory.buildCalls.isEmpty());
+    }
+
+    @Test
+    void create_withCaCertAndInsecureSkipTlsVerifyTrue_doesNotThrow_soOneBadAppCannotBlockTheOthersAtStartup() {
+        assertDoesNotThrow(() -> factory.create(
+                sourceWithCaCertAndInsecureSkipTlsVerify(
+                        "https://localhost:8443/current", Optional.of("/no/such/path/ca.crt"), Optional.of(true)),
+                SEMVER_PARSER));
+    }
+
+    @Test
+    void create_withCaCertAndInsecureSkipTlsVerifyExplicitlyFalse_buildsTheClient_withAPresentTrustStoreAndInsecureFalse(
+            @TempDir Path dir) throws IOException {
+        // Explicit false alongside ca-cert is NOT a refusal — it is today's ca-cert behaviour.
+        Path pem = dir.resolve("ca.crt");
+        Files.writeString(pem, VALID_CA_PEM);
+
+        CurrentVersionSource result = factory.create(
+                sourceWithCaCertAndInsecureSkipTlsVerify(
+                        "https://localhost:8443/current", Optional.of(pem.toString()), Optional.of(false)),
+                SEMVER_PARSER);
+
+        assertInstanceOf(HttpCurrentSource.class, result,
+                "ca-cert with insecure-skip-tls-verify: false must build normally, not refuse");
+        assertEquals(1, clientFactory.buildCalls.size());
+        assertTrue(clientFactory.lastTrustStore.isPresent(),
+                "the collaborator must be called with a present truststore");
+        assertFalse(clientFactory.lastInsecureSkipTlsVerify,
+                "the collaborator must be called with insecure=false");
+    }
+
     // --- Issue 01: insecure-skip-tls-verify -------------------------------------------------
 
     @Test
@@ -567,6 +648,12 @@ class HttpCurrentSourceFactoryTests {
     private static ApplicationConfigLoader.VersionSource sourceWithAuthAndInsecureSkipTlsVerify(
             String url, Optional<Auth> auth, Optional<Boolean> insecureSkipTlsVerify) {
         return source(Optional.of(url), Optional.empty(), Optional.empty(), auth, Optional.empty(),
+                insecureSkipTlsVerify);
+    }
+
+    private static ApplicationConfigLoader.VersionSource sourceWithCaCertAndInsecureSkipTlsVerify(
+            String url, Optional<String> caCert, Optional<Boolean> insecureSkipTlsVerify) {
+        return source(Optional.of(url), Optional.empty(), Optional.empty(), Optional.empty(), caCert,
                 insecureSkipTlsVerify);
     }
 
