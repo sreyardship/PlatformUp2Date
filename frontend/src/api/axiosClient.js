@@ -8,6 +8,36 @@ const axiosClient = axios.create({
   baseURL: baseUrl,
 })
 
+// Full-page signinRedirect() loop guard. The interceptor's _retried flag bounds SILENT renews
+// per request, but a signinRedirect() reloads the whole app: if the fresh post-login token is
+// STILL rejected with 401 (e.g. the IdP mints it without the audience/role the API demands),
+// the reloaded app refetches, 401s, and redirects again — an infinite login loop. The guard has
+// to survive that navigation, so it lives in sessionStorage (a boolean marker only — tokens
+// deliberately stay in-memory, see userManager.js): one redirect is allowed, then 401s surface
+// as errors until some request succeeds again (which re-arms the guard, so a routine token
+// expiry hours later still gets its redirect).
+const REDIRECT_GUARD_KEY = 'pu2d.auth.signin-redirect-attempted'
+
+const signinRedirectOnce = () => {
+  try {
+    if (window.sessionStorage.getItem(REDIRECT_GUARD_KEY)) {
+      return
+    }
+    window.sessionStorage.setItem(REDIRECT_GUARD_KEY, 'true')
+  } catch {
+    // sessionStorage unavailable — fall through and redirect; worst case is today's behavior.
+  }
+  userManager.signinRedirect()
+}
+
+const rearmSigninRedirectGuard = () => {
+  try {
+    window.sessionStorage.removeItem(REDIRECT_GUARD_KEY)
+  } catch {
+    // ignore — the guard is best-effort
+  }
+}
+
 axiosClient.interceptors.request.use(async (config) => {
   const headers = {
     'Content-Type': 'application/json',
@@ -28,6 +58,7 @@ axiosClient.interceptors.request.use(async (config) => {
 
 axiosClient.interceptors.response.use(
   (response) => {
+    rearmSigninRedirectGuard()
     if (response && response.data) return response.data
     return response
   },
@@ -37,7 +68,7 @@ axiosClient.interceptors.response.use(
     }
     if (err.response.status === 401 && isWebAuthEnabled()) {
       if (err.config && err.config._retried) {
-        userManager.signinRedirect()
+        signinRedirectOnce()
         throw err.response
       }
       return userManager.signinSilent().then(
@@ -51,13 +82,13 @@ axiosClient.interceptors.response.use(
               retryErr.response &&
               retryErr.response.status === 401
             ) {
-              userManager.signinRedirect()
+              signinRedirectOnce()
             }
             throw (retryErr && retryErr.response) || retryErr
           })
         },
         () => {
-          userManager.signinRedirect()
+          signinRedirectOnce()
           throw err.response
         }
       )
