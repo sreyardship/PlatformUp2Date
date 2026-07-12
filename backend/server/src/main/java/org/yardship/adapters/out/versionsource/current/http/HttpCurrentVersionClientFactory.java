@@ -28,17 +28,28 @@ import java.util.Optional;
  * default trust bundle. The {@code HttpCurrentSourceFactory} is responsible for building the
  * {@link KeyStore} and mapping any value-level CA misconfiguration to a {@code FailedCurrentSource}
  * before calling this thin boundary.
+ *
+ * <p>The {@code insecureSkipTlsVerify} parameter is the {@code curl -k} escape hatch (issue 01): when
+ * {@code true} it is applied via {@link QuarkusRestClientBuilder#trustAll} and
+ * {@link QuarkusRestClientBuilder#verifyHost}, scoped to THIS client only — never a JVM-global trust
+ * setting. Mutually exclusive with {@code trustStore} at the caller ({@code HttpCurrentSourceFactory})
+ * level; this boundary does not itself enforce that.
  */
 @ApplicationScoped
 public class HttpCurrentVersionClientFactory {
 
     public HttpCurrentVersionClient build(
-            String url, Optional<ClientRequestFilter> authFilter, Optional<KeyStore> trustStore) {
+            String url, Optional<ClientRequestFilter> authFilter, Optional<KeyStore> trustStore,
+            boolean insecureSkipTlsVerify) {
         QuarkusRestClientBuilder builder = QuarkusRestClientBuilder.newBuilder()
                 .baseUri(URI.create(url))
                 .register(VersionResponseExceptionMapper.class);
         authFilter.ifPresent(builder::register);
         trustStore.ifPresent(builder::trustStore);
+        if (insecureSkipTlsVerify) {
+            builder.trustAll(true);
+            builder.verifyHost(false);
+        }
         return builder.build(HttpCurrentVersionClient.class);
     }
 }

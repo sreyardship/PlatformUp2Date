@@ -288,6 +288,11 @@ class VersionSourceResolverTests {
             }
 
             @Override
+            public Optional<Boolean> insecureSkipTlsVerify() {
+                return Optional.empty();
+            }
+
+            @Override
             public Optional<String> registry() {
                 return Optional.empty();
             }

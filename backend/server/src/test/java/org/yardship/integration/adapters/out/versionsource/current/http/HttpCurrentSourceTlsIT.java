@@ -94,7 +94,7 @@ class HttpCurrentSourceTlsIT {
         KeyStore trustStore = trustStoreHoldingWireMockCa();
 
         HttpCurrentVersionClient client =
-                clientFactory.build(httpsBaseUrl + "/current", Optional.empty(), Optional.of(trustStore));
+                clientFactory.build(httpsBaseUrl + "/current", Optional.empty(), Optional.of(trustStore), false);
         JsonNode body = client.getCurrentVersion();
 
         assertEquals("1.0.0", body.at("/version").textValue(),
@@ -105,12 +105,27 @@ class HttpCurrentSourceTlsIT {
     void build_withoutACustomTrustStore_failsTheHandshake_provingNoGlobalTrustLeak() {
         // Optional.empty() => JVM default trust bundle only. WireMock's self-signed CA is not in it,
         // so the handshake must be rejected. That this still fails in the same class as the success
-        // case proves the success case did NOT install a JVM-global truststore.
+        // case proves the success case did NOT install a JVM-global truststore. Also pins that
+        // insecure-skip-tls-verify never becomes the default: this call passes insecure=false.
         HttpCurrentVersionClient client =
-                clientFactory.build(httpsBaseUrl + "/current", Optional.empty(), Optional.empty());
+                clientFactory.build(httpsBaseUrl + "/current", Optional.empty(), Optional.empty(), false);
 
         assertThrows(RuntimeException.class, client::getCurrentVersion,
                 "with no custom truststore the self-signed WireMock cert must fail the TLS handshake");
+    }
+
+    @Test
+    void build_withInsecureSkipTlsVerifyTrue_andNoTrustStore_completesTheHttpsRequest() {
+        // Full curl -k semantics: no truststore configured (Optional.empty()) but
+        // insecureSkipTlsVerify=true must still resolve the version against the self-signed WireMock
+        // HTTPS endpoint — the JVM does not trust this cert and the hostname need not match.
+        HttpCurrentVersionClient client =
+                clientFactory.build(httpsBaseUrl + "/current", Optional.empty(), Optional.empty(), true);
+        JsonNode body = client.getCurrentVersion();
+
+        assertEquals("1.0.0", body.at("/version").textValue(),
+                "insecure-skip-tls-verify=true must complete the handshake against an untrusted "
+                        + "self-signed certificate with no custom truststore");
     }
 
     private static KeyStore trustStoreHoldingWireMockCa() throws Exception {
