@@ -1,17 +1,12 @@
-# No-toolchain quick start: pulls the published GHCR images (:edge from main,
-# or pin :latest / a release tag) instead of building locally — no Gradle, no
-# Node, no `docker build`. For contributing to this repo, use `compose.yml`
-# instead, which builds both images from source.
+# No-toolchain quick start: pulls the published GHCR images
 #
 # Usage:
 #   docker compose -f compose.quickstart.yml up
 #   -> http://localhost:3000
 #
-# The backend needs Valkey (ADR-0003: scrape state is centralised there, not
-# per-replica) and a set of apps to monitor (ADR-0001), supplied here by the
-# canonical sample config in deploy/k8s/base/platform-config.yaml (shared with
-# the Kubernetes quickstart) — see docs/configuration.md for the full config
+# see docs/configuration.md for the full config
 # reference and docs/deployment.md for a real cluster rollout.
+#
 services:
   valkey:
     image: valkey/valkey:8-alpine
@@ -24,8 +19,7 @@ services:
       QUARKUS_REDIS_HOSTS: redis://valkey:6379
       QUARKUS_CONFIG_LOCATIONS: /config/platform-config.yaml
       # Optional: set a GitHub token to raise the github-release leg's rate
-      # limit from 60 to 5,000 req/hr (the anonymous limit is ample for the
-      # sample apps).
+      # limit from 60 to 5,000 req/hr.
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     volumes:
       - ./deploy/k8s/base/platform-config.yaml:/config/platform-config.yaml:ro
@@ -38,10 +32,7 @@ services:
     image: ghcr.io/sreyardship/platformup2date/frontend:0.0.46
     restart: unless-stopped
     environment:
-      # Injected into window._env_ at container start (docker-entrypoint.d/40-env-config.sh),
-      # not baked in at build time. Empty = same-origin, proxied to the
-      # backend via nginx.quickstart.conf below (mirrors the ingress setup
-      # used in production, avoiding a cross-origin call from the browser).
+      # Empty = same-origin
       API_BASE_URL: ""
     volumes:
       - ./frontend/nginx.quickstart.conf:/etc/nginx/conf.d/default.conf:ro
