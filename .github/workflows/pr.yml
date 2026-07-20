@@ -44,7 +44,7 @@ jobs:
         run: gradle --no-daemon :backend:domain:test :backend:server:test
 
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 'lts/*'
           cache: yarn
