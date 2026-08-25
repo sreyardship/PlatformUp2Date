@@ -34,17 +34,20 @@ names; the real secret is a mounted Kubernetes Secret surfaced as env vars. This
 mirrors the `github.token` resolution pattern exactly and keeps secrets out of
 config.
 
-**Pluggable schemes, one shared bearer filter.** `auth.type` discriminates
-`basic` (emits `Authorization: Basic base64(user:pass)`) from `bearer` (emits
-`Authorization: Bearer <token>`). The pre-existing `GithubAuthFilter` is
-generalised into a shared `BearerAuthFilter` used by both the `github-release`
-latest source and the `http` current source; a sibling `BasicAuthFilter` is
-added. The secret-exfiltration boundary documentation moves *onto the sources*
-(each source owns "to whom do I send credentials"), since the filter classes are
-now scheme-generic. As with `GithubAuthFilter`, no host check is performed: the
-credential is sent to the app's configured `url`, and a redirect to another host
-would replay the header — an accepted residual assumption, because the operator
-owns the URL.
+**Pluggable schemes, source-owned credential boundaries.** `auth.type`
+discriminates `basic` (emits `Authorization: Basic base64(user:pass)`) from
+`bearer` (emits `Authorization: Bearer <token>`). The generic
+`BearerAuthFilter` serves the `http` current source and a sibling
+`BasicAuthFilter` is added. A source that follows redirects while carrying a
+credential owns an origin-bound variant, so the secret-exfiltration boundary
+stays with the source rather than a generic header writer. The credential is
+still sent to the initially configured `url`. This ADR originally accepted
+credential replay when that URL redirected to another host.
+
+**[ADR-0029](0029-authorization-does-not-cross-redirect-origins.md) supersedes
+that residual assumption:** credentials are retained only for same-origin
+redirects; cross-origin redirects remove them, and HTTPS-to-HTTP downgrades are
+refused.
 
 **Malformed structure fails the boot; bad values degrade gracefully.** A
 *structurally* broken config (an `auth` block with no `type`) fails at startup via
