@@ -52,6 +52,13 @@ compileTestJava {
 
 test {
     useJUnitPlatform()
+
+    // Keep integration and command-wiring tests out of the TDD loop's fast unit-test lane.
+    if (project.hasProperty('unitTestsOnly')) {
+        filter {
+            includeTestsMatching 'org.yardship.unit.*'
+        }
+    }
 }
 
 graalvmNative {
