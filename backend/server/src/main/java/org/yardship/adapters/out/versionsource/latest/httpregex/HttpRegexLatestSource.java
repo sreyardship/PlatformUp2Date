@@ -28,6 +28,7 @@ import java.util.regex.Pattern;
  * isolated by the scrape loop as a single app's failure.
  */
 public class HttpRegexLatestSource implements LatestVersionSource {
+    private static final int MAX_REDIRECTS = 10;
 
     private final URI uri;
     private final Pattern pattern;
@@ -38,7 +39,9 @@ public class HttpRegexLatestSource implements LatestVersionSource {
         this.uri = URI.create(url);
         this.pattern = Pattern.compile(regex);
         this.parser = parser;
-        this.http = HttpClient.newHttpClient();
+        this.http = HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
     }
 
     @Override
@@ -67,21 +70,57 @@ public class HttpRegexLatestSource implements LatestVersionSource {
     }
 
     private String fetchBody() {
+        URI current = uri;
         try {
-            HttpResponse<String> response = http.send(
-                    HttpRequest.newBuilder(uri).GET().build(),
-                    HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() / 100 != 2) {
-                throw new VersionFetchException(
-                        "Non-success HTTP status fetching '" + uri + "'",
-                        response.statusCode(), response.body());
+            for (int redirectCount = 0; ; redirectCount++) {
+                HttpResponse<String> response = http.send(
+                        HttpRequest.newBuilder(current).GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() / 100 == 2) {
+                    return response.body();
+                }
+                if (!isSupportedRedirect(response.statusCode())) {
+                    throw new VersionFetchException(
+                            "Non-success HTTP status fetching '" + current + "'",
+                            response.statusCode(), response.body());
+                }
+                if (redirectCount >= MAX_REDIRECTS) {
+                    throw new VersionFetchException(
+                            "Too many redirects while fetching '" + uri + "'", 0, "");
+                }
+
+                URI next = redirectTarget(current, response);
+                if (isHttpsToHttp(current, next)) {
+                    throw new VersionFetchException(
+                            "Refusing HTTPS-to-HTTP redirect while fetching '" + uri + "'", 0, "");
+                }
+                current = next;
             }
-            return response.body();
         } catch (IOException e) {
-            throw new VersionFetchException("Failed to fetch '" + uri + "': " + e.getMessage(), 0, "");
+            throw new VersionFetchException("Failed to fetch '" + current + "': " + e.getMessage(), 0, "");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new VersionFetchException("Interrupted fetching '" + uri + "'", 0, "");
+            throw new VersionFetchException("Interrupted fetching '" + current + "'", 0, "");
+        } catch (IllegalArgumentException e) {
+            throw new VersionFetchException(
+                    "Invalid redirect target while fetching '" + current + "': " + e.getMessage(), 0, "");
         }
+    }
+
+    private static URI redirectTarget(URI current, HttpResponse<String> response) {
+        String location = response.headers().firstValue("Location").orElse(null);
+        if (location == null) {
+            throw new VersionFetchException(
+                    "Redirect while fetching '" + current + "' did not include a Location header", 0, "");
+        }
+        return current.resolve(location);
+    }
+
+    private static boolean isSupportedRedirect(int status) {
+        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+    }
+
+    private static boolean isHttpsToHttp(URI from, URI to) {
+        return "https".equalsIgnoreCase(from.getScheme()) && "http".equalsIgnoreCase(to.getScheme());
     }
 }

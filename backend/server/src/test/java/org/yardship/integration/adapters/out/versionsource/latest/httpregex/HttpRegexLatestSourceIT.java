@@ -1,10 +1,15 @@
 package org.yardship.integration.adapters.out.versionsource.latest.httpregex;
 
+import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.yardship.adapters.out.versionsource.VersionFetchException;
 import org.yardship.adapters.out.versionsource.latest.httpregex.HttpRegexLatestSource;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
@@ -12,10 +17,21 @@ import org.yardship.core.domain.primitives.VersionValue;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
+
+import java.io.InputStream;
+import java.security.KeyStore;
+import java.time.Duration;
+import java.security.SecureRandom;
+import java.util.stream.Stream;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
 
 /**
  * Integration tests for the real {@link HttpRegexLatestSource} adapter against a standalone
@@ -46,23 +62,38 @@ class HttpRegexLatestSourceIT {
     private static final VersionParser CALVER_UBUNTU  = new VersionParser(VersionScheme.CALVER, "YY.0M");
     private static final VersionParser CALVER_OPENWRT = new VersionParser(VersionScheme.CALVER, "YY.0M.MICRO");
     private static final VersionParser SEMVER_PARSER  = new VersionParser(VersionScheme.SEMVER);
+    private static final String KEYSTORE_RESOURCE = "tls/wiremock-localhost.p12";
+    private static final String KEYSTORE_PASSWORD = "password";
 
     static WireMockServer wireMockServer;
+    static WireMockServer httpsWireMockServer;
 
     @BeforeAll
-    static void startWireMock() {
+    static void startWireMock() throws Exception {
         wireMockServer = new WireMockServer(options().port(8089));
         wireMockServer.start();
+        httpsWireMockServer = new WireMockServer(options()
+                .httpDisabled(true)
+                .dynamicHttpsPort()
+                .keystorePath(resourcePath(KEYSTORE_RESOURCE))
+                .keystorePassword(KEYSTORE_PASSWORD)
+                .keyManagerPassword(KEYSTORE_PASSWORD)
+                .keystoreType("PKCS12"));
+        httpsWireMockServer.start();
     }
 
     @AfterAll
     static void stopWireMock() {
+        if (httpsWireMockServer != null) {
+            httpsWireMockServer.stop();
+        }
         wireMockServer.stop();
     }
 
     @BeforeEach
     void resetStubs() {
         wireMockServer.resetAll();
+        httpsWireMockServer.resetAll();
     }
 
     // --- Ubuntu meta-release-lts (plain text) ------------------------------------------------
@@ -154,6 +185,129 @@ class HttpRegexLatestSourceIT {
 
         assertEquals("23.05.5", result.value(),
                 "23.05.5 (MICRO=5) must beat 23.05 (MICRO=0 default) and 22.03");
+    }
+
+    @ParameterizedTest(name = "status {0} with {1} Location")
+    @MethodSource("supportedGetRedirects")
+    void redirectedReleasesListing_follows301_andPicksLargestVersionFromFinalHtmlBody(
+            int status, String locationKind) {
+        String finalQuery = "?channel=stable";
+        String finalLocation = "/releases/" + finalQuery;
+        String location = "relative".equals(locationKind)
+                ? finalLocation
+                : "http://localhost:8089" + finalLocation;
+        wireMockServer.stubFor(get(urlPathEqualTo("/redirected-releases/"))
+                .willReturn(aResponse()
+                        .withStatus(status)
+                        .withHeader("Location", location)));
+        wireMockServer.stubFor(get(urlEqualTo(finalLocation))
+                .willReturn(htmlResponse(200, """
+                        <!DOCTYPE html>
+                        <html><body>
+                        <a href="23.05/">23.05/</a>
+                        <a href="23.05.5/">23.05.5/</a>
+                        <a href="24.10/">24.10/</a>
+                        </body></html>
+                        """)));
+
+        HttpRegexLatestSource source = new HttpRegexLatestSource(
+                "http://localhost:8089/redirected-releases/",
+                "href=\"(\\d+\\.\\d+(?:\\.\\d+)?)/\"",
+                CALVER_OPENWRT);
+
+        assertEquals("24.10", source.version().value(),
+                "supported GET redirects must be followed before selecting the largest parseable version");
+    }
+
+    private static Stream<Arguments> supportedGetRedirects() {
+        return Stream.of(301, 302, 303, 307, 308)
+                .flatMap(status -> Stream.of(
+                        Arguments.of(status, "relative"),
+                        Arguments.of(status, "absolute")));
+    }
+
+    @Test
+    void repeatedCalls_retraversePermanentRedirect_withoutCachingTarget() {
+        wireMockServer.stubFor(get(urlEqualTo("/permanent-releases"))
+                .willReturn(aResponse()
+                        .withStatus(301)
+                        .withHeader("Location", "/permanent-releases-canonical")));
+        wireMockServer.stubFor(get(urlEqualTo("/permanent-releases-canonical"))
+                .willReturn(plainTextResponse(200, "1.2.0\n2.0.0")));
+
+        HttpRegexLatestSource source = new HttpRegexLatestSource(
+                "http://localhost:8089/permanent-releases",
+                "(\\d+\\.\\d+\\.\\d+)",
+                SEMVER_PARSER);
+
+        assertEquals("2.0.0", source.version().value());
+        assertEquals("2.0.0", source.version().value());
+        wireMockServer.verify(2, getRequestedFor(urlEqualTo("/permanent-releases")));
+        wireMockServer.verify(2, getRequestedFor(urlEqualTo("/permanent-releases-canonical")));
+    }
+
+    @Test
+    void redirectSafety_refusesHttpsToHttp_beforeContactingTarget() throws Exception {
+        String targetPath = "/downgrade-target";
+        httpsWireMockServer.stubFor(get(urlEqualTo("/https-source"))
+                .willReturn(aResponse()
+                        .withStatus(301)
+                        .withHeader("Location", "http://localhost:8089" + targetPath)));
+        wireMockServer.stubFor(get(urlEqualTo(targetPath))
+                .willReturn(plainTextResponse(200, "1.0.0")));
+
+        SSLContext previous = SSLContext.getDefault();
+        try {
+            SSLContext.setDefault(trustedWireMockContext());
+            HttpRegexLatestSource source = new HttpRegexLatestSource(
+                    "https://localhost:" + httpsWireMockServer.httpsPort() + "/https-source",
+                    "(\\d+\\.\\d+\\.\\d+)",
+                    SEMVER_PARSER);
+
+            assertThrows(VersionFetchException.class, source::version,
+                    "an HTTPS-to-HTTP redirect must be refused as a version-fetch failure");
+        } finally {
+            SSLContext.setDefault(previous);
+        }
+
+        httpsWireMockServer.verify(1, getRequestedFor(urlEqualTo("/https-source")));
+        wireMockServer.verify(0, getRequestedFor(urlEqualTo(targetPath)));
+    }
+
+    @Test
+    void redirectChainBeyondMaximum_terminatesAsVersionFetchException() {
+        for (int redirect = 0; redirect <= 10; redirect++) {
+            wireMockServer.stubFor(get(urlEqualTo("/redirect-chain/" + redirect))
+                    .willReturn(aResponse()
+                            .withStatus(302)
+                            .withHeader("Location", "/redirect-chain/" + (redirect + 1))));
+        }
+
+        HttpRegexLatestSource source = new HttpRegexLatestSource(
+                "http://localhost:8089/redirect-chain/0",
+                "(\\d+\\.\\d+\\.\\d+)",
+                SEMVER_PARSER);
+
+        assertTimeoutPreemptively(Duration.ofSeconds(5), () ->
+                assertThrows(VersionFetchException.class, source::version,
+                        "a redirect chain beyond the limit must terminate as a version-fetch failure"));
+    }
+
+    @Test
+    void redirectLoop_terminatesAsVersionFetchException() {
+        wireMockServer.stubFor(get(urlEqualTo("/redirect-loop"))
+                .willReturn(aResponse()
+                        .withStatus(302)
+                        .withHeader("Location", "/redirect-loop")));
+
+        HttpRegexLatestSource source = new HttpRegexLatestSource(
+                "http://localhost:8089/redirect-loop",
+                "(\\d+\\.\\d+\\.\\d+)",
+                SEMVER_PARSER);
+
+        assertTimeoutPreemptively(Duration.ofSeconds(5), () ->
+                assertThrows(VersionFetchException.class, source::version,
+                        "a redirect loop must terminate as a version-fetch failure"));
     }
 
     /**
@@ -252,6 +406,20 @@ class HttpRegexLatestSourceIT {
                 "a non-2xx HTTP response must throw (VersionFetchException), isolating this app's scrape");
     }
 
+    @Test
+    void connectionError_throwsVersionFetchException() {
+        wireMockServer.stubFor(get(urlPathEqualTo("/connection-reset"))
+                .willReturn(aResponse().withFault(Fault.CONNECTION_RESET_BY_PEER)));
+
+        HttpRegexLatestSource source = new HttpRegexLatestSource(
+                "http://localhost:8089/connection-reset",
+                "(\\d+\\.\\d+\\.\\d+)",
+                SEMVER_PARSER);
+
+        assertThrows(VersionFetchException.class, source::version,
+                "a connection error must translate to a version-fetch failure, isolating this app's scrape");
+    }
+
     // --- fixture helpers -------------------------------------------------------------------------
 
     private static com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder plainTextResponse(
@@ -268,5 +436,25 @@ class HttpRegexLatestSourceIT {
                 .withStatus(status)
                 .withHeader("Content-Type", "text/html; charset=utf-8")
                 .withBody(body);
+    }
+
+    private static SSLContext trustedWireMockContext() throws Exception {
+        KeyStore trustStore = KeyStore.getInstance("PKCS12");
+        try (InputStream in = HttpRegexLatestSourceIT.class.getClassLoader()
+                .getResourceAsStream(KEYSTORE_RESOURCE)) {
+            trustStore.load(in, KEYSTORE_PASSWORD.toCharArray());
+        }
+
+        TrustManagerFactory trustManagers = TrustManagerFactory.getInstance(
+                TrustManagerFactory.getDefaultAlgorithm());
+        trustManagers.init(trustStore);
+        SSLContext context = SSLContext.getInstance("TLS");
+        context.init(null, trustManagers.getTrustManagers(), new SecureRandom());
+        return context;
+    }
+
+    private static String resourcePath(String resource) throws Exception {
+        return java.nio.file.Path.of(
+                HttpRegexLatestSourceIT.class.getClassLoader().getResource(resource).toURI()).toString();
     }
 }

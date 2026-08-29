@@ -1,5 +1,6 @@
 package org.yardship.system;
 
+import com.github.tomakehurst.wiremock.WireMockServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
+import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -55,6 +60,56 @@ class RegexCommandWiringTests {
         assertEquals(ValidationOutcome.Ok.EXIT_CODE, exitCode);
         assertTrue(capturedOut.toString(StandardCharsets.UTF_8).contains("2.0.0"),
                 "output must mention the winning version 2.0.0");
+    }
+
+    @Test
+    void urlRedirect_finalBodyLargestVersion_exitsZeroAndPrintsWinner() {
+        WireMockServer wireMock = new WireMockServer(options().dynamicPort());
+        wireMock.start();
+        try {
+            wireMock.stubFor(get(urlPathEqualTo("/redirected-body"))
+                    .willReturn(aResponse()
+                            .withStatus(301)
+                            .withHeader("Location", "/final-body")));
+            wireMock.stubFor(get(urlPathEqualTo("/final-body"))
+                    .willReturn(aResponse()
+                            .withStatus(200)
+                            .withBody("Version: 1.2.0\nVersion: 2.0.0\nVersion: 1.9.9")));
+
+            int exitCode = new CommandLine(new RegexCommand()).execute(
+                    "--regex", "(\\d+\\.\\d+\\.\\d+)",
+                    "--scheme", "semver",
+                    "--url", wireMock.baseUrl() + "/redirected-body");
+
+            assertEquals(ValidationOutcome.Ok.EXIT_CODE, exitCode);
+            assertTrue(capturedOut.toString(StandardCharsets.UTF_8).lines()
+                            .anyMatch(line -> line.equals("Winner: 2.0.0 -> 2.0.0")),
+                    "output must identify 2.0.0 as the winner from the redirected final body");
+        } finally {
+            wireMock.stop();
+        }
+    }
+
+    @Test
+    void urlRedirectLoop_exitsWithFetchFailedCode() {
+        WireMockServer wireMock = new WireMockServer(options().dynamicPort());
+        wireMock.start();
+        try {
+            wireMock.stubFor(get(urlPathEqualTo("/redirect-loop"))
+                    .willReturn(aResponse()
+                            .withStatus(302)
+                            .withHeader("Location", "/redirect-loop")));
+
+            int exitCode = new CommandLine(new RegexCommand()).execute(
+                    "--regex", "(\\d+\\.\\d+\\.\\d+)",
+                    "--scheme", "semver",
+                    "--url", wireMock.baseUrl() + "/redirect-loop");
+
+            assertEquals(ValidationOutcome.FetchFailed.EXIT_CODE, exitCode,
+                    "a failed redirect chain must preserve the regex command's FetchFailed exit code");
+        } finally {
+            wireMock.stop();
+        }
     }
 
     @Test
