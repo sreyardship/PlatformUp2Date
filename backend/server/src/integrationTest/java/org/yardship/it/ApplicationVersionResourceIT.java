@@ -2,6 +2,7 @@ package org.yardship.it;
 
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.common.http.TestHTTPResource;
+import io.restassured.path.json.JsonPath;
 import io.quarkus.test.junit.QuarkusIntegrationTest;
 import org.junit.jupiter.api.Test;
 
@@ -12,7 +13,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -42,8 +43,11 @@ class ApplicationVersionResourceIT {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
             body = response.body();
             if (response.statusCode() == 200 && body.contains("good-app")) {
-                assertTrue(body.contains("1.0.0"), "expected current version in: " + body);
-                assertTrue(body.contains("2.0.0"), "expected latest version in: " + body);
+                JsonPath json = new JsonPath(body);
+                assertEquals("1.0.0", json.getString("'good-app'.current.version"),
+                        "expected current version for good-app in: " + body);
+                assertEquals("2.0.0", json.getString("'good-app'.latest.version"),
+                        "expected redirected GitHub release version for good-app in: " + body);
                 return;
             }
             Thread.sleep(500);

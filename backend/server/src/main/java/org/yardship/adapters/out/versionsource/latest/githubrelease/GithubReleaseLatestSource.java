@@ -1,10 +1,5 @@
 package org.yardship.adapters.out.versionsource.latest.githubrelease;
 
-import io.quarkus.rest.client.reactive.QuarkusRestClientBuilder;
-import org.yardship.adapters.out.versionsource.auth.BearerAuthFilter;
-import org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleaseClient;
-import org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleaseResponseDTO;
-import org.yardship.adapters.out.versionsource.VersionResponseExceptionMapper;
 import org.yardship.core.domain.exceptions.InvalidVersionException;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
@@ -13,7 +8,7 @@ import org.yardship.core.ports.out.LatestVersionSource;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.net.URI;
+import java.security.KeyStore;
 import java.util.List;
 import java.util.Optional;
 
@@ -54,17 +49,35 @@ public class GithubReleaseLatestSource implements LatestVersionSource, Closeable
     private final String url;
     private final Optional<String> token;
     private final int pageSize;
+    private final Optional<KeyStore> trustStore;
     private final VersionParser parser;
     private GithubReleaseClient client;
 
     public GithubReleaseLatestSource(String url, Optional<String> token, VersionParser parser) {
-        this(url, token, DEFAULT_PAGE_SIZE, parser);
+        this(url, token, DEFAULT_PAGE_SIZE, Optional.empty(), parser);
     }
 
     public GithubReleaseLatestSource(String url, Optional<String> token, int pageSize, VersionParser parser) {
+        this(url, token, pageSize, Optional.empty(), parser);
+    }
+
+    /**
+     * Builds a source with a client-local trust store. The production factory uses the overloads
+     * without this argument; the explicit seam keeps adapter HTTPS integration fixtures from
+     * mutating JVM-global TLS state.
+     */
+    public GithubReleaseLatestSource(
+            String url, Optional<String> token, Optional<KeyStore> trustStore, VersionParser parser) {
+        this(url, token, DEFAULT_PAGE_SIZE, trustStore, parser);
+    }
+
+    private GithubReleaseLatestSource(
+            String url, Optional<String> token, int pageSize, Optional<KeyStore> trustStore,
+            VersionParser parser) {
         this.url = url;
         this.token = token;
         this.pageSize = pageSize;
+        this.trustStore = trustStore;
         this.parser = parser;
     }
 
@@ -77,6 +90,7 @@ public class GithubReleaseLatestSource implements LatestVersionSource, Closeable
         this.url = null;
         this.token = Optional.empty();
         this.pageSize = DEFAULT_PAGE_SIZE;
+        this.trustStore = Optional.empty();
         this.parser = new VersionParser(VersionScheme.SEMVER);
         this.client = client;
     }
@@ -105,12 +119,7 @@ public class GithubReleaseLatestSource implements LatestVersionSource, Closeable
 
     private GithubReleaseClient client() {
         if (client == null) {
-            QuarkusRestClientBuilder builder = QuarkusRestClientBuilder.newBuilder()
-                    .baseUri(URI.create(url))
-                    .register(VersionResponseExceptionMapper.class);
-            token.filter(value -> !value.isBlank())
-                    .ifPresent(value -> builder.register(new BearerAuthFilter(value)));
-            client = builder.build(GithubReleaseClient.class);
+            client = new GithubReleaseHttpClient(url, token, pageSize, trustStore);
         }
         return client;
     }

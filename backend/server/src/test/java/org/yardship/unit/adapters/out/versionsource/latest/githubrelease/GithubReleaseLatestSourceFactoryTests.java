@@ -4,11 +4,13 @@ import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
+import org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleaseLatestSource;
 import org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleaseLatestSourceFactory;
 
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -40,7 +42,8 @@ class GithubReleaseLatestSourceFactoryTests {
 
     @Test
     void create_buildsASource_whenRepoIsWellFormed() {
-        assertNotNull(factory.create(source(Optional.of("go-gitea/gitea"), Optional.empty()), SEMVER_PARSER));
+        assertInstanceOf(GithubReleaseLatestSource.class,
+                factory.create(source(Optional.of("go-gitea/gitea"), Optional.empty()), SEMVER_PARSER));
     }
 
     @Test
