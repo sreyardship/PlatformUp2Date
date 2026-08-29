@@ -38,8 +38,8 @@ import java.util.Optional;
  * <p><b>Exfiltration boundary:</b> the {@code current} leg historically only ever hit our own
  * deployment endpoints with no credentials. Since issue 02 (basic) and issue 03 (bearer), this
  * factory CAN send per-app credentials to the app's own configured {@code url} when {@code auth}
- * is present. There is no host check here — the assumption that the credential belongs to the
- * configured {@code url} lives in configuration, not in code (ADR-0008 residual assumption).
+ * is present. Redirects are traversed by the client wrapper, which removes authorization whenever
+ * scheme, host, or effective port changes and refuses HTTPS-to-HTTP downgrades; see ADR-0029.
  */
 @ApplicationScoped
 public class HttpCurrentSourceFactory implements CurrentVersionSourceFactory {

@@ -81,6 +81,30 @@ java {
     targetCompatibility = JavaVersion.VERSION_21
 }
 
+// Keep the documentation check independent of repository-relative paths at test runtime while
+// checking the authoritative class-level Javadocs from the production sources.
+def redirectDocumentationSourcePaths = [
+    'org/yardship/adapters/out/versionsource/latest/githubrelease/GithubReleaseLatestSource.java',
+    'org/yardship/adapters/out/versionsource/current/http/HttpCurrentSourceFactory.java'
+]
+def redirectDocumentationTestResources = layout.buildDirectory.dir('generated/redirect-documentation-test-resources')
+sourceSets {
+    test {
+        resources {
+            srcDir(redirectDocumentationTestResources)
+        }
+    }
+}
+tasks.register('prepareRedirectDocumentationTestResources', Copy) {
+    from(layout.projectDirectory.dir('src/main/java')) {
+        include redirectDocumentationSourcePaths
+    }
+    into(redirectDocumentationTestResources)
+}
+tasks.named('processTestResources') {
+    dependsOn tasks.named('prepareRedirectDocumentationTestResources')
+}
+
 test {
     systemProperty "java.util.logging.manager", "org.jboss.logmanager.LogManager"
     jvmArgs '-XX:+EnableDynamicAgentLoading', '-Djdk.instrument.traceUsage'

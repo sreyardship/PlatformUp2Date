@@ -31,9 +31,9 @@ import java.util.Optional;
  * {@code current} leg hits our own deployment endpoints; sending a GitHub token there would be a
  * secret-exfiltration bug.
  *
- * <p><b>Residual assumption:</b> this trusts that {@code latest} always points at GitHub. If a
- * non-GitHub {@code latest} URL is ever configured, the token would be sent to that host. There
- * is no host check here — the assumption lives in configuration, not in the filter.
+ * <p>Redirects follow ADR-0029: the authorization header is retained only for the same effective
+ * origin (scheme, host, and port), and HTTPS-to-HTTP downgrades are refused. A cross-origin target
+ * therefore receives no GitHub credential.
  *
  * <p>The REST client is built lazily on first {@link #version()} so the source can be constructed (by
  * its factory) without a running Quarkus/Arc context.

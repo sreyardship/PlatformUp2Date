@@ -1,4 +1,5 @@
 package org.yardship.adapters.out.versionsource.current.http;
+
 import org.yardship.adapters.out.versionsource.VersionResponseExceptionMapper;
 
 import io.quarkus.rest.client.reactive.QuarkusRestClientBuilder;
@@ -12,10 +13,11 @@ import java.util.Optional;
 /**
  * Builds a ready {@link HttpCurrentVersionClient} for a given base URL — the only Arc-bound piece left
  * after {@code HttpCurrentSource} became a pure POJO. It is the sole boundary that knows how to
- * construct a REST client for the {@code http} current-version kind: it owns the
- * {@link VersionResponseExceptionMapper} registration (so a non-2xx upstream surfaces as a thrown
- * exception) and, when present, registers an auth filter on the client — so call sites never touch
- * {@code QuarkusRestClientBuilder} directly.
+ * construct the per-hop REST clients for the {@code http} current-version kind: it applies the
+ * {@link VersionResponseExceptionMapper} to final non-2xx responses and, when present, registers an
+ * auth filter on the client — so call sites never touch {@code QuarkusRestClientBuilder} directly.
+ * Redirect traversal is explicit in {@link RedirectingHttpCurrentVersionClient}; authorization is
+ * retained only for the same effective origin, as required by ADR-0029.
  *
  * <p>The {@code authFilter} parameter lets a source register authentication (a {@link BasicAuthFilter}
  * or {@link BearerAuthFilter}) onto the current-version client; callers pass {@link Optional#empty()}
@@ -41,15 +43,31 @@ public class HttpCurrentVersionClientFactory {
     public HttpCurrentVersionClient build(
             String url, Optional<ClientRequestFilter> authFilter, Optional<KeyStore> trustStore,
             boolean insecureSkipTlsVerify) {
+        return new RedirectingHttpCurrentVersionClient(
+                URI.create(url), authFilter, trustStore, insecureSkipTlsVerify, this);
+    }
+
+    HttpCurrentVersionResponseClient buildResponseClient(
+            URI target, Optional<ClientRequestFilter> authFilter, Optional<KeyStore> trustStore,
+            boolean insecureSkipTlsVerify) {
         QuarkusRestClientBuilder builder = QuarkusRestClientBuilder.newBuilder()
-                .baseUri(URI.create(url))
-                .register(VersionResponseExceptionMapper.class);
+                .baseUri(originUri(target))
+                .followRedirects(false)
+                .property("microprofile.rest.client.disable.default.mapper", true);
         authFilter.ifPresent(builder::register);
         trustStore.ifPresent(builder::trustStore);
         if (insecureSkipTlsVerify) {
             builder.trustAll(true);
             builder.verifyHost(false);
         }
-        return builder.build(HttpCurrentVersionClient.class);
+        return builder.build(HttpCurrentVersionResponseClient.class);
+    }
+
+    private static URI originUri(URI target) {
+        try {
+            return new URI(target.getScheme(), target.getRawAuthority(), "/", null, null);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid current-version redirect target: " + target, e);
+        }
     }
 }

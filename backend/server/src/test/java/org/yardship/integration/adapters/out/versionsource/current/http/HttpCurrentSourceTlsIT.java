@@ -18,6 +18,7 @@ import java.util.Optional;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -53,6 +54,7 @@ class HttpCurrentSourceTlsIT {
     private static final String KEYSTORE_PASSWORD = "password";
 
     static WireMockServer wireMockServer;
+    static WireMockServer httpRedirectTargetServer;
     static String httpsBaseUrl;
 
     @Inject
@@ -61,6 +63,9 @@ class HttpCurrentSourceTlsIT {
     @BeforeAll
     static void startWireMock() throws Exception {
         String keystorePath = resourcePath(KEYSTORE_RESOURCE);
+        httpRedirectTargetServer = new WireMockServer(options().dynamicPort());
+        httpRedirectTargetServer.start();
+
         wireMockServer = new WireMockServer(options()
                 .httpDisabled(true)
                 .dynamicHttpsPort()
@@ -77,11 +82,15 @@ class HttpCurrentSourceTlsIT {
         if (wireMockServer != null) {
             wireMockServer.stop();
         }
+        if (httpRedirectTargetServer != null) {
+            httpRedirectTargetServer.stop();
+        }
     }
 
     @BeforeEach
     void resetStubs() {
         wireMockServer.resetAll();
+        httpRedirectTargetServer.resetAll();
         wireMockServer.stubFor(get(urlEqualTo("/current"))
                 .willReturn(aResponse()
                         .withStatus(200)
@@ -102,15 +111,45 @@ class HttpCurrentSourceTlsIT {
     }
 
     @Test
-    void build_withoutACustomTrustStore_failsTheHandshake_provingNoGlobalTrustLeak() {
-        // Optional.empty() => JVM default trust bundle only. WireMock's self-signed CA is not in it,
-        // so the handshake must be rejected. That this still fails in the same class as the success
-        // case proves the success case did NOT install a JVM-global truststore. Also pins that
-        // insecure-skip-tls-verify never becomes the default: this call passes insecure=false.
+    void build_withHttpsToHttpRedirect_refusesDowngrade_beforeContactingTarget() throws Exception {
+        httpRedirectTargetServer.stubFor(get(urlEqualTo("/downgrade-target"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"version\":\"9.9.9\"}")));
+        wireMockServer.stubFor(get(urlEqualTo("/https-current"))
+                .willReturn(aResponse()
+                        .withStatus(301)
+                        .withHeader("Location", "http://localhost:" + httpRedirectTargetServer.port()
+                                + "/downgrade-target")));
+
         HttpCurrentVersionClient client =
+                clientFactory.build(httpsBaseUrl + "/https-current", Optional.empty(),
+                        Optional.of(trustStoreHoldingWireMockCa()), false);
+
+        assertThrows(IllegalStateException.class, client::getCurrentVersion,
+                "an HTTPS-to-HTTP redirect must be refused by the current HTTP client");
+        wireMockServer.verify(1, getRequestedFor(urlEqualTo("/https-current")));
+        httpRedirectTargetServer.verify(0, getRequestedFor(urlEqualTo("/downgrade-target")));
+    }
+
+    @Test
+    void build_withoutACustomTrustStore_failsTheHandshake_provingNoGlobalTrustLeak() throws Exception {
+        // Prove the scoping rule in one test identity: a client explicitly given WireMock's CA
+        // succeeds, but a subsequently built client with no custom truststore still uses only the
+        // JVM default bundle and rejects the same certificate. This does not depend on JUnit test
+        // ordering to establish that the custom CA was not installed globally. Also pins that
+        // insecure-skip-tls-verify never becomes the default: the second client passes false.
+        HttpCurrentVersionClient trustedClient =
+                clientFactory.build(httpsBaseUrl + "/current", Optional.empty(),
+                        Optional.of(trustStoreHoldingWireMockCa()), false);
+        assertEquals("1.0.0", trustedClient.getCurrentVersion().at("/version").textValue(),
+                "the explicitly scoped custom truststore must allow the request");
+
+        HttpCurrentVersionClient defaultTrustClient =
                 clientFactory.build(httpsBaseUrl + "/current", Optional.empty(), Optional.empty(), false);
 
-        assertThrows(RuntimeException.class, client::getCurrentVersion,
+        assertThrows(RuntimeException.class, defaultTrustClient::getCurrentVersion,
                 "with no custom truststore the self-signed WireMock cert must fail the TLS handshake");
     }
 
