@@ -1,7 +1,9 @@
 package org.yardship.adapters.out.versionsource.latest.ociregistry;
 
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Encoded;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Response;
 
@@ -17,8 +19,10 @@ import jakarta.ws.rs.core.Response;
  * authenticated build (bearer-token filter + {@code VersionResponseExceptionMapper}) for the
  * post-dance retry. The differences are per-builder configuration, not per-interface contract.
  *
- * <p>The base URI supplied to the builder already includes the registry host AND the full
- * {@code /v2/{repo}} path, so this interface only needs the trailing {@code /tags/list} segment.
+ * <p>The normal method uses a base URI that includes the registry host and full
+ * {@code /v2/{repo}} path, so it only needs the trailing {@code /tags/list} segment. The
+ * {@link #tagsListAt(String)} method is used by the anonymous redirect walker with an origin-only
+ * base URI and an already-resolved request path.
  *
  * <p>{@code n} is the OCI page-size query parameter; {@code last} is the pagination cursor
  * extracted from the {@code Link: rel="next"} header of the previous response (null on the
@@ -30,4 +34,13 @@ public interface OciRegistryTagsClient {
     @GET
     @Path("/tags/list")
     Response tagsList(@QueryParam("n") Integer n, @QueryParam("last") String last);
+
+    /**
+     * Invokes the same endpoint using an already-resolved request path. This is used by the
+     * anonymous redirect walker, which must inspect each intermediate response before choosing the
+     * next target.
+     */
+    @GET
+    @Path("/{path: .*}")
+    Response tagsListAt(@Encoded @PathParam("path") String path);
 }

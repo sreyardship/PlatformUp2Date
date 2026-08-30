@@ -58,6 +58,7 @@ import java.util.regex.Pattern;
  */
 public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
 
+    private static final int MAX_REDIRECTS = 10;
     private static final Logger LOG = LoggerFactory.getLogger(OciRegistryLatestSource.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Pattern CHALLENGE_PARAM = Pattern.compile("(\\w+)=\"([^\"]*)\"");
@@ -166,11 +167,12 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
      * Used for pages 2+ of the anonymous (direct-200) path.
      */
     private TagsPage fetchRawPage(int n, String last) {
-        OciRegistryTagsClient rawClient = buildRawTagsClient();
+        Response response = retryOnConnectionFailure(() -> fetchRawTagsResponse(n, last));
         try {
-            return toTagsPage(retryOnConnectionFailure(() -> rawClient.tagsList(n, last)));
+            ensureSuccessful(response);
+            return toTagsPage(response);
         } finally {
-            closeQuietly(rawClient);
+            response.close();
         }
     }
 
@@ -264,35 +266,112 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
      * {@code WWW-Authenticate} header needed for the bearer-token dance.
      */
     private Response fetchTagsListRawResponse() {
-        OciRegistryTagsClient rawClient = buildRawTagsClient();
-        try {
-            return retryOnConnectionFailure(() -> rawClient.tagsList(selection.pageSize(), null));
-        } catch (jakarta.ws.rs.WebApplicationException wae) {
-            Response response = wae.getResponse();
-            if (response != null) {
-                return response;
-            }
-            if (wae.getCause() instanceof jakarta.ws.rs.WebApplicationException causeWae
-                    && causeWae.getResponse() != null) {
-                return causeWae.getResponse();
-            }
-            throw new IllegalStateException(
-                    "Unexpected error from " + baseUrl + "/tags/list (no response available)", wae);
-        } finally {
-            closeQuietly(rawClient);
-        }
+        return retryOnConnectionFailure(() -> fetchRawTagsResponse(selection.pageSize(), null));
     }
 
     /**
-     * Builds the tags client WITHOUT the {@link VersionResponseExceptionMapper} and without an auth
-     * filter — for the initial probe (where a {@code 401} is expected and inspected for the bearer
-     * challenge) and for anonymous pages 2+. Same {@link OciRegistryTagsClient} interface as
-     * {@link #buildAuthenticatedTagsClient}; only the registered providers differ.
+     * Fetches an anonymous tags page while traversing redirects explicitly. The REST client is
+     * rebuilt for every hop so the redirect target is never cached and a future authenticated
+     * client path cannot accidentally inherit redirect behavior from this anonymous request.
      */
-    private OciRegistryTagsClient buildRawTagsClient() {
+    private Response fetchRawTagsResponse(int n, String last) {
+        URI current = tagsListUri(n, last);
+
+        for (int redirectCount = 0; ; redirectCount++) {
+            OciRegistryTagsClient rawClient = buildRawTagsClient(current);
+            try {
+                Response response = rawClient.tagsListAt(requestPath(current));
+                int status = response.getStatus();
+                if (isSuccessful(status) || status == 401 || !isSupportedRedirect(status)) {
+                    return response;
+                }
+
+                try {
+                    if (redirectCount >= MAX_REDIRECTS) {
+                        throw new IllegalStateException(
+                                "Too many redirects while reading OCI registry tags at " + current);
+                    }
+                    URI next = redirectTarget(current, response);
+                    if (isHttpsToHttp(current, next)) {
+                        throw new IllegalStateException(
+                                "Refusing HTTPS-to-HTTP redirect while reading OCI registry tags");
+                    }
+                    current = next;
+                } finally {
+                    response.close();
+                }
+            } finally {
+                closeQuietly(rawClient);
+            }
+        }
+    }
+
+    private URI tagsListUri(int n, String last) {
+        URI base = URI.create(baseUrl);
+        String path = base.getRawPath();
+        if (path == null || path.isEmpty()) {
+            path = "/";
+        }
+        if (!path.endsWith("/")) {
+            path += "/";
+        }
+        path += "tags/list";
+        String query = "n=" + n + (last == null ? "" : "&last=" + last);
+        try {
+            return new URI(base.getScheme(), base.getRawAuthority(), path, query, null);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid OCI registry tags URL: " + baseUrl, e);
+        }
+    }
+
+    private OciRegistryTagsClient buildRawTagsClient(URI target) {
         return QuarkusRestClientBuilder.newBuilder()
-                .baseUri(URI.create(baseUrl))
+                .baseUri(originUri(target))
+                .followRedirects(false)
+                .property("microprofile.rest.client.disable.default.mapper", true)
                 .build(OciRegistryTagsClient.class);
+    }
+
+    private static String requestPath(URI target) {
+        String path = target.getRawPath();
+        if (path == null || path.isEmpty()) {
+            path = "/";
+        }
+        return path.substring(1) + (target.getRawQuery() == null ? "" : "?" + target.getRawQuery());
+    }
+
+    private static URI originUri(URI target) {
+        try {
+            return new URI(target.getScheme(), target.getRawAuthority(), "/", null, null);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid OCI registry redirect target: " + target, e);
+        }
+    }
+
+    private static URI redirectTarget(URI current, Response response) {
+        URI location = response.getLocation();
+        if (location == null) {
+            throw new IllegalStateException("OCI registry tags redirect did not include a Location header");
+        }
+        return current.resolve(location);
+    }
+
+    private static boolean isSuccessful(int status) {
+        return status >= 200 && status < 300;
+    }
+
+    private static boolean isSupportedRedirect(int status) {
+        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+    }
+
+    private static boolean isHttpsToHttp(URI from, URI to) {
+        return "https".equalsIgnoreCase(from.getScheme()) && "http".equalsIgnoreCase(to.getScheme());
+    }
+
+    private static void ensureSuccessful(Response response) {
+        if (!isSuccessful(response.getStatus())) {
+            throw new VersionResponseExceptionMapper().toThrowable(response);
+        }
     }
 
     /**
