@@ -147,15 +147,9 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
             String wwwAuthenticate = rawFirstResponse.getHeaderString("WWW-Authenticate");
             BearerChallenge challenge = parseChallenge(wwwAuthenticate);
             String token = mintToken(challenge);
-            OciRegistryTagsClient authenticatedClient = buildAuthenticatedTagsClient(token);
-            try {
-                // Re-use one authenticated client across all pages (one close at the end).
-                PagedTagsFetcher authenticatedFetcher = (n, last) -> toTagsPage(
-                        retryOnConnectionFailure(() -> authenticatedClient.tagsList(n, last)));
-                return paginateAndSelectVersion(authenticatedFetcher);
-            } finally {
-                closeQuietly(authenticatedClient);
-            }
+            PagedTagsFetcher authenticatedFetcher = (n, last) ->
+                    retryOnConnectionFailure(() -> fetchAuthenticatedPage(n, last, token));
+            return paginateAndSelectVersion(authenticatedFetcher);
         }
 
         throw new IllegalStateException(
@@ -368,6 +362,23 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
         return "https".equalsIgnoreCase(from.getScheme()) && "http".equalsIgnoreCase(to.getScheme());
     }
 
+    private static boolean sameOrigin(URI first, URI second) {
+        return equalsIgnoreCase(first.getScheme(), second.getScheme())
+                && equalsIgnoreCase(first.getHost(), second.getHost())
+                && effectivePort(first) == effectivePort(second);
+    }
+
+    private static boolean equalsIgnoreCase(String first, String second) {
+        return first != null && first.equalsIgnoreCase(second);
+    }
+
+    private static int effectivePort(URI uri) {
+        if (uri.getPort() >= 0) {
+            return uri.getPort();
+        }
+        return "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
+    }
+
     private static void ensureSuccessful(Response response) {
         if (!isSuccessful(response.getStatus())) {
             throw new VersionResponseExceptionMapper().toThrowable(response);
@@ -375,38 +386,136 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
     }
 
     /**
-     * Builds the tags client WITH the {@link BearerAuthFilter} (minted token) and the
-     * {@link VersionResponseExceptionMapper} (so a non-2xx on the authenticated retry surfaces as a
-     * clear failure). Same {@link OciRegistryTagsClient} interface as {@link #buildRawTagsClient};
-     * only the registered providers differ.
+     * Fetches an authenticated tags page while traversing redirects explicitly. The bearer token is
+     * retained only while the redirect chain remains on the original effective origin.
      */
-    private OciRegistryTagsClient buildAuthenticatedTagsClient(String bearerToken) {
-        return QuarkusRestClientBuilder.newBuilder()
-                .baseUri(URI.create(baseUrl))
-                .register(VersionResponseExceptionMapper.class)
-                .register(new BearerAuthFilter(bearerToken))
-                .build(OciRegistryTagsClient.class);
+    private TagsPage fetchAuthenticatedPage(int n, String last, String bearerToken) {
+        URI initial = tagsListUri(n, last);
+        URI current = initial;
+        boolean retainAuthorization = true;
+
+        for (int redirectCount = 0; ; redirectCount++) {
+            OciRegistryTagsClient client = buildAuthenticatedTagsClient(
+                    current, initial, bearerToken, retainAuthorization);
+            try (Response response = client.tagsListAt(requestPath(current))) {
+                if (isSuccessful(response.getStatus())) {
+                    return toTagsPage(response);
+                }
+                if (!isSupportedRedirect(response.getStatus())) {
+                    ensureSuccessful(response);
+                }
+                if (redirectCount >= MAX_REDIRECTS) {
+                    throw new IllegalStateException(
+                            "Too many redirects while reading OCI registry tags at " + initial);
+                }
+
+                URI next = redirectTarget(current, response);
+                if (isHttpsToHttp(current, next)) {
+                    throw new IllegalStateException(
+                            "Refusing HTTPS-to-HTTP redirect while reading OCI registry tags");
+                }
+                retainAuthorization = retainAuthorization && sameOrigin(current, next);
+                current = next;
+            } finally {
+                closeQuietly(client);
+            }
+        }
     }
 
     /**
-     * Mints a bearer token from the realm advertised in {@code challenge}. Sends
-     * {@code Authorization: Basic base64(user:pass)} to the realm when both username and password
-     * are present; otherwise mints anonymously.
+     * Builds a tags client for one redirect hop. Redirects are disabled on the REST client so the
+     * source can remove the bearer token before contacting a changed effective origin.
+     */
+    private OciRegistryTagsClient buildAuthenticatedTagsClient(
+            URI target, URI initial, String bearerToken, boolean retainAuthorization) {
+        QuarkusRestClientBuilder builder = QuarkusRestClientBuilder.newBuilder()
+                .baseUri(originUri(target))
+                .followRedirects(false)
+                .property("microprofile.rest.client.disable.default.mapper", true);
+        if (retainAuthorization && sameOrigin(initial, target)) {
+            builder.register(new BearerAuthFilter(bearerToken));
+        }
+        return builder.build(OciRegistryTagsClient.class);
+    }
+
+    /**
+     * Mints a bearer token from the realm advertised in {@code challenge}. The token request is
+     * also traversed explicitly so configured Basic credentials cannot cross an effective-origin
+     * boundary.
      */
     private String mintToken(BearerChallenge challenge) {
-        QuarkusRestClientBuilder builder = QuarkusRestClientBuilder.newBuilder()
-                .baseUri(URI.create(challenge.realm()));
-        username.filter(u -> !u.isBlank())
-                .flatMap(u -> password.filter(p -> !p.isBlank()).map(p -> new BasicAuthFilter(u, p)))
-                .ifPresent(builder::register);
-        OciTokenClient tokenClient = builder.build(OciTokenClient.class);
-        try {
-            Response tokenResponse = retryOnConnectionFailure(
-                    () -> tokenClient.mint(challenge.service(), challenge.scope()));
-            return extractToken(tokenResponse);
-        } finally {
-            closeQuietly(tokenClient);
+        URI initial = tokenUri(challenge);
+        URI current = initial;
+        boolean retainAuthorization = true;
+
+        for (int redirectCount = 0; ; redirectCount++) {
+            OciTokenClient tokenClient = buildTokenClient(current, initial, retainAuthorization);
+            String requestPath = requestPath(current);
+            try (Response tokenResponse = retryOnConnectionFailure(
+                    () -> tokenClient.mintAt(requestPath))) {
+                if (isSuccessful(tokenResponse.getStatus())) {
+                    return extractToken(tokenResponse);
+                }
+                if (!isSupportedRedirect(tokenResponse.getStatus())) {
+                    ensureSuccessful(tokenResponse);
+                }
+                if (redirectCount >= MAX_REDIRECTS) {
+                    throw new IllegalStateException(
+                            "Too many redirects while minting OCI bearer token at " + initial);
+                }
+
+                URI next = redirectTarget(current, tokenResponse);
+                if (isHttpsToHttp(current, next)) {
+                    throw new IllegalStateException(
+                            "Refusing HTTPS-to-HTTP redirect while minting OCI bearer token");
+                }
+                retainAuthorization = retainAuthorization && sameOrigin(current, next);
+                current = next;
+            } finally {
+                closeQuietly(tokenClient);
+            }
         }
+    }
+
+    private OciTokenClient buildTokenClient(URI target, URI initial, boolean retainAuthorization) {
+        QuarkusRestClientBuilder builder = QuarkusRestClientBuilder.newBuilder()
+                .baseUri(originUri(target))
+                .followRedirects(false)
+                .property("microprofile.rest.client.disable.default.mapper", true);
+        if (retainAuthorization && sameOrigin(initial, target)) {
+            username.filter(u -> !u.isBlank())
+                    .flatMap(u -> password.filter(p -> !p.isBlank())
+                            .map(p -> new BasicAuthFilter(u, p)))
+                    .ifPresent(builder::register);
+        }
+        return builder.build(OciTokenClient.class);
+    }
+
+    private URI tokenUri(BearerChallenge challenge) {
+        URI realm = URI.create(challenge.realm());
+        StringBuilder target = new StringBuilder()
+                .append(realm.getScheme()).append("://").append(realm.getRawAuthority());
+        if (realm.getRawPath() != null) {
+            target.append(realm.getRawPath());
+        }
+        target.append('?');
+        if (realm.getRawQuery() != null && !realm.getRawQuery().isEmpty()) {
+            target.append(realm.getRawQuery()).append('&');
+        }
+        target.append("service=").append(encodeQueryValue(challenge.service()))
+                .append("&scope=").append(encodeQueryValue(challenge.scope()));
+        try {
+            return URI.create(target.toString());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid OCI token realm: " + challenge.realm(), e);
+        }
+    }
+
+    private static String encodeQueryValue(String value) {
+        // OCI service and scope values are already challenge values. Keep their URI-safe
+        // characters (notably ':' and '/') verbatim so the token endpoint receives the challenge
+        // values exactly as advertised.
+        return value;
     }
 
     /**

@@ -108,6 +108,7 @@ class OciRegistryLatestSourcePaginationIT {
 
         assertEquals("2.0.0", result.value(),
                 "Must traverse all pages and select the global largest semver (on page 2)");
+        wireMockServer.verify(2, getRequestedFor(urlPathEqualTo(TAGS_PATH)));
     }
 
     @Test
