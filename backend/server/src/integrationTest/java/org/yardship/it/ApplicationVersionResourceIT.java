@@ -23,6 +23,13 @@ import static org.junit.jupiter.api.Assertions.fail;
  * reflectively handled in native. If the {@code ApplicationVersionClient} bean
  * fails to construct in native, the scheduled scrape never populates the cache and
  * {@code /api/v1/version} stays empty ({@code {}}), which fails this test.
+ *
+ * <p>Since issue #39's tracer bullet, {@code good-app}'s {@code github-release} fixture
+ * ({@link WireMockVersionResource}) serves its releases behind a 301 redirect (the
+ * {@code /repos/.../releases} -> {@code /repositories/<id>/releases} move GitHub actually performed
+ * for {@code vmware-tanzu/velero} — see ADR-0029). This test observing {@code latest = 2.0.0} through
+ * the built artifact's public HTTP surface is therefore also proof that the redirect was followed
+ * end to end (composition root through the driven adapter), not just that the direct path works.
  */
 @QuarkusIntegrationTest
 @QuarkusTestResource(value = WireMockVersionResource.class, restrictToAnnotatedClass = true)

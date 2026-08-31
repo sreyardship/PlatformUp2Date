@@ -22,6 +22,15 @@ public class BearerAuthFilter implements ClientRequestFilter {
 
     @Override
     public void filter(ClientRequestContext requestContext) {
-        requestContext.getHeaders().putSingle(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+        requestContext.getHeaders().putSingle(HttpHeaders.AUTHORIZATION, bearerHeaderValue(token));
+    }
+
+    /**
+     * The {@code Authorization} header value for a bearer {@code token} — shared with adapters
+     * that attach the same credential outside the JAX-RS filter chain (e.g. a hand-rolled redirect
+     * transport that needs the exact same header format on re-issued requests).
+     */
+    public static String bearerHeaderValue(String token) {
+        return "Bearer " + token;
     }
 }
