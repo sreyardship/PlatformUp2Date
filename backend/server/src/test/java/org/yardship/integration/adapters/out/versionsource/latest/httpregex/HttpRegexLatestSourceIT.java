@@ -5,17 +5,24 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.yardship.adapters.out.versionsource.VersionFetchException;
 import org.yardship.adapters.out.versionsource.latest.httpregex.HttpRegexLatestSource;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.domain.primitives.VersionValue;
 
+import java.time.Duration;
+
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 /**
  * Integration tests for the real {@link HttpRegexLatestSource} adapter against a standalone
@@ -47,22 +54,44 @@ class HttpRegexLatestSourceIT {
     private static final VersionParser CALVER_OPENWRT = new VersionParser(VersionScheme.CALVER, "YY.0M.MICRO");
     private static final VersionParser SEMVER_PARSER  = new VersionParser(VersionScheme.SEMVER);
 
+    private static final String TLS_KEYSTORE_RESOURCE = "tls/wiremock-localhost.p12";
+    private static final String TLS_KEYSTORE_PASSWORD = "password";
+
     static WireMockServer wireMockServer;
 
+    // HTTPS-only server (self-signed CN=localhost cert, same fixture as HttpCurrentSourceTlsIT /
+    // HttpCurrentSourceRedirectIT) used only by the HTTPS-to-HTTP downgrade-refusal test.
+    static WireMockServer httpsWireMockServer;
+    static String httpsBaseUrl;
+
     @BeforeAll
-    static void startWireMock() {
+    static void startWireMock() throws Exception {
         wireMockServer = new WireMockServer(options().port(8089));
         wireMockServer.start();
+
+        String keystorePath = java.nio.file.Path.of(HttpRegexLatestSourceIT.class.getClassLoader()
+                .getResource(TLS_KEYSTORE_RESOURCE).toURI()).toString();
+        httpsWireMockServer = new WireMockServer(options()
+                .httpDisabled(true)
+                .dynamicHttpsPort()
+                .keystorePath(keystorePath)
+                .keystorePassword(TLS_KEYSTORE_PASSWORD)
+                .keyManagerPassword(TLS_KEYSTORE_PASSWORD)
+                .keystoreType("PKCS12"));
+        httpsWireMockServer.start();
+        httpsBaseUrl = "https://localhost:" + httpsWireMockServer.httpsPort();
     }
 
     @AfterAll
     static void stopWireMock() {
         wireMockServer.stop();
+        httpsWireMockServer.stop();
     }
 
     @BeforeEach
     void resetStubs() {
         wireMockServer.resetAll();
+        httpsWireMockServer.resetAll();
     }
 
     // --- Ubuntu meta-release-lts (plain text) ------------------------------------------------
@@ -250,6 +279,125 @@ class HttpRegexLatestSourceIT {
 
         assertThrows(RuntimeException.class, source::version,
                 "a non-2xx HTTP response must throw (VersionFetchException), isolating this app's scrape");
+    }
+
+    // --- ADR-0029 redirect parity (issue 03) ------------------------------------------------------
+    // RED PHASE: HttpRegexLatestSource currently builds a plain HttpClient.newHttpClient() with the
+    // JDK default Redirect.NEVER, so every 301/302/303/307/308 below is currently treated as a
+    // non-2xx response (VersionFetchException) rather than being followed to its final body. These
+    // tests are expected to fail until the implementer wires a redirect-following transport
+    // (mapping InsecureRedirectException/TooManyRedirectsException-equivalents to
+    // VersionFetchException) into this adapter.
+
+    @Test
+    void redirect301_toFinalHtmlBody_stillSelectsLargestParseableVersion() {
+        wireMockServer.stubFor(get(urlPathEqualTo("/releases"))
+                .willReturn(aResponse()
+                        .withStatus(301)
+                        .withHeader("Location", "/releases/final")
+                        .withBody("this-is-not-html-and-has-no-version-token")));
+        wireMockServer.stubFor(get(urlPathEqualTo("/releases/final"))
+                .willReturn(htmlResponse(200, """
+                        <!DOCTYPE html>
+                        <html><body>
+                        <pre>
+                        <a href="21.02/">21.02/</a>
+                        <a href="23.05.5/">23.05.5/</a>
+                        </pre>
+                        </body></html>
+                        """)));
+
+        HttpRegexLatestSource source = new HttpRegexLatestSource(
+                "http://localhost:8089/releases",
+                "href=\"(\\d+\\.\\d+(?:\\.\\d+)?)/\"",
+                CALVER_OPENWRT);
+
+        VersionValue result = source.version();
+
+        assertEquals("23.05.5", result.value(),
+                "a 301 must be followed to its final text/HTML body, and the largest parseable "
+                        + "version from THAT body must win");
+    }
+
+    @ParameterizedTest(name = "a {0} redirect with a relative Location is followed to the final body")
+    @ValueSource(ints = {301, 302, 303, 307, 308})
+    void supportedRedirectStatus_relativeLocation_reachesFinalBody_andSelectsLargestVersion(int status) {
+        wireMockServer.stubFor(get(urlPathEqualTo("/versions"))
+                .willReturn(aResponse()
+                        .withStatus(status)
+                        .withHeader("Location", "/versions-final")
+                        // Deliberately contains a version token: if this intermediate body were
+                        // wrongly parsed instead of the final body, "0.0.1" would win instead of "2.0.0".
+                        .withBody("0.0.1")));
+        wireMockServer.stubFor(get(urlPathEqualTo("/versions-final"))
+                .willReturn(plainTextResponse(200, "1.2.0\n2.0.0\n1.9.9")));
+
+        HttpRegexLatestSource source = new HttpRegexLatestSource(
+                "http://localhost:8089/versions",
+                "(\\d+\\.\\d+\\.\\d+)",
+                SEMVER_PARSER);
+
+        VersionValue result = source.version();
+
+        assertEquals("2.0.0", result.value(),
+                "a " + status + " redirect must be followed to the final body before regex/parsing runs, "
+                        + "not treated as a non-2xx failure and not parsed itself");
+    }
+
+    @Test
+    void redirect_withAbsoluteLocation_reachesFinalBody() {
+        wireMockServer.stubFor(get(urlPathEqualTo("/versions"))
+                .willReturn(aResponse()
+                        .withStatus(301)
+                        .withHeader("Location", "http://localhost:8089/versions-final-abs")));
+        wireMockServer.stubFor(get(urlPathEqualTo("/versions-final-abs"))
+                .willReturn(plainTextResponse(200, "1.0.0\n3.0.0")));
+
+        HttpRegexLatestSource source = new HttpRegexLatestSource(
+                "http://localhost:8089/versions",
+                "(\\d+\\.\\d+\\.\\d+)",
+                SEMVER_PARSER);
+
+        assertEquals("3.0.0", source.version().value(),
+                "an absolute Location header must be followed just like a relative one");
+    }
+
+    @Test
+    void redirect_httpsToHttp_isRefused_httpTargetNeverContacted() {
+        httpsWireMockServer.stubFor(get(urlPathEqualTo("/versions"))
+                .willReturn(aResponse()
+                        .withStatus(301)
+                        .withHeader("Location", "http://localhost:8089/downgraded")));
+
+        HttpRegexLatestSource source = new HttpRegexLatestSource(
+                httpsBaseUrl + "/versions",
+                "(\\d+\\.\\d+\\.\\d+)",
+                SEMVER_PARSER);
+
+        // The initial HTTPS leg may itself fail (e.g. on trust, since this adapter's default HttpClient
+        // doesn't trust the self-signed WireMock cert) depending on JVM default-SSLContext caching
+        // order; what matters is that the HTTP downgrade target is never contacted either way.
+        assertThrows(RuntimeException.class, source::version,
+                "an HTTPS response redirecting to plain HTTP must never resolve to a version");
+        wireMockServer.verify(0, getRequestedFor(urlPathEqualTo("/downgraded")));
+    }
+
+    @Test
+    void redirectLoop_terminatesAsVersionFetchException_withinBoundedTime() {
+        wireMockServer.stubFor(get(urlPathEqualTo("/loop-a"))
+                .willReturn(aResponse().withStatus(301).withHeader("Location", "/loop-b")));
+        wireMockServer.stubFor(get(urlPathEqualTo("/loop-b"))
+                .willReturn(aResponse().withStatus(302).withHeader("Location", "/loop-a")));
+
+        HttpRegexLatestSource source = new HttpRegexLatestSource(
+                "http://localhost:8089/loop-a",
+                "(\\d+\\.\\d+\\.\\d+)",
+                SEMVER_PARSER);
+
+        assertTimeoutPreemptively(Duration.ofSeconds(10), () ->
+                assertThrows(VersionFetchException.class, source::version,
+                        "a redirect loop must terminate as VersionFetchException, not hang or leak a "
+                                + "raw transport exception"));
     }
 
     // --- fixture helpers -------------------------------------------------------------------------
