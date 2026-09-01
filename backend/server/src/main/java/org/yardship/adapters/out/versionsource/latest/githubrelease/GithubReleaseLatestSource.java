@@ -107,6 +107,8 @@ public class GithubReleaseLatestSource implements LatestVersionSource, Closeable
         if (client == null) {
             QuarkusRestClientBuilder builder = QuarkusRestClientBuilder.newBuilder()
                     .baseUri(URI.create(url))
+                    .followRedirects(true)
+                    .register(new GithubRedirectHandler())
                     .register(VersionResponseExceptionMapper.class);
             token.filter(value -> !value.isBlank())
                     .ifPresent(value -> builder.register(new BearerAuthFilter(value)));

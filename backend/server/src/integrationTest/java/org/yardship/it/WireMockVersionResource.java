@@ -34,10 +34,12 @@ public class WireMockVersionResource implements QuarkusTestResourceLifecycleMana
         wireMockServer.start();
         wireMockServer.stubFor(get(urlEqualTo("/good/current"))
                 .willReturn(json("{\"version\":\"1.0.0\"}")));
-        // The github-release source lists releases at <base>/repos/{repo}/releases and picks the
-        // largest semver tag, so the latest leg is served as a Releases array (query carries
-        // per_page).
-        wireMockServer.stubFor(get(urlPathEqualTo("/repos/good/latest/releases"))
+        // GitHub's repository-move response redirects the configured repository path to its
+        // numeric repository ID while preserving the release-list query parameters.
+        wireMockServer.stubFor(get(urlEqualTo("/repos/vmware-tanzu/velero/releases?per_page=30"))
+                .willReturn(aResponse().withStatus(301)
+                        .withHeader("Location", "/repositories/99143276/releases?per_page=30")));
+        wireMockServer.stubFor(get(urlEqualTo("/repositories/99143276/releases?per_page=30"))
                 .willReturn(json("[{\"tag_name\":\"v2.0.0\",\"prerelease\":false,\"draft\":false},"
                         + "{\"tag_name\":\"v1.5.0\",\"prerelease\":false,\"draft\":false}]")));
 
@@ -63,7 +65,7 @@ public class WireMockVersionResource implements QuarkusTestResourceLifecycleMana
                 Map.entry("platform-config.apps[0].current.type", "http"),
                 Map.entry("platform-config.apps[0].current.url", "http://" + callbackHost + ":" + PORT + "/good/current"),
                 Map.entry("platform-config.apps[0].latest.type", "github-release"),
-                Map.entry("platform-config.apps[0].latest.repo", "good/latest"),
+                Map.entry("platform-config.apps[0].latest.repo", "vmware-tanzu/velero"),
                 Map.entry("platform-config.apps[1].name", "bad-app"),
                 Map.entry("platform-config.apps[1].current.type", "http"),
                 Map.entry("platform-config.apps[1].current.url", "http://" + callbackHost + ":" + PORT + "/bad/current"),
