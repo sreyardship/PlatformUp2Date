@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.yardship.adapters.out.versionsource.VersionResponseExceptionMapper;
 import org.yardship.adapters.out.versionsource.auth.BasicAuthFilter;
 import org.yardship.adapters.out.versionsource.auth.BearerAuthFilter;
+import org.yardship.adapters.out.versionsource.http.RedirectFollowingHttpGet;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.LatestVersionSource;
@@ -17,11 +18,14 @@ import org.yardship.core.ports.out.LatestVersionSource;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -71,6 +75,7 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
     private final Optional<String> password;
     private final TagSelection selection;
     private final OciTagSelector tagSelector;
+    private final RedirectFollowingHttpGet redirectFollowingHttpGet = new RedirectFollowingHttpGet();
 
     /** Internal pagination result for one page: the tag names plus the cursor for the next page. */
     private record TagsPage(List<String> tags, Optional<String> nextLastToken) {}
@@ -125,18 +130,27 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
      * closed after all pages are accumulated.
      */
     private VersionValue fetchVersionWithDance() {
-        Response rawFirstResponse = fetchTagsListRawResponse();
+        AnonymousPageFetch rawFirst = fetchAnonymousPage(buildTagsListUri(selection.pageSize(), null));
+        Response rawFirstResponse = rawFirst.response();
         int status = rawFirstResponse.getStatus();
 
         if (status == 200) {
             // Direct-200 path: no challenge, no dance.
             // Wrap the already-fetched first response and subsequent raw requests in a fetcher.
+            // The NEXT page is fetched at the absolute URI resolved from the Link header of the
+            // page just fetched — never reconstructed from baseUrl — so a first page served via a
+            // redirect to a canonical endpoint (ADR-0029) still composes with Link pagination: the
+            // canonical endpoint's OWN Link header, not the origin's, drives page 2+.
+            AtomicReference<Optional<URI>> nextUri = new AtomicReference<>(rawFirst.nextUri());
             PagedTagsFetcher anonymousFetcher = (n, last) -> {
                 if (last == null) {
                     // First call: use the response already in hand — no extra HTTP round-trip.
                     return toTagsPage(rawFirstResponse);
                 }
-                return fetchRawPage(n, last);
+                AnonymousPageFetch fetch = fetchAnonymousPage(
+                        nextUri.get().orElseGet(() -> buildTagsListUri(n, last)));
+                nextUri.set(fetch.nextUri());
+                return toTagsPage(fetch.response());
             };
             return paginateAndSelectVersion(anonymousFetcher);
         }
@@ -159,19 +173,6 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
 
         throw new IllegalStateException(
                 "Unexpected HTTP " + status + " from " + baseUrl + "/tags/list");
-    }
-
-    /**
-     * Fetches a single page using a fresh {@link OciRegistryTagsClient}, then closes it.
-     * Used for pages 2+ of the anonymous (direct-200) path.
-     */
-    private TagsPage fetchRawPage(int n, String last) {
-        OciRegistryTagsClient rawClient = buildRawTagsClient();
-        try {
-            return toTagsPage(retryOnConnectionFailure(() -> rawClient.tagsList(n, last)));
-        } finally {
-            closeQuietly(rawClient);
-        }
     }
 
     /**
@@ -255,51 +256,96 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
     }
 
     /**
-     * Makes the initial (unauthenticated) tags/list call and returns the raw {@link Response}.
-     *
-     * <p>Quarkus's MicroProfile REST Client {@code DefaultMicroprofileRestClientExceptionMapper}
-     * fires on non-2xx responses (including {@code 401}) even for {@link Response}-typed methods.
-     * We catch the resulting {@link jakarta.ws.rs.WebApplicationException} and extract the actual
-     * HTTP response from it — the response object is preserved on the exception and carries the
-     * {@code WWW-Authenticate} header needed for the bearer-token dance.
+     * One anonymous (unauthenticated) {@code tags/list} fetch, pairing the adapted
+     * {@link Response} with the absolute URI of the NEXT page (if any), resolved from that same
+     * response's {@code Link} header. Kept separate from {@link TagsPage#nextLastToken()} (the
+     * bare {@code last=} value used by the authenticated/token legs, untouched by this slice):
+     * once a page has been reached via a redirect to a canonical endpoint (ADR-0029), the next
+     * page must be requested at the canonical endpoint's own next-link URI, not reconstructed
+     * against {@link #baseUrl}, which may no longer be where the registry is actually serving
+     * pages from.
      */
-    private Response fetchTagsListRawResponse() {
-        OciRegistryTagsClient rawClient = buildRawTagsClient();
-        try {
-            return retryOnConnectionFailure(() -> rawClient.tagsList(selection.pageSize(), null));
-        } catch (jakarta.ws.rs.WebApplicationException wae) {
-            Response response = wae.getResponse();
-            if (response != null) {
-                return response;
-            }
-            if (wae.getCause() instanceof jakarta.ws.rs.WebApplicationException causeWae
-                    && causeWae.getResponse() != null) {
-                return causeWae.getResponse();
-            }
-            throw new IllegalStateException(
-                    "Unexpected error from " + baseUrl + "/tags/list (no response available)", wae);
-        } finally {
-            closeQuietly(rawClient);
-        }
+    private record AnonymousPageFetch(Response response, Optional<URI> nextUri) {}
+
+    /**
+     * Fetches one anonymous {@code tags/list} page at {@code uri} via {@link RedirectFollowingHttpGet}
+     * (ADR-0029) — used for both the initial probe and every subsequent anonymous page — and adapts
+     * the result into the {@link Response}-shaped flow ({@link #toTagsPage} / {@link #parseChallenge})
+     * that the rest of this class already understands. A {@code 401} is never a redirect status, so
+     * it comes back UNFOLLOWED, with its {@code WWW-Authenticate} header intact for the bearer-token
+     * dance. Nothing about a resolved redirect target is cached: {@code uri} is built fresh by the
+     * caller on every call.
+     */
+    private AnonymousPageFetch fetchAnonymousPage(URI uri) {
+        HttpResponse<String> httpResponse =
+                retryOnConnectionFailure(() -> redirectFollowingHttpGet.get(uri, Map.of()));
+        Response response = toJaxRsResponse(httpResponse);
+        Optional<URI> nextUri = httpResponse.headers().firstValue("Link")
+                .flatMap(OciRegistryLatestSource::parseNextLinkUrl)
+                .map(httpResponse.uri()::resolve);
+        return new AnonymousPageFetch(response, nextUri);
     }
 
     /**
-     * Builds the tags client WITHOUT the {@link VersionResponseExceptionMapper} and without an auth
-     * filter — for the initial probe (where a {@code 401} is expected and inspected for the bearer
-     * challenge) and for anonymous pages 2+. Same {@link OciRegistryTagsClient} interface as
-     * {@link #buildAuthenticatedTagsClient}; only the registered providers differ.
+     * Builds the {@code tags/list} request URI for the anonymous path, carrying the {@code n}
+     * page-size query parameter and — when non-null — the {@code last} pagination cursor.
      */
-    private OciRegistryTagsClient buildRawTagsClient() {
-        return QuarkusRestClientBuilder.newBuilder()
-                .baseUri(URI.create(baseUrl))
-                .build(OciRegistryTagsClient.class);
+    private URI buildTagsListUri(int pageSize, String last) {
+        StringBuilder query = new StringBuilder(baseUrl).append("/tags/list?n=").append(pageSize);
+        if (last != null) {
+            query.append("&last=").append(java.net.URLEncoder.encode(last, StandardCharsets.UTF_8));
+        }
+        return URI.create(query.toString());
+    }
+
+    /**
+     * Adapts a {@link RedirectFollowingHttpGet} result into a {@link jakarta.ws.rs.core.Response}
+     * so the existing {@link #toTagsPage} (200 path) and {@link #parseChallenge} (401 path) logic
+     * keeps working unchanged regardless of which transport fetched the page.
+     *
+     * <p>On {@code 200}, the body is parsed into a {@link TagsListDTO} up front and set as the
+     * entity directly — {@link Response#readEntity(Class)} on a manually-built response returns an
+     * already-matching entity instance as-is, without needing a wired {@code MessageBodyReader}.
+     * On any other status the raw body string is kept as the entity (unused by the 401 dance, which
+     * only inspects the header). The {@code Link} and {@code WWW-Authenticate} headers are copied
+     * verbatim so pagination and the bearer challenge keep working.
+     */
+    private static Response toJaxRsResponse(HttpResponse<String> httpResponse) {
+        int status = httpResponse.statusCode();
+        Response.ResponseBuilder builder = Response.status(status)
+                .entity(status == 200 ? parseTagsListDto(httpResponse.body()) : httpResponse.body());
+        httpResponse.headers().firstValue("Link").ifPresent(value -> builder.header("Link", value));
+        httpResponse.headers().firstValue("WWW-Authenticate")
+                .ifPresent(value -> builder.header("WWW-Authenticate", value));
+        return builder.build();
+    }
+
+    /**
+     * Extracts the raw next-page href from a {@code Link: <url>; rel="next"} header value — the
+     * counterpart to {@link #parseNextLastToken} (which extracts only the {@code last=} value for
+     * the authenticated/token legs). Returns {@link Optional#empty()} when the header has no
+     * {@code rel="next"} entry.
+     */
+    private static Optional<String> parseNextLinkUrl(String linkHeader) {
+        Matcher urlMatcher = LINK_NEXT_URL.matcher(linkHeader);
+        return urlMatcher.find() ? Optional.of(urlMatcher.group(1)) : Optional.empty();
+    }
+
+    /** Parses a {@code tags/list} 200 response body into a {@link TagsListDTO}. */
+    private static TagsListDTO parseTagsListDto(String json) {
+        try {
+            return OBJECT_MAPPER.readValue(json, TagsListDTO.class);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to parse OCI tags/list response body: " + json, e);
+        }
     }
 
     /**
      * Builds the tags client WITH the {@link BearerAuthFilter} (minted token) and the
      * {@link VersionResponseExceptionMapper} (so a non-2xx on the authenticated retry surfaces as a
-     * clear failure). Same {@link OciRegistryTagsClient} interface as {@link #buildRawTagsClient};
-     * only the registered providers differ.
+     * clear failure). The anonymous (direct-200 / no-challenge) path no longer uses a declarative
+     * REST-client build at all — it goes through {@link RedirectFollowingHttpGet} (ADR-0029) — so
+     * this is the only remaining {@link OciRegistryTagsClient} builder.
      */
     private OciRegistryTagsClient buildAuthenticatedTagsClient(String bearerToken) {
         return QuarkusRestClientBuilder.newBuilder()
@@ -394,14 +440,17 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
      * and directs clients to automatically retry idempotent requests on it; every call this
      * source makes is a GET, so the retry is always safe.
      *
-     * <p>Only transport failures ({@link jakarta.ws.rs.ProcessingException} caused by an
-     * {@link IOException}) are retried. HTTP error responses (any status, including the expected
-     * 401 challenge) and non-I/O client errors propagate untouched on the first attempt.
+     * <p>Only transport failures caused by an {@link IOException} are retried — whether raised as a
+     * {@link jakarta.ws.rs.ProcessingException} by the declarative REST-client calls (the
+     * authenticated/token legs) or as a plain {@link RuntimeException} by
+     * {@link RedirectFollowingHttpGet} (the anonymous leg, ADR-0029). HTTP error responses (any
+     * status, including the expected 401 challenge) and non-I/O failures propagate untouched on the
+     * first attempt.
      */
     private static <T> T retryOnConnectionFailure(Supplier<T> call) {
         try {
             return call.get();
-        } catch (jakarta.ws.rs.ProcessingException firstAttempt) {
+        } catch (RuntimeException firstAttempt) {
             if (!causedByIoFailure(firstAttempt)) {
                 throw firstAttempt;
             }
