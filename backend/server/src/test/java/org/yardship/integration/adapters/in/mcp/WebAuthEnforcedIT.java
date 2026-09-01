@@ -34,7 +34,7 @@ import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.WE
 import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.WRONG_AUDIENCE_CLIENT_ID;
 
 /**
- * Auth-ON integration coverage for the REST API ({@code /api/v1}) surface (issue 02, docs/adr/
+ * Auth-on integration coverage for the REST API ({@code /api/v1}) surface (docs/adr/
  * 0026, docs/adr/0028) — mirrors {@link McpOidcAuthEnforcedIT}'s shape for the web surface. Runs
  * under {@link BothSurfacesAuthTestProfile} (both surfaces gated) against real Keycloak Dev
  * Services; the "web gated / mcp open" corner on its own is pinned separately by

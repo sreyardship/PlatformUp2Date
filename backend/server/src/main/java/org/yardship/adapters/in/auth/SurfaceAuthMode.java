@@ -5,17 +5,15 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Shared-issuer, role-gated boot-mode validation contract (docs/adr/0026, docs/adr/0028, issues
- * 01 + 02): derives whether each protected surface (MCP and, as of issue 02, the REST API/"web"
- * surface) boots with OAuth enforced or disabled from the presence of the shared issuer/audience
+ * Shared-issuer, role-gated boot-mode validation contract (docs/adr/0026, docs/adr/0028). Derives
+ * whether each protected surface (MCP and the REST API/web surface) boots with OAuth enforced or
+ * disabled from the presence of the shared issuer/audience
  * pair ({@link #ISSUER_ENV_VAR}/{@link #AUDIENCE_ENV_VAR}) plus each surface's OWN role var
  * ({@link #MCP_ROLE_ENV_VAR}, {@link #WEB_ROLE_ENV_VAR}).
  *
- * <p>This generalizes the former MCP-only {@code McpOidcBootMode}: the issuer/audience pair used
- * to be MCP-specific; it is now the shared pair for the whole app. Each surface moves from "any
- * valid token is trusted" to "a valid token carrying that surface's role is trusted" (docs/adr/
- * 0028), and — as of issue 02 — the two surfaces are gated INDEPENDENTLY of one another: a surface
- * is only ever protected when its OWN role var is present, never merely because the tenant
+ * <p>The issuer/audience pair is shared by the whole application. A valid token must carry the
+ * role configured for the requested surface (docs/adr/0028). The surfaces are gated independently:
+ * a surface is protected only when its own role variable is present, never merely because the tenant
  * (issuer+audience) is on or because the OTHER surface's role var is set.
  *
  * <p>{@link #resolve} implements a presence-switched mode resolution:

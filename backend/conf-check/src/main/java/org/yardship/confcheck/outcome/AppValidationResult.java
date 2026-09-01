@@ -3,7 +3,7 @@ package org.yardship.confcheck.outcome;
 import java.util.List;
 
 /**
- * The aggregate result of validating ONE app's config in the {@code config} gate (issue 06): the
+ * The aggregate result of validating one app's config in the {@code config} gate: the
  * app's name plus one {@link SurfaceResult} per surface considered for it
  * (regex/pointer/changelog/calver — always all four, each either
  * {@code RAN}/{@code SKIPPED_OFFLINE}/{@code NOT_APPLICABLE}).

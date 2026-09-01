@@ -19,7 +19,7 @@ import java.util.Optional;
  * Per-side read/failure instants are {@code null} when absent or when a failure did not occur
  * (respectively).
  *
- * <p>{@code changelogUrl} (ADR-0021, issue 03) mirrors {@code ApplicationStatus}'s (the REST
+ * <p>{@code changelogUrl} (ADR-0021) mirrors {@code ApplicationStatus}'s (the REST
  * sibling) exact semantics: {@code null} when {@code changelogTemplate} is absent, or when the
  * latest side has no known version to substitute.
  */

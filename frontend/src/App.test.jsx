@@ -154,7 +154,7 @@ test('clicking Retry calls getVersions exactly twice (initial + retry)', async (
 })
 
 // ────────────────────────────────────────────────────────────────────────────
-// First-load spinner — slice 02
+// First-load spinner
 // While the very first GET /version is still in flight the body must show a
 // centered CircularProgress instead of the fake-zero board.
 // ────────────────────────────────────────────────────────────────────────────
@@ -272,7 +272,7 @@ test('refresh failure after first successful load: board stays visible, no error
 })
 
 // ────────────────────────────────────────────────────────────────────────────
-// Refresh-failure banner — slice 03
+// Refresh-failure banner
 // After a successful first load, a failed refresh must show a persistent error
 // banner above the summary cards. The board must stay intact. The banner is
 // dismissible and cleared by a subsequent successful fetch.
@@ -369,7 +369,7 @@ test('refresh-failure banner is dismissible; board data is retained after dismis
 })
 
 // ────────────────────────────────────────────────────────────────────────────
-// 403 (authenticated but not entitled) — Not authorized state — slice 04
+// 403 (authenticated but not entitled) — Not authorized state
 //
 // A 403 first-load must land on the Not-authorized screen, never Backend
 // unavailable and never the empty board. A 403 on REFRESH (after a

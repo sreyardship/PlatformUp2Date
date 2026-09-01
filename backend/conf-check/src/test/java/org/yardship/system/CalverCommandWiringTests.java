@@ -16,16 +16,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * End-to-end wiring test: invokes the real {@code calver} picocli command (pure-function, no body
- * source, no {@code --scheme} flag) and asserts both rendered stdout and process exit code. This
- * is the tip of the pyramid for this slice — {@link org.yardship.unit.validation.CalverFormatValidationTests}
- * already covers the resolution/rejection logic exhaustively, so this only proves the command
- * wires {@code CalverFormatValidation -> ReportRenderer} together and that the exit codes from
- * {@link ValidationOutcome} actually reach the process.
- *
- * <p>{@link CalverCommand#call()} currently throws {@link UnsupportedOperationException}, so every
- * test here is RED until the implementer wires it up (mirrors {@code ChangelogCommandWiringTests}'
- * role once {@code ChangelogCommand} was implemented — these tests should turn GREEN with no
- * changes once {@code CalverCommand#call()} is implemented).
+ * source, no {@code --scheme} flag) and asserts both rendered stdout and process exit code. Unit
+ * tests in {@link org.yardship.unit.validation.CalverFormatValidationTests} cover validation;
+ * this class verifies the {@code CalverFormatValidation -> ReportRenderer} command wiring and
+ * propagation of {@link ValidationOutcome} exit codes.
  */
 class CalverCommandWiringTests {
 

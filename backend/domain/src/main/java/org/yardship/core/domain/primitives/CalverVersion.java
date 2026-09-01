@@ -125,7 +125,7 @@ public final class CalverVersion implements VersionValue {
      * The displayed substring (zero-padding preserved) this version carries for {@code type}, or
      * {@code null} if {@code type} is not one of {@link #format}'s declared tokens, or is a trailing
      * token absent from {@link #original}. Consumed by {@link ChangelogTemplate} (same package) and
-     * by the {@code cli} module's {@code calver} subcommand (issue 05), hence public.
+     * by the {@code conf-check} module's {@code calver} subcommand, hence public.
      */
     public String displayedValue(CalverFormat.TokenType type) {
         int index = format.tokens().indexOf(type);

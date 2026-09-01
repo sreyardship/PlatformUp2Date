@@ -16,7 +16,7 @@ import java.util.Optional;
 
 /**
  * Driven {@link AppConfigReader} adapter that parses a real {@code platform-config.yaml} file off
- * disk into {@link AppConfig} records for the {@code config} gate (issue 06), using a standalone
+ * disk into {@link AppConfig} records for the {@code config} gate using a standalone
  * Jackson YAML mapper ({@code jackson-dataformat-yaml}) — {@code :cli} must not depend on
  * {@code :backend}'s Quarkus/SmallRye {@code ApplicationConfigLoader}, so this is a plain,
  * hand-rolled equivalent covering only the fields {@link AppConfig} models. See

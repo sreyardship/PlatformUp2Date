@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * <p>{@code @QuarkusTest} is required because {@code QuarkusRestClientBuilder} needs a running
  * Quarkus context — matching the existing IT style.
  *
- * <p>This slice covers the fetch-and-select round-trip: single-page tags/list (no challenge),
+ * <p>This class covers the fetch-and-select round-trip: single-page tags/list (no challenge),
  * real Jackson deserialization, the all-skipped error path, and the HTTP endpoint path.
  * Tag-selection logic (ranking, filter, strip) is owned by
  * {@link org.yardship.unit.adapters.out.versionsource.latest.ociregistry.OciTagSelectorTests}.
@@ -116,11 +116,11 @@ class OciRegistryLatestSourceIT {
         wireMockServer.verify(getRequestedFor(urlPathEqualTo("/v2/library/nginx/tags/list")));
     }
 
-    // ---- issue 04: anonymous redirect handling (ADR-0029) --------------------------------------
+    // ---- anonymous redirect handling (ADR-0029) -----------------------------------------------
     // The raw (unauthenticated) tags/list request must follow 301/302/303/307/308 to a canonical
     // endpoint that returns 200, and still produce the correct pagination/selection result. These
-    // tests pin the DIRECT-200 / no-challenge branch only — the redirect-to-401 challenge branch is
-    // slice 05's concern and is intentionally NOT exercised here.
+    // tests cover the direct-200/no-challenge branch; OciRegistryLatestSourceAuthIT covers
+    // redirect-to-401 challenge flows.
 
     @Test
     void redirect_followsToCanonicalEndpoint_andSelectsLargestTag() {

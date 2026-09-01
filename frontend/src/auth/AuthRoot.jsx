@@ -1,8 +1,6 @@
-// Issue 03 (SPA becomes an OIDC client) — composition root gating.
-//
-// When web auth is disabled, renders <App/> directly: no <AuthProvider>, no useAuth() call, no
-// redirect — exactly today's behavior. When enabled, wraps <App/> in react-oidc-context's
-// <AuthProvider> (configured from the same in-memory UserManager settings as src/auth/
+// Composition root for optional web authentication. When web auth is disabled, renders <App/>
+// directly with no <AuthProvider>, useAuth() call, or redirect. When enabled, wraps <App/> in
+// react-oidc-context's <AuthProvider> (configured from the same in-memory UserManager settings as src/auth/
 // userManager.js, so the interceptor and the provider share one token source) and, inside it,
 // redirects an unauthenticated visitor to the IdP and renders the board once authenticated.
 

@@ -6,7 +6,7 @@ import java.util.Map;
 
 /**
  * Auth-ON profile for the <b>both surfaces gated</b> corner of the four on/off combinations
- * (issue 02, docs/adr/0028): sets BOTH {@code MCP_OIDC_ROLE} and {@code WEB_OIDC_ROLE}, so
+ * (docs/adr/0028): sets both {@code MCP_OIDC_ROLE} and {@code WEB_OIDC_ROLE}, so
  * {@code /api/v1} and {@code /api/mcp} are each independently role-gated against the SAME shared
  * issuer+audience. This is the profile the cross-surface isolation IT
  * ({@link CrossSurfaceIsolationIT}) and the web-surface enforcement IT ({@link WebAuthEnforcedIT})

@@ -476,7 +476,7 @@ class SshOsReleaseCurrentSourceIT {
     /**
      * Reusable builder for a fake {@link ApplicationConfigLoader.VersionSource} that supplies
      * all SSH-specific fields. The new SSH methods are added WITHOUT {@code @Override} because
-     * they do not yet exist on the interface; once the implementer adds them, the anonymous class
+     * they are kept separate from the shared interface; the anonymous class
      * will correctly satisfy the interface.
      */
     static class VersionSourceBuilder {
@@ -534,7 +534,7 @@ class SshOsReleaseCurrentSourceIT {
                 @Override public Optional<ApplicationConfigLoader.VersionSource.Auth> auth() { return Optional.empty(); }
                 @Override public Optional<Integer> pageSize()          { return Optional.empty(); }
 
-                // --- New SSH methods (no @Override yet — interface not yet updated) ---
+                // --- SSH-specific config methods outside the shared interface ---
                 public Optional<String>  host()           { return fHost; }
                 public Optional<Integer> port()           { return fPort; }
                 public Optional<String>  user()           { return fUser; }

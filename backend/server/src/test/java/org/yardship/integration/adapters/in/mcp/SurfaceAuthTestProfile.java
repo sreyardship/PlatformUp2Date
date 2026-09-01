@@ -5,9 +5,8 @@ import io.quarkus.test.junit.QuarkusTestProfile;
 import java.util.Map;
 
 /**
- * Auth-ON profile for the shared-issuer, role-gated model (docs/adr/0026, docs/adr/0028, issues
- * 01 + 02) — the generalization of the former MCP-only {@code McpOidcAuthTestProfile}. This
- * profile is the <b>MCP-only</b> corner of the four on/off combinations (issue 02): it sets
+ * Auth-on profile for the shared-issuer, role-gated model (docs/adr/0026 and docs/adr/0028). This
+ * profile is the <b>MCP-only</b> corner of the four on/off combinations: it sets
  * {@code MCP_OIDC_ROLE} but deliberately leaves {@code WEB_OIDC_ROLE} unset, so {@code /api/v1}
  * stays open while {@code /api/mcp} is gated — see {@link McpOidcNonMcpSurfacesIT}, which pins
  * that "web off" side of this profile. The sibling combinations live in

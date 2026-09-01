@@ -15,9 +15,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.when;
 
 /**
- * Issue 03 (SPA becomes an OIDC client, docs/adr/0028) — the backend half of the AC "dev-origin
- * requests with an Authorization header succeed under CORS". Runs under {@link DevCorsTestProfile},
- * which pins the {@code quarkus.http.cors.*} values the implementer's real {@code %dev}
+ * Backend coverage for the dev-origin CORS contract (docs/adr/0028): requests with an
+ * Authorization header succeed under CORS. Runs under {@link DevCorsTestProfile},
+ * which pins the {@code quarkus.http.cors.*} values that the real {@code %dev}
  * application.yml block must produce (see that profile's Javadoc for why config-override pinning
  * substitutes for exercising {@code %dev} activation directly).
  *
@@ -72,7 +72,7 @@ class DevCorsPreflightIT {
 
     @Test
     void preflight_fromUnknownOrigin_isNotGrantedTheDevOrigin() {
-        // Guard against an overly-broad config (e.g. origins: "*") swallowing this AC: an
+        // Guard against an overly broad config such as origins: "*":
         // origin OTHER than the configured dev origin must not receive it back as the
         // allowed origin.
         given()

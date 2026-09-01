@@ -67,7 +67,7 @@ describe('failureKind — api-error (HTTP error response)', () => {
 })
 
 // ────────────────────────────────────────────────────────────────────────────
-// not-authorized (403) — slice 04
+// Not authorized (403)
 //
 // A 403 means the caller's token validated but lacks the web Surface's role
 // (pu2d-web) — authenticated but not entitled. This is a DISTINCT kind from
@@ -87,7 +87,7 @@ describe('failureKind — not-authorized (403 Not authorized)', () => {
   test('the not-authorized message names the account, not "backend unavailable"', () => {
     const forbiddenErr = { status: 403 }
     const result = failureKind(forbiddenErr)
-    // Pinned copy for this slice — matches the issue's framing exactly.
+    // Keep authorization failures distinct from backend availability failures.
     expect(result.message).toBe("Your account isn't authorized for this app")
     expect(result.message.toLowerCase()).not.toMatch(/backend unavailable/)
     expect(result.message.toLowerCase()).not.toMatch(/forbidden/)

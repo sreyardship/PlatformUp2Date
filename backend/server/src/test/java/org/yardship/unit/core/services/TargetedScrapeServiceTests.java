@@ -143,8 +143,8 @@ class TargetedScrapeServiceTests {
 
     @Test
     void targetedScrape_singleSideTarget_appAbsentFromSnapshot_readsOnlyRequestedSide_otherSidePending() {
-        // Issue 03: DROP the effectiveSide upgrade workaround. A cold single-side target no longer
-        // upgrades to BOTH. Instead it reads only the requested side and persists the app with the
+        // A cold single-side target does not upgrade to BOTH. It reads only the requested side
+        // and persists the app with the
         // other side as pending (no value). The VersionApplication is Unresolved.
         store.seed(snapshotOf(
                 new VersionApplication("grafana", SideObservation.resolved(new SemverVersion("2.0.0"), START), SideObservation.resolved(new SemverVersion("2.0.0"), START))));
@@ -250,7 +250,7 @@ class TargetedScrapeServiceTests {
         assertEquals(0, fullRateLimiter.tryAcquireCount, "a targeted scrape must never spend the full budget");
     }
 
-    // --- Issue 03: targeted scrapes spend ONLY their own budget -------------------------------
+    // --- Targeted scrapes spend only their own budget ----------------------------------------
 
     @Test
     void targetedScrape_lockWon_spendsOnlyTheTargetedBudget_neverTheFullBudget() {

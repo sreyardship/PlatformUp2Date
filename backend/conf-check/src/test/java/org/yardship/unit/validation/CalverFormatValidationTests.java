@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * network, and (unlike {@code changelog}) no {@code --scheme} flag: the scheme is implicitly
  * {@code CALVER}, so {@code validate} builds its own {@code CalverFormat}/{@code VersionParser}
  * internally from the raw {@code format} string. Mirrors
- * {@code ChangelogResolutionValidationTests}' structure (issue 04), the closest architectural
+ * {@code ChangelogResolutionValidationTests}, the closest architectural
  * precedent: pure function, two failure modes both mapped to {@link ValidationOutcome.ConfigInvalid}.
  *
  * <p>See {@code CalverCommandWiringTests} (system level) for the end-to-end picocli path.

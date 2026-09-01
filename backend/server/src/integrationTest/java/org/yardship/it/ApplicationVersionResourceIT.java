@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * fails to construct in native, the scheduled scrape never populates the cache and
  * {@code /api/v1/version} stays empty ({@code {}}), which fails this test.
  *
- * <p>Since issue #39's tracer bullet, {@code good-app}'s {@code github-release} fixture
+ * <p>The {@code good-app} {@code github-release} fixture
  * ({@link WireMockVersionResource}) serves its releases behind a 301 redirect (the
  * {@code /repos/.../releases} -> {@code /repositories/<id>/releases} move GitHub actually performed
  * for {@code vmware-tanzu/velero} — see ADR-0029). This test observing {@code latest = 2.0.0} through

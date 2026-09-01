@@ -21,10 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * prerelease stripping. The REST-client-building concern lives entirely in
  * {@code HttpCurrentVersionClientFactory} now and is exercised separately at the integration level.
  *
- * <p>This rehomes the construction/extraction coverage that previously lived only in
- * {@code HttpCurrentSourceIT} (which directly built {@code QuarkusRestClientBuilder} clients) down to
- * a true, fast unit test — per plan.md's "Migrates the current IT-only construction concern down to a
- * true unit test."
+ * <p>Construction and extraction are covered here as fast unit tests; HTTP client construction
+ * remains in {@code HttpCurrentSourceIT} and the client-factory integration tests.
  */
 class HttpCurrentSourceTests {
     private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);

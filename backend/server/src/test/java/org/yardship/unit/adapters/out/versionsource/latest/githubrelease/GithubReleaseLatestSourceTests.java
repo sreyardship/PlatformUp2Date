@@ -17,11 +17,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * among non-prerelease, non-draft releases — selected by {@code tag_name}, NOT GitHub's time-ordered
  * {@code GET /releases/latest} and NOT release {@code name} (see ADR-0010).
  *
- * <p><b>Test seam this issue must build:</b> {@code GithubReleaseLatestSource} currently builds its
- * {@link GithubReleaseClient} lazily and internally (no injection point). To unit-test the selection
- * logic without HTTP/Quarkus, the implementer must add a public (test-visible, like the factory's
- * token-only constructor) constructor that accepts a pre-built {@link GithubReleaseClient} directly,
- * bypassing the lazy {@code QuarkusRestClientBuilder} path entirely:
+ * <p>To test selection without HTTP or Quarkus, the source exposes a public constructor that
+ * accepts a pre-built {@link GithubReleaseClient}, bypassing the production client-building path:
  *
  * <pre>{@code
  * // public; visible for testing — this test lives in a different package than the production class
@@ -32,17 +29,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * port-level seam), not an ad-hoc mock — consistent with this codebase's "fakes over mocks" style.
  * It is a lambda rather than a named class deliberately: {@code GithubReleaseClient} is one of this
  * module's CDI-discoverable REST-client interfaces, and under {@code @QuarkusTest} elsewhere in the
- * suite Arc's classpath bean-scanning will try to satisfy a named fake CLASS's constructor parameters
- * via injection (it does not scan lambdas). The new client method is assumed to be
- * {@code List<GithubReleaseResponseDTO> releases(int perPage)} (per the {@code @QueryParam("per_page")}
- * acceptance criterion); the fake below ignores the {@code perPage} argument and simply returns the
- * fixed list configured by each test, since pagination/count behavior is integration-level (covered by
+ * suite Arc's classpath bean-scanning will try to satisfy a named fake class's constructor parameters
+ * via injection (it does not scan lambdas). The fake ignores {@code perPage} and returns the fixed
+ * list configured by each test; pagination behavior is covered by
  * {@code GithubReleaseLatestSourceIT}), not selection-logic.
  *
- * <p>{@link GithubReleaseResponseDTO} is assumed to gain two new public fields ({@code prerelease},
- * {@code draft}, both {@code boolean}) alongside the existing {@code name} and a new {@code tag_name}
- * -backed {@code tagName} field (Jackson/JSON-B will map the snake_case {@code tag_name} JSON key onto
- * a {@code tagName} Java field at the DTO level — see the IT for the real-deserialization check). This
+ * <p>{@link GithubReleaseResponseDTO} exposes {@code prerelease}, {@code draft}, {@code name}, and
+ * a {@code tag_name}-backed {@code tagName} field. The integration test covers deserialization; this
  * unit suite constructs the DTO directly via field assignment, so the exact JSON-to-field name mapping
  * is irrelevant here.
  */

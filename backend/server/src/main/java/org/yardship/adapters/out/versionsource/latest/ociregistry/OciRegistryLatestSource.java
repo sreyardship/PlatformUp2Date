@@ -263,8 +263,8 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
     /**
      * One anonymous (unauthenticated) {@code tags/list} fetch, pairing the adapted
      * {@link Response} with the absolute URI of the NEXT page (if any), resolved from that same
-     * response's {@code Link} header. Kept separate from {@link TagsPage#nextLastToken()} (the
-     * bare {@code last=} value used by the authenticated/token legs, untouched by this slice):
+     * response's {@code Link} header. Kept separate from {@link TagsPage#nextLastToken()}, the
+     * bare {@code last=} value used by the authenticated/token legs:
      * once a page has been reached via a redirect to a canonical endpoint (ADR-0029), the next
      * page must be requested at the canonical endpoint's own next-link URI, not reconstructed
      * against {@link #baseUrl}, which may no longer be where the registry is actually serving
@@ -524,7 +524,7 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
 
     @Override
     public void close() throws IOException {
-        // No persistent resources to close in the new design (fetcher is externally owned).
+        // The externally owned fetcher leaves this source with no persistent resources to close.
     }
 
     /** Parsed fields from a {@code WWW-Authenticate: Bearer} challenge (ADR-0013). */

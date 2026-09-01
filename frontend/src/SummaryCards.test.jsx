@@ -60,7 +60,7 @@ test('renders all-zero counts for an empty payload', () => {
   expect(within(upToDateCard).getByText('0')).toBeInTheDocument()
 })
 
-// --- Issue 03: Unknown (Unresolved) stat ------------------------------------------------
+// --- Unknown (Unresolved) stat ----------------------------------------------------------
 //
 // SummaryCards must display an "Unknown" stat (count of Unresolved apps).
 // Total must reconcile: upToDate + patch + minor + major + unknown === total.

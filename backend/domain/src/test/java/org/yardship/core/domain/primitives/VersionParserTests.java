@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * ordering, and the full malformed-input matrix) is owned by {@code SemverVersionTests} and
  * {@code CalverVersionTests} respectively and is not duplicated here.
  *
- * <p>Assumed API surface for the implementer:
+ * <p>Covered API surface:
  * <ul>
  *   <li>{@code VersionParser(VersionScheme scheme)} — single-arg constructor; works for SEMVER;
  *       throws {@link IllegalArgumentException} at construction for CALVER (no format supplied).</li>

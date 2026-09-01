@@ -16,9 +16,8 @@ import static org.yardship.core.domain.primitives.DomainValidator.notNull;
  * <p>{@code outcome} says what happened; the {@code appsAttempted/appsSucceeded/appsFailed}
  * counts are populated from the {@link ScrapeResult} on a {@code SCRAPED} outcome (and are 0
  * otherwise). The budget fields — {@code triggersRemaining}, {@code windowResetsInSeconds}
- * (relevant on SCRAPED) and {@code retryAfterSeconds} (relevant on RATE_LIMITED) — are carried
- * here so slice 04 can populate them without reshaping the record; this slice always sets them
- * to 0.
+ * (relevant on SCRAPED) and {@code retryAfterSeconds} (relevant on RATE_LIMITED) — report the
+ * state of the manual-scrape rate limit.
  *
  * <p>{@code targetResults} carries the per-target outcomes of a targeted scrape (one
  * {@link TargetResult} per requested {@code ScrapeTarget}); the full-fleet path passes an empty

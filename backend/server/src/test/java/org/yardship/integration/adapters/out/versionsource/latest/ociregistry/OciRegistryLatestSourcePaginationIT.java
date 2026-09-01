@@ -23,7 +23,7 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Integration tests for OCI registry pagination (slice 03 — ADR-0014).
+ * Integration tests for OCI registry pagination (ADR-0014).
  *
  * <p>Uses a standalone WireMock server on port 8092, distinct from the no-challenge tests on 8090
  * ({@link OciRegistryLatestSourceIT}) and the bearer-dance tests on 8091
@@ -42,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * <p>{@code @QuarkusTest} is required because {@link io.quarkus.rest.client.reactive.QuarkusRestClientBuilder}
  * needs a running Quarkus context.
  *
- * <p>NOTE on WARNING assertion: this slice does not assert the WARNING log emitted on cap-exceed
+ * <p>These tests do not assert the warning log emitted when the cap is exceeded
  * (ADR-0014: "log a warning naming the repo and the cap") because no log-capture pattern exists
  * in the test suite. The behavioral assertions (largest-seen returned, no further request) are
  * the primary spec. Log capture can be added later if the pattern is introduced.
@@ -82,7 +82,7 @@ class OciRegistryLatestSourcePaginationIT {
         // Page 1: ["1.0.0", "1.1.0"] with Link header pointing to page 2.
         // Page 2: ["2.0.0"] — the largest tag, no Link (last page).
         // The source must traverse BOTH pages and return "2.0.0".
-        // Without pagination implementation the source returns "1.1.0" → test fails red.
+        // The largest version appears on the second page.
         wireMockServer.stubFor(get(urlPathEqualTo(TAGS_PATH))
                 .withQueryParam("n", equalTo("2"))
                 .willReturn(aResponse()
@@ -194,7 +194,7 @@ class OciRegistryLatestSourcePaginationIT {
     @Test
     void lastQueryParam_threadedFromLinkHeader_onSubsequentPageRequest() {
         // Page 1 returns Link containing last=1.1.0; page 2 must be requested with last=1.1.0.
-        // Without pagination implementation, page 2 is never requested → verify fails → test red.
+        // Verify that traversal continues to the second page.
         wireMockServer.stubFor(get(urlPathEqualTo(TAGS_PATH))
                 .withQueryParam("n", equalTo("2"))
                 .willReturn(aResponse()
@@ -232,7 +232,7 @@ class OciRegistryLatestSourcePaginationIT {
         // Page 2: ["2.0.0","2.1.0"] (2 more = 4 total = cap reached), Link present.
         // Page 3 would have ["3.0.0"] — must NOT be fetched.
         // Expected result: "2.1.0" (largest from pages 1+2).
-        // With stub (single-page): returns "1.1.0" → assertEquals("2.1.0", …) fails → red.
+        // The largest version appears after the first page.
         wireMockServer.stubFor(get(urlPathEqualTo(TAGS_PATH))
                 .withQueryParam("n", equalTo("2"))
                 .willReturn(aResponse()

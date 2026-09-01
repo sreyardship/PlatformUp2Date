@@ -202,7 +202,7 @@ describe('sort', () => {
   })
 })
 
-// --- Issue 03: Unknown (Unresolved) app sort behaviour ------------------------------------
+// --- Unknown (Unresolved) app sort behaviour ----------------------------------------------
 //
 // Default status sort (desc): Unknown ranks ABOVE MAJOR (at the very top of the list).
 // Version-column sort: null/missing versions sink to the BOTTOM in BOTH directions

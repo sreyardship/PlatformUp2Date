@@ -15,11 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ChangelogTemplates} — the eager, per-app {@link ChangelogTemplate}
- * lookup (ADR-0021, issue 01). Closes a coverage gap: nothing previously exercised this bean's
- * app-name-wrapping of {@link ChangelogTemplate}'s own (token-only) construction failure, despite
- * "boot fails with an app-and-token-naming error for an illegal template" being an acceptance
- * criterion for issue 01.
+ * Unit tests for the eager, per-app {@link ChangelogTemplate} lookup (ADR-0021). Verifies that
+ * construction failures include the app name while preserving fail-fast startup behavior.
  *
  * <p>Driven entirely through the package-visible {@code List<AppConfig>} constructor — "visible
  * for testing: lets tests drive this bean with plain fakes and no CDI container" — with fake

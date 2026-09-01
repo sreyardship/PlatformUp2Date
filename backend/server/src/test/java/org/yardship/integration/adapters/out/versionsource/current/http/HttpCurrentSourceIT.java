@@ -32,11 +32,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * {@link org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClient} built by the injected
  * {@link HttpCurrentVersionClientFactory} against a standalone WireMock server on port 8089.
  *
- * <p>This is intentionally thin: per plan.md, the extraction/strip-prerelease/error-message behavior
- * that used to live here (because the old {@code HttpCurrentSource} built its own REST client) has
- * moved down to a true unit test ({@code HttpCurrentSourceTests}, fake client, no Arc). What remains
- * here is the thing only an IT can prove — that a client built by the real collaborator and handed to
- * the POJO source round-trips an actual HTTP call correctly, including the non-2xx mapping. The
+ * <p>This is intentionally thin: extraction, prerelease stripping, and error-message behavior are
+ * covered by {@code HttpCurrentSourceTests} with a fake client and no Arc. This class verifies that
+ * a client built by the real collaborator and handed to the POJO source round-trips an HTTP call,
+ * including non-2xx mapping. The
  * "never sends an Authorization header" guardrail moved to {@code HttpCurrentVersionClientFactoryIT},
  * since that header decision is now entirely the client factory's concern.
  *
@@ -99,7 +98,7 @@ class HttpCurrentSourceIT {
         assertThrows(RuntimeException.class, source::version);
     }
 
-    // --- Issue 02: Harbor Basic-auth end-to-end (factory path) --------------------------------
+    // --- Basic auth end-to-end (factory path) ------------------------------------------------
 
     @Test
     void factoryCreate_withValidHarborBasicAuthConfig_endToEnd_readsHarborVersion() {
@@ -123,7 +122,7 @@ class HttpCurrentSourceIT {
         assertEquals("2.13.0", result.version().value());
     }
 
-    // --- Issue 03: Bearer-auth end-to-end (factory path) --------------------------------------
+    // --- Bearer auth end-to-end (factory path) -----------------------------------------------
 
     @Test
     void factoryCreate_withValidBearerAuthConfig_endToEnd_readsTheVersion() {

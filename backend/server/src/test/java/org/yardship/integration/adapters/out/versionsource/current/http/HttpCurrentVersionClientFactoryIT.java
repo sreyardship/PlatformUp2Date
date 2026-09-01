@@ -88,8 +88,8 @@ class HttpCurrentVersionClientFactoryIT {
 
     @Test
     void build_withoutAnAuthFilter_sendsNoAuthorizationHeader() {
-        // Security-critical guardrail rehomed from HttpCurrentSourceIT: building with
-        // Optional.empty() (the current leg's only mode this slice) must never carry an
+        // Security guardrail: building with
+        // An absent auth filter must never add an
         // Authorization header — the current leg hits our own deployment endpoints, where a
         // GitHub (or any other) token would be a secret-exfiltration bug.
         wireMockServer.stubFor(get(urlEqualTo("/current"))

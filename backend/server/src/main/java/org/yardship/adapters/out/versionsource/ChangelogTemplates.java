@@ -13,14 +13,14 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Per-app {@link ChangelogTemplate} lookup (ADR-0021, issue 01), built EAGERLY at startup from
+ * Per-app {@link ChangelogTemplate} lookup (ADR-0021), built eagerly at startup from
  * {@link ApplicationConfigLoader}'s {@code changelog-url} config so an illegal template fails
  * boot rather than surfacing at read time — the same fail-fast posture as {@code VersionParser}
  * and the {@code http-regex} latest-source's regex validation.
  *
  * <p>This is the single lookup consumed by both the REST projection ({@code VersionController} /
- * {@code ApplicationStatus}) and the MCP slice (03) — the per-app template map is built exactly
- * once here and never duplicated into an adapter.
+ * {@code ApplicationStatus}) and the MCP adapter. The per-app template map is built exactly once
+ * here and never duplicated into an adapter.
  */
 @ApplicationScoped
 @Startup

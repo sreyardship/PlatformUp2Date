@@ -13,32 +13,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit contract for the shared-issuer, role-gated boot-mode validator (docs/adr/0026, docs/adr/
- * 0028, issues 01 + 02). Exercises {@link SurfaceAuthMode#resolve} directly — a plain-Java seam,
- * no CDI/Quarkus boot needed — covering the config contract's legal states and illegal states
- * (issuer-without-audience, role-without-issuer for EITHER surface's role var).
+ * Unit contract for the shared-issuer, role-gated boot-mode validator (docs/adr/0026 and
+ * docs/adr/0028). Exercises {@link SurfaceAuthMode#resolve} directly without CDI or Quarkus boot,
+ * covering legal states and invalid issuer/audience/role combinations.
  *
- * <p><b>Signature evolution (issue 02):</b> {@code resolve} now takes a fourth argument,
- * {@code webRole}, mirroring {@code mcpRole} — both RAW (un-defaulted) optionals, per the same
- * contract established in issue 01.
- *
- * <p><b>BEHAVIOR CHANGE flagged for the implementer/reviewer — read before touching
- * {@code SurfaceAuthMode}:</b> issue 01 shipped MCP surface inclusion as unconditional once
- * issuer+audience are present (role absent/blank still built an {@code Enabled} carrying an MCP
- * {@link SurfaceAuthMode.ProtectedSurface} with the {@link SurfaceAuthMode#DEFAULT_MCP_ROLE}
- * default). Issue 02's contract requires the two surfaces to be <em>independently</em> switchable
- * — all four on/off combinations of {@code MCP_OIDC_ROLE} presence and {@code WEB_OIDC_ROLE}
- * presence must be expressible (see the issue's acceptance criterion "{@code WEB_OIDC_ROLE}
- * unset: {@code /api/v1} open regardless of MCP being on"). That is only satisfiable if EACH
- * surface's inclusion in {@code protectedSurfaces} is gated on that surface's OWN role var being
- * raw-present — not merely on issuer+audience presence. This test file therefore intentionally
- * REPLACES issue 01's two "role absent/blank -&gt; Enabled with default-role MCP surface" unit
- * tests with new ones asserting "role absent/blank -&gt; Enabled with NO mcp surface" (tenant on,
- * that surface permits). {@link SurfaceAuthMode#DEFAULT_MCP_ROLE} / the new
- * {@code DEFAULT_WEB_ROLE} constants are still pinned by name/value (operator-facing contract),
- * but are no longer exercised as an "applied when absent" fallback inside {@code resolve} for
- * surface inclusion — flag this to confirm the constants' purpose (documentation of the
- * recommended role name vs. a still-relevant runtime fallback) before/while implementing.
+ * <p>MCP and web protection are independently presence-switched by their raw role variables. A
+ * configured tenant may therefore leave either surface open. Default-role constants document the
+ * recommended operator-facing names; {@code resolve} does not apply them when a role is absent.
  */
 class SurfaceAuthModeTests {
 
@@ -96,7 +77,7 @@ class SurfaceAuthModeTests {
     }
 
     // --- Enabled: issuer + audience present, NEITHER role present --------------------------
-    // (issue 02 behavior change: tenant on, both surfaces permit — see class Javadoc.)
+    // A configured tenant may leave both surfaces open; see the class Javadoc.
 
     @Test
     void issuerAndAudiencePresent_neitherRolePresent_resolvesToEnabled_withNoProtectedSurfaces() {
@@ -117,7 +98,7 @@ class SurfaceAuthModeTests {
 
         SurfaceAuthMode.Enabled enabled = (SurfaceAuthMode.Enabled) mode;
         assertEquals(Set.of(), enabled.protectedSurfaces(),
-                "blank role must be treated as absent, same as issue 01's blank-issuer/audience contract");
+                "a blank role must be treated as absent");
     }
 
     // --- Enabled: MCP role present, web role absent (mcp on / web off) ---------------------
@@ -267,7 +248,7 @@ class SurfaceAuthModeTests {
     }
 
     // --- NEW boot failure: web role present, issuer absent/blank ----------------------------
-    // Same invariant as mcpRole, applied symmetrically to the new web role var (issue 02).
+    // Apply the same presence invariant symmetrically to the web role.
 
     @Test
     void webRolePresentWithoutIssuer_failsBoot_withMessageNamingIssuerEnvVar() {

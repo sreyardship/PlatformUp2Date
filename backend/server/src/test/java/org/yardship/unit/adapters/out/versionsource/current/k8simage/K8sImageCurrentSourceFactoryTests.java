@@ -22,7 +22,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
  * {@code namespace}, {@code workload}, and {@code container} are all required and non-blank.
  *
  * <p><b>Test seam:</b> the factory is {@code @ApplicationScoped} and injects a CDI-provided
- * {@link KubernetesClient}. To keep this a true unit test, the implementer must accept the client via
+ * {@link KubernetesClient}. To keep this a true unit test, the factory accepts the client via
  * constructor injection so a test can pass a Mockito mock:
  * <pre>{@code K8sImageCurrentSourceFactory(KubernetesClient client)}</pre>
  * Validation MUST run before any client call, so on every error path the mock is never touched

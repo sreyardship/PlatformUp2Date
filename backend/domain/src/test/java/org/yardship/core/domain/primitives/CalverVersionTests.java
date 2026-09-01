@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * (most-significant-category-wins, date-only format never yields PATCH), and
  * {@link VersionValue#withoutPreRelease()} contract.
  *
- * <p>Assumed API surface for the implementer:
+ * <p>Covered API surface:
  * <ul>
  *   <li>{@code CalverVersion(String original, CalverFormat format)} — constructor; throws
  *       {@link InvalidVersionException} if {@code original} is null or does not match

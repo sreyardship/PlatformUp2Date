@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p><b>Test seam:</b> the production constructor injects {@code Instance<…Factory>}, the
  * {@link ApplicationConfigLoader}, and the shared {@link VersionParsers} bean — parser construction
- * now lives exactly once in {@code VersionParsers} (issue 01), not inline in this resolver. To
+ * lives exactly once in {@code VersionParsers}, not inline in this resolver. To
  * unit-test without a CDI container, the resolver exposes a test-visible (package-private or public)
  * constructor that accepts plain collections of factories, a plain {@code List<AppConfig>}, and a
  * {@link VersionParsers} instance (itself built via its own plain-list test constructor):

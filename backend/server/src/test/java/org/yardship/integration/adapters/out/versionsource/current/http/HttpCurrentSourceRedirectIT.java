@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Pins ADR-0029 (issue 02) for the {@code http} current-version source: a configured current URL
+ * Pins ADR-0029 for the {@code http} current-version source: a configured current URL
  * that responds with a supported redirect must reach the final JSON body, resolve the existing JSON
  * Pointer, parse the version, and return it through {@link HttpCurrentSource} exactly as a direct
  * 2xx response does — while the {@code Authorization} header rendered by an
@@ -45,15 +45,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * <p>Drives the real adapter surface end to end: a client built by the injected
  * {@link HttpCurrentVersionClientFactory} handed to a real {@link HttpCurrentSource}, matching the
  * style of {@code HttpCurrentSourceIT} / {@code HttpCurrentSourceTlsIT}. Existing Basic/Bearer/
- * file-bearer/custom-CA/insecure-skip-tls-verify coverage in those classes is untouched and must
- * remain green; this class only ADDS the redirect-specific behavior from ADR-0029.
+ * file-bearer/custom-CA/insecure-skip-tls-verify behavior is covered by those classes; this class
+ * focuses on ADR-0029 redirect behavior.
  *
- * <p>RED PHASE: {@link HttpCurrentVersionClientFactory#build} currently builds a plain
- * {@code QuarkusRestClientBuilder} client with no redirect-following transport, so every test below
- * that stubs a 301/redirect is expected to fail (either by throwing on the raw redirect response, or
- * — for the auth/TLS tests — because the behavior described by ADR-0029 does not yet exist on this
- * leg) until the implementer wires {@code RedirectFollowingHttpGet} (or an equivalent
- * TLS/insecure-aware variant of it) into the {@code http} current adapter.
+ * <p>The HTTP current adapter uses a redirect-following transport that preserves the configured
+ * TLS policy while enforcing ADR-0029's credential and downgrade rules.
  */
 @QuarkusTest
 class HttpCurrentSourceRedirectIT {
@@ -116,7 +112,7 @@ class HttpCurrentSourceRedirectIT {
         httpsWireMockServer.resetAll();
     }
 
-    // --- AC: a 301 to a final JSON endpoint resolves through the real client + HttpCurrentSource,
+    // --- A 301 to a final JSON endpoint resolves through the real client and HttpCurrentSource,
     // with the final path asserted explicitly so the test cannot pass by deserializing the
     // intermediate response. ------------------------------------------------------------------
 
@@ -143,7 +139,7 @@ class HttpCurrentSourceRedirectIT {
         wireMockServer.verify(getRequestedFor(urlEqualTo("/current-final")));
     }
 
-    // --- AC: a same-origin authenticated redirect reaches the target with its Authorization header
+    // --- A same-origin authenticated redirect retains its Authorization header
     // intact (Basic and Bearer). ---------------------------------------------------------------
 
     @Test
@@ -196,7 +192,7 @@ class HttpCurrentSourceRedirectIT {
                 .withHeader("Authorization", equalTo("Bearer tok-123")));
     }
 
-    // --- AC: a cross-origin authenticated redirect may reach a successful public target, but that
+    // --- A cross-origin authenticated redirect may reach a public target, but
     // target observes no Authorization header. ---------------------------------------------------
 
     @Test
@@ -224,7 +220,7 @@ class HttpCurrentSourceRedirectIT {
                 .withHeader("Authorization", absent()));
     }
 
-    // --- AC: HTTPS -> HTTP downgrade remains refused by the policy established in slice 01. ------
+    // --- HTTPS -> HTTP downgrade remains refused by redirect policy. ----------------------------
 
     @Test
     void read_refusesHttpsToHttpDowngrade_beforeContactingTheHttpTarget() throws Exception {
@@ -249,7 +245,7 @@ class HttpCurrentSourceRedirectIT {
 
     // --- Redirect-transport / TLS-boundary gap: a redirect that stays WITHIN the custom-CA HTTPS
     // origin must still complete on both hops using the per-client trust configuration — this is
-    // the RedirectFollowingHttpGet default-HttpClient gap flagged for the implementer. -----------
+    // the default RedirectFollowingHttpGet client path. ------------------------------------------
 
     @Test
     void read_followsSameOriginHttpsRedirect_usingTheConfiguredTrustStore_onBothHops() throws Exception {
@@ -292,7 +288,7 @@ class HttpCurrentSourceRedirectIT {
                         + "not just the initial one");
     }
 
-    // --- AC: a final non-2xx response after a redirect still throws through
+    // --- A final non-2xx response after a redirect still throws through
     // VersionResponseExceptionMapper and remains an isolated source failure. --------------------
 
     @Test

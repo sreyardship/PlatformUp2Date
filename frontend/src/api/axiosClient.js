@@ -25,7 +25,7 @@ const signinRedirectOnce = () => {
     }
     window.sessionStorage.setItem(REDIRECT_GUARD_KEY, 'true')
   } catch {
-    // sessionStorage unavailable — fall through and redirect; worst case is today's behavior.
+    // If sessionStorage is unavailable, fall through to the normal redirect path.
   }
   userManager.signinRedirect()
 }

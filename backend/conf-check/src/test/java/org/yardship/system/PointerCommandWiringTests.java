@@ -20,16 +20,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * End-to-end wiring test: invokes the real {@code pointer} picocli command (offline body source,
- * literal flags) and asserts both rendered stdout and process exit code. This is the tip of the
- * pyramid for this slice — {@link org.yardship.unit.validation.PointerExtractionValidationTests}
- * already covers the extraction/parse logic exhaustively, so this only proves the command wires
+ * literal flags) and asserts both rendered stdout and process exit code. Unit tests in
+ * {@link org.yardship.unit.validation.PointerExtractionValidationTests} cover extraction and
+ * parsing; this class verifies the
  * {@code BodySource -> (optional) VersionSpec -> PointerExtractionValidation -> ReportRenderer}
- * together and that the exit codes from {@link ValidationOutcome} actually reach the process.
- *
- * <p>{@link PointerCommand#call()} is currently a stub (throws {@link UnsupportedOperationException}),
- * so every test here is expected to be RED until the implementer fills in the wiring — picocli's
- * default execution exception handling turns that thrown exception into a non-zero, non-matching
- * exit code, so these assertions fail loudly rather than silently.
+ * command wiring and propagation of {@link ValidationOutcome} exit codes.
  */
 class PointerCommandWiringTests {
 

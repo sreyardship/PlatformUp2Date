@@ -281,13 +281,8 @@ class HttpRegexLatestSourceIT {
                 "a non-2xx HTTP response must throw (VersionFetchException), isolating this app's scrape");
     }
 
-    // --- ADR-0029 redirect parity (issue 03) ------------------------------------------------------
-    // RED PHASE: HttpRegexLatestSource currently builds a plain HttpClient.newHttpClient() with the
-    // JDK default Redirect.NEVER, so every 301/302/303/307/308 below is currently treated as a
-    // non-2xx response (VersionFetchException) rather than being followed to its final body. These
-    // tests are expected to fail until the implementer wires a redirect-following transport
-    // (mapping InsecureRedirectException/TooManyRedirectsException-equivalents to
-    // VersionFetchException) into this adapter.
+    // --- Redirect handling (ADR-0029) -----------------------------------------------------------
+    // Transport-level redirect failures are mapped to VersionFetchException at the adapter boundary.
 
     @Test
     void redirect301_toFinalHtmlBody_stillSelectsLargestParseableVersion() {

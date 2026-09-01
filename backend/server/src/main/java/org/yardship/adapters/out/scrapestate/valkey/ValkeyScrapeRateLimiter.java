@@ -23,11 +23,9 @@ import java.util.function.Supplier;
  *
  * <p>Fail-closed: a Valkey error surfaces as a {@link RuntimeException} rather than a silent allow.
  *
- * <p><b>Issue 03:</b> this class is now parameterised by {@code (key, maxPerWindow, window)} instead
- * of hard-wiring {@code scrape:budget} / {@code platform-config.scrape-trigger} — the atomic Lua
- * window logic is unchanged. Two qualified beans (full-scrape vs. targeted-scrape budgets) are
- * expected to be produced over distinct keys/config by a CDI producer (not yet wired here — see
- * {@code FullScrapeBudget}/{@code TargetedScrapeBudget} qualifiers in {@code core.ports.out}).
+ * <p>The {@code (key, maxPerWindow, window)} parameters allow the same atomic Lua window logic
+ * to back independent full-scrape and targeted-scrape budgets. The qualified beans use distinct
+ * keys and configuration.
  */
 public class ValkeyScrapeRateLimiter implements ScrapeRateLimiter {
 

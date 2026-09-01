@@ -5,8 +5,8 @@ import org.yardship.core.domain.primitives.VersionScheme;
 import java.util.Optional;
 
 /**
- * A single app's slice of a {@code platform-config.yaml}, lightweight and CLI-owned (issue 06):
- * a pure value record carrying only the fields the {@code config} gate's validators need.
+ * The subset of one app's {@code platform-config.yaml} needed by the config validators.
+ * This CLI-owned value record remains independent of Quarkus configuration binding.
  * Mirrors the shape of the backend's {@code ApplicationConfigLoader.AppConfig}/{@code VersionSource}
  * (see {@code backend/src/main/java/org/yardship/adapters/out/versionsource/ApplicationConfigLoader.java})
  * but is NOT bound by that Quarkus/SmallRye-specific {@code @ConfigMapping} interface — {@code :cli}
@@ -15,7 +15,7 @@ import java.util.Optional;
  * <p>Deliberately does not model every field {@code ApplicationConfigLoader} exposes: auth
  * fragments, {@code repo}/{@code registry} (github-release/oci-registry), and the entire
  * {@code ssh-os-release}/{@code k8s-image} field set are omitted, because none of those source
- * kinds have a CLI-transparent validator to run against them for this issue — an app configured
+ * kinds have a CLI-transparent validator to run against them — an app configured
  * with only those kinds simply has "nothing applicable to check" for the corresponding surface
  * (see {@code ConfigFileValidation}), not a parse failure.
  *

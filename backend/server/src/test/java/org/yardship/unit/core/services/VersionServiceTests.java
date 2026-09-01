@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link ApplicationVersionService#getApplications()} against the Valkey-backed
- * scrape-state model AND the pluggable-source scrape loop (Issue 02).
+ * scrape-state model and the pluggable-source scrape loop.
  *
  * <p>The service holds NO in-memory cache: it reads a {@link ScrapeSnapshot} from the
  * {@link ScrapeStateStore} port, and when that snapshot is stale (or absent) it scrapes — running
@@ -165,15 +165,14 @@ class VersionServiceTests {
         assertEquals("valkey write failed", ex.getMessage());
     }
 
-    // --- Per-app failure isolation INSIDE the scrape loop (Issue 02) --------------------------
+    // --- Per-app failure isolation inside the scrape loop ------------------------------------
     //
-    // The scrape loop moved into the service, so a single source throwing is caught and counted in
-    // ScrapeResult.failed — it does NOT propagate. This rehomes the old ApplicationVersionClientIT
-    // isolation coverage to the unit level.
+    // A source failure is caught and counted in ScrapeResult.failed rather than propagated. This
+    // verifies per-app isolation at the service boundary.
 
     @Test
     void getApplications_isolatesPerAppFailure_oneBrokenSourceDoesNotAbortTheScrape() {
-        // Three apps; the middle one's latest source throws (no prior). Issue 03: the broken app
+        // Three apps; the middle one's latest source throws with no prior, so the broken app
         // is persisted as Unresolved rather than excluded, and the lock is released.
         sources.seed(
                 appSources("alpha", "1.0.0", "2.0.0"),
@@ -182,9 +181,9 @@ class VersionServiceTests {
 
         List<VersionApplication> result = sut.getApplications();
 
-        // Issue 03: beta is persisted as Unresolved, so all three apps are returned.
+        // Beta is persisted as Unresolved, so all three apps are returned.
         assertEquals(3, result.size(),
-                "issue 03: all apps including Unresolved ones are returned (beta is Unresolved, not dropped)");
+                "all apps, including Unresolved ones, are returned");
         assertTrue(result.stream().anyMatch(a -> a.name().equals("beta")),
                 "beta must appear in results (as Unresolved)");
         VersionApplication beta = result.stream().filter(a -> a.name().equals("beta")).findFirst().orElseThrow();
@@ -195,16 +194,16 @@ class VersionServiceTests {
 
     @Test
     void getApplications_brokenCurrentSource_persistsAsUnresolved() {
-        // Issue 03: a broken current source (no prior) produces an Unresolved app in the snapshot.
+        // A broken current source with no prior value produces an Unresolved app.
         sources.seed(
                 new ApplicationSources("alpha", throwingCurrent("endpoint 503"), okLatest("2.0.0")),
                 appSources("beta", "1.0.0", "2.0.0"));
 
         List<VersionApplication> result = sut.getApplications();
 
-        // Issue 03: both apps returned (alpha as Unresolved, beta as Resolved).
+        // Both apps are returned: alpha as Unresolved and beta as Resolved.
         assertEquals(2, result.size(),
-                "issue 03: alpha is persisted as Unresolved and still appears in results");
+                "alpha is persisted as Unresolved and still appears in results");
         VersionApplication alpha = result.stream().filter(a -> a.name().equals("alpha")).findFirst().orElseThrow();
         assertFalse(alpha.current().isResolved(), "alpha's current side must be Unresolved (source threw with no prior)");
         VersionApplication beta = result.stream().filter(a -> a.name().equals("beta")).findFirst().orElseThrow();
@@ -213,16 +212,16 @@ class VersionServiceTests {
 
     @Test
     void getApplications_allSourcesBroken_persistsAllAsUnresolvedAndReleasesLock() {
-        // Issue 03: when all sources throw with no prior, all apps are persisted as Unresolved.
+        // When all sources throw with no prior values, all apps are persisted as Unresolved.
         sources.seed(
                 new ApplicationSources("alpha", throwingCurrent("down"), okLatest("2.0.0")),
                 new ApplicationSources("beta", okCurrent("1.0.0"), throwingLatest("down")));
 
         List<VersionApplication> result = sut.getApplications();
 
-        // Issue 03: both apps persisted as Unresolved (not empty).
+        // Both apps are persisted as Unresolved rather than producing an empty result.
         assertEquals(2, result.size(),
-                "issue 03: apps with failing sides are persisted as Unresolved, not excluded");
+                "apps with failing sides are persisted as Unresolved, not excluded");
         assertTrue(result.stream().noneMatch(a -> a.current().isResolved() && a.latest().isResolved()),
                 "all apps must be Unresolved since each has a failing side with no prior");
         assertEquals(1, store.writeCount, "the snapshot is still written (with Unresolved apps)");

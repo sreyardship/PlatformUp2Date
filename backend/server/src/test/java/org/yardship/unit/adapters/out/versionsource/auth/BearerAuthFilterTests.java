@@ -13,7 +13,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link BearerAuthFilter} — the scheme-generic {@code ClientRequestFilter} that
- * emits {@code Authorization: Bearer <token>}. Issue 03 generalizes the former GitHub-specific
+ * emits {@code Authorization: Bearer <token>}. It generalizes the GitHub-specific
  * {@code GithubAuthFilter} into this shared filter so both the {@code latest} leg
  * ({@code GithubReleaseLatestSource}) and the {@code http} {@code current} leg
  * ({@code HttpCurrentSourceFactory}, {@code auth.type: bearer}) can register the SAME filter class.

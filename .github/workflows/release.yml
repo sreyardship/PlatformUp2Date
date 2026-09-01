@@ -14,10 +14,8 @@ name: Release
 # `version '1.0.0-SNAPSHOT'` and overriding that would mean editing a backend
 # build file for a cosmetic value with no external consumer (the app doesn't
 # expose its own version anywhere users would compare it against the image
-# tag). The plan document itself allows this fallback ("if that's
-# disproportionate, at minimum ensure the image OCI version label matches the
-# tag"); the OCI label is sufficient here and keeps this migration free of
-# backend code changes.
+# tag). The OCI label is sufficient because the application does not expose a
+# separate build version to consumers.
 on:
   push:
     tags: ['v*']
@@ -156,8 +154,7 @@ jobs:
   conf-check-native-release:
     name: conf-check native (${{ matrix.os }}/${{ matrix.arch }})
     needs: github-release
-    # Matrixed on a single entry today (issue 07: Linux/amd64 to start) so
-    # another OS/arch only needs a new matrix row — no job rewrite. Each row
+    # The matrix starts with Linux/amd64; another OS/architecture only needs a new row. Each row
     # builds its own native binary and uploads it as a same-named asset on
     # the release github-release already created.
     strategy:

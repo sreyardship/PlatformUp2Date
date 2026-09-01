@@ -8,8 +8,7 @@ import org.yardship.confcheck.command.RegexCommand;
 import picocli.CommandLine.Command;
 
 /**
- * The {@code conf-check} root: subcommands attach here one per issue (regex, pointer, changelog,
- * calver, config).
+ * Composition root for the regex, pointer, changelog, calver, and config subcommands.
  */
 @Command(name = "conf-check", mixinStandardHelpOptions = true,
         subcommands = {RegexCommand.class, PointerCommand.class, ChangelogCommand.class, CalverCommand.class,

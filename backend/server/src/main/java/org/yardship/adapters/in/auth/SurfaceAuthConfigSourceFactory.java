@@ -12,8 +12,7 @@ import java.util.Properties;
 
 /**
  * Derives the internal {@code quarkus.oidc.*} / HTTP permission-policy switches from the shared,
- * operator-facing auth env vars (docs/adr/0026, docs/adr/0028, issue 01) — the generalization of
- * the former MCP-only {@code McpOidcRuntimeConfigSourceFactory}. {@code OIDC_ISSUER}/
+ * operator-facing auth env vars (docs/adr/0026 and docs/adr/0028). {@code OIDC_ISSUER}/
  * {@code OIDC_AUDIENCE}/{@code MCP_OIDC_ROLE} stay the whole operator-visible surface while the
  * underlying extension and each protected surface's HTTP permission policy get their real
  * property names.
@@ -30,7 +29,7 @@ import java.util.Properties;
  * {@code :pu2d-web} default in the property expression) — see {@link SurfaceAuthMode#resolve}'s
  * Javadoc for why pre-applying the default here would break the auth-off default /
  * role-without-issuer boot-failure contract, and why each surface's policy must be derived from
- * ONLY that surface's own role-var presence (issue 02: the two surfaces gate independently).
+ * only that surface's own role-var presence.
  *
  * <p><b>Deliberately does NOT call {@link SurfaceAuthMode#resolve} (and so never throws)</b>: this
  * factory runs during Quarkus's config-source resolution, which happens at least twice — once
@@ -51,7 +50,7 @@ import java.util.Properties;
  * declares {@code quarkus.http.auth.permission.mcp.paths=/api/mcp*} and
  * {@code quarkus.http.auth.permission.web.paths=/api/v1*} statically (paths are fixed per surface,
  * not derived); only each surface's {@code .policy} property — and, when that surface is gated,
- * its matching named role policy — is produced here, independently per surface (issue 02).
+ * its matching named role policy — is produced here independently for each surface.
  */
 public class SurfaceAuthConfigSourceFactory implements ConfigSourceFactory {
 
@@ -90,7 +89,7 @@ public class SurfaceAuthConfigSourceFactory implements ConfigSourceFactory {
      * gated, the matching named role policy) from that surface's OWN raw role-var presence —
      * independent of the other surface. A surface is only ever gated when the tenant is on AND its
      * own role var is raw-present; otherwise it resolves to {@code permit}, matching
-     * {@link SurfaceAuthMode#resolve}'s per-surface-presence contract (issue 02).
+     * {@link SurfaceAuthMode#resolve}'s per-surface-presence contract.
      */
     private static void derivePermissionPolicy(Properties derived, String surface, boolean tenantOn, String role) {
         if (tenantOn && role != null) {

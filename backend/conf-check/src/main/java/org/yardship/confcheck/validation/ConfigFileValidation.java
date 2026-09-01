@@ -14,11 +14,11 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * The {@code config} gate's composing use case (issue 06): runs the four per-surface validators
+ * The {@code config} gate's composing use case. Runs the four per-surface validators
  * (regex, pointer, changelog-template, calver-format) against every {@link AppConfig} in a parsed
  * {@code platform-config.yaml}, aggregating into a single {@link ValidationOutcome.ConfigFileResult}.
  *
- * <p>Reuses, per app, exactly the validators already proven by issues 02-05 — never their
+ * <p>Reuses the existing per-surface validators for each app, never their
  * production-only, opaque-result siblings:
  * <ul>
  *   <li>{@link RegexExtractionValidation} against {@code latest.url}'s live-fetched body, when

@@ -12,7 +12,7 @@ import static org.hamcrest.Matchers.equalTo;
  * the deleted hand-authored YAML. If a controller's path changes without this test being
  * updated, the mismatch will surface here rather than silently drifting in stale docs.
  *
- * <p>Slice 01: asserts the generated document's paths include the three real endpoints
+ * <p>Asserts that the generated document includes the three real endpoints
  * ({@code /api/v1/version}, {@code /api/v1/scrape}, {@code /api/v1/scrape/applications})
  * and that the info title is the project name, not a Quarkus placeholder like
  * "Generated API".

@@ -16,8 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link VersionParsers} — the eager, per-app {@link VersionParser} lookup (issue
- * 01) that {@code VersionSourceResolver} must consume instead of constructing parsers inline.
+ * Unit tests for the eager, per-app {@link VersionParser} lookup consumed by
+ * {@code VersionSourceResolver}.
  * Mirrors {@code ChangelogTemplatesTests}: driven entirely through the package-visible
  * {@code List<AppConfig>} constructor, with fake {@link ApplicationConfigLoader.AppConfig}
  * implementations following the same anonymous-class pattern as {@code VersionSourceResolverTests}.

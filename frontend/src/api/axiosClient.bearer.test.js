@@ -1,12 +1,7 @@
-// Issue 03 (SPA becomes an OIDC client) — the axios request interceptor must attach
-// `Authorization: Bearer <token>` on /api/v1 calls when web auth is enabled and a token is
-// available, and attach nothing when web auth is disabled (the existing, un-authenticated
-// behavior pinned elsewhere by axiosClient.test.js's response-interceptor tests).
-//
-// Per the design guidance for this slice, the interceptor is tested against OUR OWN seam
-// (src/auth/userManager.js's isWebAuthEnabled/getAccessToken), fully mocked here — not against
-// oidc-client-ts internals. Extraction of the handler follows the same pattern
-// axiosClient.test.js already uses for the response interceptor: pull the registered function
+// The request interceptor attaches `Authorization: Bearer <token>` when web auth is enabled and
+// a token is available, and attaches nothing when web auth is disabled. The test mocks the
+// isWebAuthEnabled/getAccessToken application seam rather than oidc-client-ts internals. Handler
+// extraction follows the same pattern as axiosClient.test.js for the response interceptor: pull the registered function
 // off axios's InterceptorManager via forEach, then invoke it directly.
 
 vi.mock('../auth/userManager', () => ({

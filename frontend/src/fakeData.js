@@ -1,5 +1,4 @@
-// Slice 01: each side is now a { version, readAt } object rather than a bare string.
-// readAt is an absolute ISO instant; the component renders relative "read Xm ago" client-side.
+// Each side carries a version and absolute ISO read time; components render the time relatively.
 const now = new Date().toISOString()
 
 const fakeData = {

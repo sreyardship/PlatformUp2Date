@@ -40,7 +40,7 @@ public class ApplicationVersionService implements ApplicationVersionPort {
 
     private final Logger logger = LoggerFactory.getLogger(ApplicationVersionService.class);
 
-    /** Default global concurrency cap for the bounded-parallel scrape loop (issue 04). */
+    /** Default global concurrency cap for the bounded-parallel scrape loop. */
     public static final int DEFAULT_SCRAPE_CONCURRENCY = 15;
 
     private final VersionSources versionSources;
@@ -72,10 +72,9 @@ public class ApplicationVersionService implements ApplicationVersionPort {
                 scrapeConcurrency);
     }
 
-    // Visible for testing: lets tests drive the staleness clock deterministically, and inject the
-    // full-scrape and targeted-scrape budgets explicitly (issue 03 — two distinct rolling-window
-    // budgets so agent-driven targeted scrapes cannot starve the UI's full-Refresh budget).
-    // Delegates to the 8-arg ctor with the default concurrency cap.
+    // Visible for testing: lets tests drive the staleness clock deterministically and inject the
+    // independent full-scrape and targeted-scrape budgets. Delegates to the constructor with the
+    // default concurrency cap.
     public ApplicationVersionService(
             VersionSources versionSources,
             ScrapeStateStore scrapeStateStore,
@@ -95,8 +94,8 @@ public class ApplicationVersionService implements ApplicationVersionPort {
                 DEFAULT_SCRAPE_CONCURRENCY);
     }
 
-    // Visible for testing: additionally accepts an explicit concurrency cap so tests can drive the
-    // bounded-parallel scrape loop with a small cap (issue 04).
+    // Visible for testing: accepts an explicit concurrency cap so tests can exercise the
+    // bounded-parallel scrape loop with a small cap.
     public ApplicationVersionService(
             VersionSources versionSources,
             ScrapeStateStore scrapeStateStore,

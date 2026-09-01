@@ -1,4 +1,4 @@
-# Fixture for YamlAppConfigReaderTests / ConfigCommandWiringTests (issue 06).
+# Fixture for YamlAppConfigReaderTests and ConfigCommandWiringTests.
 #
 # Mirrors docs/samples/platform-config.yaml's top-level shape (platform-config: apps: [...]) plus a
 # calver + http-regex app (mirroring the commented OpenWRT example in

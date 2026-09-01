@@ -97,7 +97,7 @@ class PointerExtractionValidationTests {
     }
 
     // stripPreRelease_on_reportsStrippedValue was removed (review iteration 2): it exercised
-    // --strip-prerelease with NO --scheme, which forced the implementer toward naive text
+    // --strip-prerelease with no --scheme would force naive text
     // truncation at the first '-' (VersionValue.withoutPreRelease() only exists on a *parsed*
     // value, so there is no well-defined "pre-release" concept for a bare, unparsed string).
     // That truncation corrupted inputs like "1.2.3+build-7" (hyphen in build metadata, no
@@ -159,7 +159,7 @@ class PointerExtractionValidationTests {
 
     @Test
     void stripPreRelease_buildMetadataWithHyphen_noPreRelease_reportsUnchangedValue() {
-        // Reviewer counter-example: naive text truncation at the first '-' used to corrupt this
+        // Naive text truncation at the first '-' would corrupt this
         // into "1.2.3+build" even though there is no actual pre-release segment.
         ValidationOutcome outcome = validation.validate(
                 "{\"version\":\"1.2.3+build-7\"}", "/version", true, Optional.of(SEMVER));
@@ -172,7 +172,7 @@ class PointerExtractionValidationTests {
 
     @Test
     void stripPreRelease_preReleaseAndBuildMetadata_preservesBuildMetadata() {
-        // Reviewer counter-example: naive text truncation used to drop build metadata entirely,
+        // Naive text truncation would drop build metadata entirely,
         // turning "1.0.0-alpha+001" into "1.0.0" instead of the correct "1.0.0+001".
         ValidationOutcome outcome = validation.validate(
                 "{\"version\":\"1.0.0-alpha+001\"}", "/version", true, Optional.of(SEMVER));

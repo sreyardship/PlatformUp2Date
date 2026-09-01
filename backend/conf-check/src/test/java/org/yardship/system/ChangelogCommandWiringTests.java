@@ -16,14 +16,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * End-to-end wiring test: invokes the real {@code changelog} picocli command (pure-function, no
- * body source) and asserts both rendered stdout and process exit code. This is the tip of the
- * pyramid for this slice — {@link org.yardship.unit.validation.ChangelogResolutionValidationTests}
- * already covers the resolution/rejection logic exhaustively, so this only proves the command wires
- * {@code VersionSpec -> ChangelogResolutionValidation -> ReportRenderer} together and that the exit
- * codes from {@link ValidationOutcome} actually reach the process.
- *
- * <p>{@link ChangelogCommand#call()} is fully implemented, so every test here is expected to be
- * GREEN, proving the wiring end-to-end.
+ * body source) and asserts both rendered stdout and process exit code. Unit tests in
+ * {@link org.yardship.unit.validation.ChangelogResolutionValidationTests} cover validation;
+ * this class verifies the {@code VersionSpec -> ChangelogResolutionValidation -> ReportRenderer}
+ * command wiring and propagation of {@link ValidationOutcome} exit codes.
  */
 class ChangelogCommandWiringTests {
 

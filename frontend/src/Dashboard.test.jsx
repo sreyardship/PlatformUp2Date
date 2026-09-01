@@ -1,12 +1,5 @@
-// Issue 04 (SPA authorization UX) — Dashboard's Not-authorized branch.
-//
-// A 403 fetch error (failureKind kind === 'not-authorized') must render <NotAuthorized/> INSTEAD
-// of <BackendUnavailable/> and INSTEAD of the board — never an empty fleet. Any other fetch error
-// keeps rendering <BackendUnavailable/> exactly as before (regression coverage). The happy path
-// (phase === 'loaded') is unaffected.
-//
-// NotAuthorized.jsx does not exist yet (see NotAuthorized.test.jsx) and Dashboard.jsx does not
-// yet branch on it — these assertions are the expected RED for this slice.
+// A 403 fetch error renders <NotAuthorized/> instead of <BackendUnavailable/> or the board.
+// Other fetch failures still render <BackendUnavailable/>, while the loaded state is unaffected.
 
 vi.mock('./auth/userManager', () => ({
   isWebAuthEnabled: vi.fn(() => false),

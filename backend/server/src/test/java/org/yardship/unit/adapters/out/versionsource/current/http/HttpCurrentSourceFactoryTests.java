@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
  * Unit tests for {@link HttpCurrentSourceFactory} — the factory for the {@code http} current-version
  * kind. Verifies its discriminator, its own config-fragment validation (the {@code http} kind
  * requires a {@code url}; {@code version-key} — if present — must be a syntactically valid JSON
- * Pointer), and — new in this slice — that it builds the {@link HttpCurrentVersionClient} EAGERLY during
+ * Pointer), and that it builds the {@link HttpCurrentVersionClient} eagerly during
  * {@code create(cfg)} via an injected {@link HttpCurrentVersionClientFactory} collaborator, rather than
  * lazily inside the source. A FAKE collaborator is used so this stays a true POJO unit test: no Arc,
  * no {@code @QuarkusTest}. The real, REST-client-backed collaborator is exercised at the integration
@@ -148,11 +148,11 @@ class HttpCurrentSourceFactoryTests {
                 source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.of(false)), SEMVER_PARSER));
     }
 
-    // --- Issue 02: auth resolution (Harbor case study) ----------------------------------------
+    // --- Auth resolution ---------------------------------------------------------------------
 
     @Test
     void create_withNoAuth_stillBuildsAnHttpCurrentSource_withNoFilter() {
-        // Existing (slice 01) behaviour must be preserved unchanged when 'auth' is absent.
+        // An absent auth fragment preserves unauthenticated behavior.
         CurrentVersionSource result = factory.create(
                 sourceWithAuth("http://localhost:8089/current", Optional.empty()), SEMVER_PARSER);
 
@@ -234,7 +234,7 @@ class HttpCurrentSourceFactoryTests {
         assertTrue(clientFactory.buildCalls.isEmpty());
     }
 
-    // --- Issue 03: bearer auth resolution -----------------------------------------------------
+    // --- Bearer auth resolution --------------------------------------------------------------
 
     @Test
     void create_withValidBearerAuth_buildsTheClient_withABearerAuthFilter() {
@@ -287,7 +287,7 @@ class HttpCurrentSourceFactoryTests {
         assertTrue(clientFactory.buildCalls.isEmpty());
     }
 
-    // --- Issue 01: token-file bearer resolution ----------------------------------------------
+    // --- Token-file bearer resolution --------------------------------------------------------
 
     @Test
     void create_withBearerTokenFileOnly_buildsTheClient_withAFileBearerAuthFilter() {
@@ -357,7 +357,7 @@ class HttpCurrentSourceFactoryTests {
         assertTrue(clientFactory.buildCalls.isEmpty());
     }
 
-    // --- Issue 02: ca-cert (per-scraper custom truststore) ------------------------------------
+    // --- ca-cert (per-scraper custom truststore) ---------------------------------------------
 
     /**
      * A valid self-signed X.509 certificate in PEM form (generated once via
@@ -479,7 +479,7 @@ class HttpCurrentSourceFactoryTests {
                         Optional.of("/no/such/path/ca.crt")), SEMVER_PARSER));
     }
 
-    // --- Issue 02: ca-cert + insecure-skip-tls-verify: true is refused (ambiguous) ------------
+    // --- ca-cert plus insecure-skip-tls-verify is refused as ambiguous -----------------------
 
     @Test
     void create_withCaCertAndInsecureSkipTlsVerifyTrue_returnsAFailedCurrentSource_withMessageNamingBothKeysAndUrl_withoutInvokingTheCollaborator(
@@ -515,7 +515,7 @@ class HttpCurrentSourceFactoryTests {
         // Refusal happens BEFORE ca-cert file resolution: even a nonexistent/garbage path must be
         // refused with the both-set message, not surfaced as a file-read failure. A plain path string
         // is enough — if the factory ever tried to resolve the file first, this test would instead see
-        // a "could not be read as X.509 PEM" message (today's behaviour), not the both-set refusal.
+        // a "could not be read as X.509 PEM" message, not the both-set refusal.
         String url = "https://localhost:8443/current";
 
         CurrentVersionSource result = factory.create(
@@ -542,7 +542,7 @@ class HttpCurrentSourceFactoryTests {
     @Test
     void create_withCaCertAndInsecureSkipTlsVerifyExplicitlyFalse_buildsTheClient_withAPresentTrustStoreAndInsecureFalse(
             @TempDir Path dir) throws IOException {
-        // Explicit false alongside ca-cert is NOT a refusal — it is today's ca-cert behaviour.
+        // Explicit false alongside ca-cert is allowed and uses ca-cert behavior.
         Path pem = dir.resolve("ca.crt");
         Files.writeString(pem, VALID_CA_PEM);
 
@@ -560,11 +560,11 @@ class HttpCurrentSourceFactoryTests {
                 "the collaborator must be called with insecure=false");
     }
 
-    // --- Issue 01: insecure-skip-tls-verify -------------------------------------------------
+    // --- insecure-skip-tls-verify -----------------------------------------------------------
 
     @Test
     void create_withInsecureSkipTlsVerifyAbsent_buildsTheClient_withInsecureFalse() {
-        // Absent 'insecure-skip-tls-verify' must preserve today's behaviour: the collaborator is
+        // Absent insecure-skip-tls-verify uses normal verification; the collaborator is
         // called with insecureSkipTlsVerify=false.
         CurrentVersionSource result = factory.create(
                 sourceWithInsecureSkipTlsVerify("http://localhost:8089/current", Optional.empty()), SEMVER_PARSER);

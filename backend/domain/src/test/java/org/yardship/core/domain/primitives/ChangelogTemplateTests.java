@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Behavior suite for {@link ChangelogTemplate} (ADR-0021: the changelog link is a read-time
  * projection from an app-level template).
  *
- * <p>Assumed API surface for the implementer:
+ * <p>Covered API surface:
  * <ul>
  *   <li>{@code ChangelogTemplate(String rawTemplate, VersionScheme scheme,
  *       Optional<CalverFormat> calverFormat)} — constructor. {@code calverFormat} is
@@ -188,7 +188,7 @@ class ChangelogTemplateTests {
 
     @Test
     void construction_throwsIllegalArgumentException_forPatchTokenOnCalverApp() {
-        // Explicit acceptance-criterion case: {patch} on a calver app.
+        // {patch} is invalid for a calver app.
         CalverFormat format = new CalverFormat("YY.0M.MICRO");
 
         assertThrows(IllegalArgumentException.class,
@@ -228,7 +228,7 @@ class ChangelogTemplateTests {
     }
 
     // -----------------------------------------------------------------------
-    // Whole-example resolutions from the ADR / issue description
+    // End-to-end examples from ADR-0021
     // -----------------------------------------------------------------------
 
     @Test

@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * per-token {@link VersionValue.Diff} category mapping, and rejection of unknown tokens /
  * malformed format strings.
  *
- * <p>Assumed API surface for the implementer:
+ * <p>Covered API surface:
  * <ul>
  *   <li>{@code CalverFormat(String format)} — constructor; throws {@link IllegalArgumentException}
  *       for null, blank, no-token, or unknown-token format strings.</li>

@@ -35,7 +35,7 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
  * (ADR-0011), so the global {@code platform-config.github.api-base-url} override redirects it
  * to WireMock.
  *
- * <p>{@link #APP_COUNT} is kept as a convenience constant for the slice-01/02 single-point
+ * <p>{@link #APP_COUNT} is the convenience constant for single-point
  * measurements; it is simply the first few of the {@value MAX_N} registered apps.
  */
 public class ScrapePerfWireMockResource implements QuarkusTestResourceLifecycleManager {
@@ -51,7 +51,7 @@ public class ScrapePerfWireMockResource implements QuarkusTestResourceLifecycleM
     public static final int MAX_N = 50;
 
     /**
-     * Number of apps used by the slice-01/02 single-point harness measurements.
+     * Number of apps used by the single-point harness measurements.
      * Must be ≤ {@value MAX_N}.
      */
     public static final int APP_COUNT = 3;

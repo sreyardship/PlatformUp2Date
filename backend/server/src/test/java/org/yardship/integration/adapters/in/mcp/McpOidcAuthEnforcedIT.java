@@ -37,13 +37,12 @@ import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.TE
 import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.WRONG_AUDIENCE_CLIENT_ID;
 
 /**
- * Auth-ON integration coverage for the MCP endpoint (docs/adr/0026, docs/adr/0028, issue 01), run
+ * Auth-on integration coverage for the MCP endpoint (docs/adr/0026 and docs/adr/0028), run
  * against real Keycloak Dev Services under {@link SurfaceAuthTestProfile} (real issuer discovery
- * + JWKS — no mocked identities, per the shared plan). The auth-OFF regression stays entirely in
+ * + JWKS, with no mocked identities). The auth-off regression stays entirely in
  * {@link ApplicationMcpServerIT}, which this class does not touch.
  *
- * <p>Now covers the role-gated model (generalized from "any valid token" to "a valid token
- * carrying the {@code pu2d-mcp} role"): a token for the right audience but the wrong/missing role
+ * <p>The role-gated model requires a valid token carrying the {@code pu2d-mcp} role: a token for the right audience but the wrong/missing role
  * (user {@code bob}, who has no {@code pu2d-mcp} realm role) must be rejected with 403, distinct
  * from the 401s below (which are pure authentication failures — no/invalid/wrong-audience token).
  *
@@ -52,15 +51,10 @@ import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.WR
  * (failed) connect attempt — no need to hand-roll a raw HTTP call. The happy path and the 403 case
  * also go through {@link McpAssured}, adding the bearer token as an additional header via
  * {@code setAdditionalHeaders(...)} (this McpAssured version has no direct
- * {@code setBearerToken}), per the acceptance criteria.
+ * {@code setBearerToken}).
  *
- * <p><b>Deviation from the original tester assumption:</b> {@code io.quarkus.test.oidc.client.
- * OidcTestClient} (Vert.x {@code WebClient}-based) reproducibly returned a JSON response with no
- * {@code access_token} field against this Dev-Services-backed realm in this environment, even
- * though an identical password-grant request made with a plain {@link HttpClient} against the
- * same token endpoint succeeded. Rather than depend on that unexplained mismatch, token
- * acquisition here is a small direct password-grant POST via {@link HttpClient} — same grant,
- * same realm, same clients, just a different (verified-working) HTTP client.
+ * <p>Token acquisition uses a direct password-grant POST via {@link HttpClient}; this keeps the
+ * fixture independent of {@code OidcTestClient}'s response handling.
  */
 @QuarkusTest
 @TestProfile(SurfaceAuthTestProfile.class)

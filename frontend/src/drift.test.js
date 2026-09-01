@@ -10,7 +10,7 @@ import { compareVersions, driftCounts } from './drift'
 //   - patch    = number of apps with drift === 'PATCH'
 //   - minor    = number of apps with drift === 'MINOR'
 //   - major    = number of apps with drift === 'MAJOR'
-//   - unknown  = number of apps with drift === null (Unresolved, issue 03)
+//   - unknown  = number of apps with drift === null (Unresolved)
 // An empty payload ({} or undefined/null) yields all-zero counts.
 // Invariant: upToDate + patch + minor + major + unknown === total
 
@@ -84,7 +84,7 @@ test('counts an all-up-to-date payload', () => {
   })
 })
 
-// --- Issue 03: Unknown (Unresolved) apps in driftCounts ------------------------------------
+// --- Unknown (Unresolved) apps in driftCounts ----------------------------------------------
 //
 // Apps with drift === null (Unresolved) must be counted in `unknown`, not silently dropped.
 // The totals invariant must hold: upToDate + patch + minor + major + unknown === total.

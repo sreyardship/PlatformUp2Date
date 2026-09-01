@@ -16,7 +16,7 @@ import java.util.concurrent.Callable;
 /**
  * {@code cli config <file> [--offline]}
  *
- * <p>The {@code config} gate (issue 06): reads every app out of a {@code platform-config.yaml} via
+ * <p>The {@code config} gate reads every app from a {@code platform-config.yaml} via
  * {@link YamlAppConfigReader}, runs {@link ConfigFileValidation} across all of them, and renders the
  * aggregate {@link org.yardship.confcheck.outcome.ValidationOutcome.ConfigFileResult} via
  * {@link ReportRenderer} — same composition-root shape as every other subcommand

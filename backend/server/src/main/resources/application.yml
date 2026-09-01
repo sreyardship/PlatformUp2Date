@@ -43,7 +43,7 @@ quarkus:
         streamable:
           auto-init: true
 
-  # Shared-issuer, role-gated surface authentication (docs/adr/0026, docs/adr/0028, issues 01+02):
+  # Shared-issuer, role-gated surface authentication (docs/adr/0026 and docs/adr/0028):
   # presence-switched on OIDC_ISSUER/OIDC_AUDIENCE, plus a per-surface role var — MCP_OIDC_ROLE
   # (conventionally pu2d-mcp) gates /api/mcp*, WEB_OIDC_ROLE (conventionally pu2d-web) gates
   # /api/v1* — each surface gated INDEPENDENTLY of the other and of the tenant switch alone: a
@@ -55,7 +55,7 @@ quarkus:
   # (Keycloak Dev Services' dynamic URL); a static reverse expansion here would create a circular
   # property reference. When OIDC_ISSUER is absent/blank, tenant-enabled resolves to false and the
   # OIDC extension stays fully inert; each surface's policy below resolves to permit, preserving
-  # today's open endpoints. See SurfaceAuthMode for the matching boot-time validation/log line and
+  # the default open endpoints. See SurfaceAuthMode for matching boot-time validation and logging,
   # SurfaceAuthConfigurationException for the illegal issuer-without-audience and
   # role-without-issuer states.
   #
@@ -64,13 +64,13 @@ quarkus:
   # auth-off regression suite (ApplicationMcpServerIT) stays fast and Docker-free, and re-enabled
   # explicitly by the auth-on @TestProfile (SurfaceAuthTestProfile).
   oidc:
-    # RFC 9728 protected-resource metadata (docs/adr/0026, issue 02). Safe to enable
+    # RFC 9728 protected-resource metadata (docs/adr/0026). Safe to enable
     # unconditionally here (no presence-derivation needed for this property): the extension only
     # registers the well-known route and appends the WWW-Authenticate `resource_metadata` pointer
     # for tenants whose tenant-enabled is true, and tenant-enabled is the very flag
     # SurfaceAuthConfigSourceFactory derives from OIDC_ISSUER/OIDC_AUDIENCE above. So
     # with both env vars unset, tenant-enabled resolves to false, the metadata route never
-    # registers, and the well-known path 404s exactly as before this issue. The explicit `resource`
+    # registers; otherwise the well-known path returns 404. The explicit `resource`
     # value is what makes both the well-known route path and the metadata document's `resource`
     # field name /api/mcp — matching the exact path ADR 0026 documents,
     # /.well-known/oauth-protected-resource/api/mcp — instead of the bare host-root default.
@@ -82,7 +82,7 @@ quarkus:
       enabled: false
   http:
     auth:
-      # docs/adr/0026 issue 03: Quarkus's default (proactive: true) runs authentication against
+      # Disable proactive authentication because Quarkus otherwise authenticates
       # ANY request that carries credentials the enabled OIDC tenant recognises the shape of
       # (an Authorization: Bearer header), on EVERY path — not just the ones with an authenticated
       # permission policy. With the /api/mcp* tenant enabled, a stale/foreign/garbage bearer token
@@ -105,7 +105,7 @@ quarkus:
           # SurfaceAuthConfigSourceFactory above; when enabled it also produces
           # quarkus.http.auth.policy.mcp-role.roles-allowed=<the raw MCP_OIDC_ROLE>.
         web:
-          # The REST API surface (issue 02, docs/adr/0028): VersionController/ScrapeController
+          # The REST API surface (docs/adr/0028): VersionController/ScrapeController
           # under /api/v1. Deliberately does NOT catch /q/health, /metrics or the OpenAPI/Swagger
           # routes — none of those live under /api/v1, so they stay permit-all regardless of this
           # surface's gate state (pinned by McpOidcNonMcpSurfacesIT/CrossSurfaceIsolationIT/
@@ -133,7 +133,7 @@ quarkus:
     # instance; otherwise Dev Services starts a throwaway container.
     redis:
       hosts: redis://localhost:6379
-    # Dev-only CORS (issue 03, docs/adr/0028): the Vite dev server serves the SPA from
+    # Dev-only CORS (docs/adr/0028): the Vite dev server serves the SPA from
     # localhost:3000 while Quarkus serves the API from localhost:8080 — a cross-origin request
     # in dev only. Production is same-origin behind /api (no CORS needed there), so this whole
     # block is scoped to %dev and MUST NOT be duplicated outside it. `origins` is pinned to the
@@ -150,7 +150,7 @@ quarkus:
     scrape-concurrency: 15
     # Optional GitHub token for the scrape's `latest` leg. Resolved from the environment via
     # SmallRye expansion: an unset GITHUB_TOKEN yields an empty/absent token (no startup error),
-    # preserving today's unauthenticated behaviour.
+    # preserving unauthenticated behavior by default.
     github:
       token: ${GITHUB_TOKEN:}
     # Manual-scrape rolling-window budget (Refresh button / MCP trigger). Defaults are 10/1h;
@@ -158,7 +158,7 @@ quarkus:
     scrape-trigger:
       max-per-window: 10
       window: 1h
-    # Targeted-scrape rolling-window budget (agent-driven single-app/side updates, issue 03) — kept
+    # Targeted-scrape rolling-window budget for agent-driven single-app/side updates. Kept
     # separate and larger than scrape-trigger so agent-driven work cannot starve the UI's Refresh budget.
     targeted-scrape-trigger:
       max-per-window: 30

@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>Note on auth: the factory OWNS the GitHub token concern, so its production constructor (the one
  * CDI uses) takes the configured token. This test constructs it via a token-free / blank-token path;
- * the implementer should keep a constructor that accepts no token (or an empty {@link Optional}) so
+ * the source keeps a constructor that accepts no token (or an empty {@link Optional}) so
  * the validation contract is unit-testable without a token.
  */
 class GithubReleaseLatestSourceFactoryTests {
@@ -77,14 +77,14 @@ class GithubReleaseLatestSourceFactoryTests {
 
     @Test
     void create_ignoresAConfiguredUrl_andConsultsOnlyRepo() {
-        // A 'url' value under 'latest' for a github-release app must no longer be read at all — only
+        // GitHub release configuration reads repo; a latest.url value is ignored.
         // 'repo' is consulted. We assert this indirectly: a source with a well-formed 'repo' but an
         // absent 'url' still succeeds (proving 'url' isn't required), and the source builder below
         // never has its url() value forwarded into validation.
         assertNotNull(factory.create(source(Optional.of("go-gitea/gitea"), Optional.empty()), SEMVER_PARSER));
     }
 
-    // --- page-size (issue: largest-semver-across-recent-releases) -----------------------------
+    // --- page-size --------------------------------------------------------------------------
 
     @Test
     void create_buildsASource_whenPageSizeIsAbsent_defaultingTo30() {
