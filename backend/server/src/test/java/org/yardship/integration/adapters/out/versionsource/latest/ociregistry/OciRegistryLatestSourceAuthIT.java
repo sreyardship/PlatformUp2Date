@@ -13,6 +13,7 @@ import org.yardship.adapters.out.versionsource.latest.ociregistry.OciRegistryLat
 import org.yardship.adapters.out.versionsource.latest.ociregistry.TagSelection;
 import org.yardship.core.domain.primitives.VersionValue;
 
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Optional;
@@ -26,6 +27,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Integration tests for the OCI bearer-token dance (issue 02) against a standalone WireMock server
@@ -63,23 +65,63 @@ class OciRegistryLatestSourceAuthIT {
 
     static WireMockServer wireMockServer;
 
+    // ---- issue 05: redirect fixtures -----------------------------------------------------------
+    // A second, independently-hosted plain-HTTP server standing in for a different origin (distinct
+    // port from the primary 8091) — used only by the cross-origin-authorization tests below: a
+    // redirect Location pointing here has a different effective port than the request that produced
+    // it, so per ADR-0029 neither the configured Basic credential (token leg) nor the minted Bearer
+    // token (authenticated-tags leg) may be forwarded to it.
+    static final int CROSS_ORIGIN_PORT = 8095;
+    static WireMockServer crossOriginWireMockServer;
+
+    // An HTTPS-only server (self-signed CN=localhost cert, same fixture as HttpCurrentSourceTlsIT /
+    // HttpCurrentSourceRedirectIT) used only by the HTTPS-to-HTTP downgrade-refusal tests below.
+    // Deliberately untrusted: OciRegistryLatestSource has no truststore/insecure-skip-tls-verify
+    // configuration knob (unlike the `http` current source), so any contact with this server fails
+    // TLS trust regardless of hop position. That is fine for these tests — the property under test
+    // is "the plain-HTTP downgrade target is never contacted", which holds whether the call fails at
+    // the TLS-trust step or at an explicit downgrade refusal (see the per-test comments).
+    private static final String TLS_KEYSTORE_RESOURCE = "tls/wiremock-localhost.p12";
+    private static final String TLS_KEYSTORE_PASSWORD = "password";
+    static WireMockServer httpsWireMockServer;
+    static String httpsBaseUrl;
+
     private static final TagSelection DEFAULT_SELECTION =
             new TagSelection(100, 1000, Optional.empty(), false);
 
     @BeforeAll
-    static void startWireMock() {
+    static void startWireMock() throws Exception {
         wireMockServer = new WireMockServer(options().port(PORT));
         wireMockServer.start();
+
+        crossOriginWireMockServer = new WireMockServer(options().port(CROSS_ORIGIN_PORT));
+        crossOriginWireMockServer.start();
+
+        String keystorePath = java.nio.file.Path.of(OciRegistryLatestSourceAuthIT.class.getClassLoader()
+                .getResource(TLS_KEYSTORE_RESOURCE).toURI()).toString();
+        httpsWireMockServer = new WireMockServer(options()
+                .httpDisabled(true)
+                .dynamicHttpsPort()
+                .keystorePath(keystorePath)
+                .keystorePassword(TLS_KEYSTORE_PASSWORD)
+                .keyManagerPassword(TLS_KEYSTORE_PASSWORD)
+                .keystoreType("PKCS12"));
+        httpsWireMockServer.start();
+        httpsBaseUrl = "https://localhost:" + httpsWireMockServer.httpsPort();
     }
 
     @AfterAll
     static void stopWireMock() {
         wireMockServer.stop();
+        crossOriginWireMockServer.stop();
+        httpsWireMockServer.stop();
     }
 
     @BeforeEach
     void resetStubs() {
         wireMockServer.resetAll();
+        crossOriginWireMockServer.resetAll();
+        httpsWireMockServer.resetAll();
     }
 
     // ---- anonymous dance -----------------------------------------------------------------------
@@ -281,6 +323,294 @@ class OciRegistryLatestSourceAuthIT {
 
         assertEquals("3.7.1", result.value(),
                 "Direct-200 path must still work unchanged after the bearer-dance feature is added");
+    }
+
+    // ---- issue 05: redirected authentication-dance ---------------------------------------------
+    // RED PHASE: mintToken(...) and buildAuthenticatedTagsClient(...) currently build plain
+    // QuarkusRestClientBuilder clients with no redirect-following transport, so every test below
+    // that stubs a 301/302 on the token or authenticated-tags leg is expected to fail until the
+    // implementer routes those two legs through RedirectFollowingHttpGet (ADR-0029), the same way
+    // slice 04 already did for the anonymous raw-probe leg. The raw-probe leg already follows
+    // redirects (slice 04), so the FIRST part of the end-to-end scenario below (301 -> 401 challenge)
+    // may already pass on its own.
+
+    @Test
+    void endToEndDance_followsRedirectsOnAllThreeHttpLegs_andReturnsTheSelectedVersion() {
+        String username = "user";
+        String password = "s3cr3t";
+        String expectedBasic = expectedBasicAuth(username, password);
+        String challengePath = TAGS_PATH + "-challenge";
+        String tokenFinalPath = TOKEN_PATH + "-final";
+        String tagsFinalPath = TAGS_PATH + "-authenticated";
+
+        // Leg 1: raw probe redirected; only the redirected path serves the 401 challenge.
+        wireMockServer.stubFor(get(urlPathEqualTo(TAGS_PATH))
+                .willReturn(aResponse().withStatus(301).withHeader("Location", challengePath)));
+        String wwwAuthenticate = "Bearer realm=\"" + BASE_URL + TOKEN_PATH
+                + "\",service=\"" + REGISTRY_SERVICE + "\",scope=\"" + CHALLENGE_SCOPE + "\"";
+        wireMockServer.stubFor(get(urlPathEqualTo(challengePath))
+                .willReturn(aResponse().withStatus(401).withHeader("WWW-Authenticate", wwwAuthenticate)));
+
+        // Leg 2: token mint redirected; only the redirected path mints a token, and only when the
+        // final request carries Basic auth plus the verbatim service/scope query.
+        String tokenLocation = tokenFinalPath + "?service=" + REGISTRY_SERVICE
+                + "&scope=" + URLEncoder.encode(CHALLENGE_SCOPE, StandardCharsets.UTF_8);
+        wireMockServer.stubFor(get(urlPathEqualTo(TOKEN_PATH))
+                .willReturn(aResponse().withStatus(301).withHeader("Location", tokenLocation)));
+        wireMockServer.stubFor(get(urlPathEqualTo(tokenFinalPath))
+                .withHeader("Authorization", equalTo(expectedBasic))
+                .withQueryParam("service", equalTo(REGISTRY_SERVICE))
+                .withQueryParam("scope", equalTo(CHALLENGE_SCOPE))
+                .willReturn(jsonResponse(200, """
+                        {"token": "%s"}
+                        """.formatted(MINTED_TOKEN))));
+
+        // Leg 3: authenticated tags redirected; only the redirected path serves the tags list, and
+        // only when the final request carries the minted Bearer token.
+        wireMockServer.stubFor(get(urlPathEqualTo(TAGS_PATH))
+                .withHeader("Authorization", equalTo("Bearer " + MINTED_TOKEN))
+                .willReturn(aResponse().withStatus(301).withHeader("Location", tagsFinalPath)));
+        wireMockServer.stubFor(get(urlPathEqualTo(tagsFinalPath))
+                .withHeader("Authorization", equalTo("Bearer " + MINTED_TOKEN))
+                .willReturn(jsonResponse(200, tagsListBody("1.25.3", "1.24.0", "latest"))));
+
+        OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
+                BASE_URL + "/v2/" + REPO, Optional.of(username), Optional.of(password),
+                DEFAULT_SELECTION, SEMVER_PARSER);
+
+        VersionValue result = latestSource.version();
+
+        assertEquals("1.25.3", result.value(),
+                "the challenge -> mint -> authenticated-tags dance must compose across three "
+                        + "separately redirected HTTP legs and still select the largest clean semver");
+        wireMockServer.verify(getRequestedFor(urlPathEqualTo(tokenFinalPath))
+                .withHeader("Authorization", equalTo(expectedBasic))
+                .withQueryParam("service", equalTo(REGISTRY_SERVICE))
+                .withQueryParam("scope", equalTo(CHALLENGE_SCOPE)));
+        wireMockServer.verify(getRequestedFor(urlPathEqualTo(tagsFinalPath))
+                .withHeader("Authorization", equalTo("Bearer " + MINTED_TOKEN)));
+    }
+
+    @Test
+    void sameOriginTokenRedirect_finalRequest_carriesExpectedBasicAuthAndVerbatimServiceScope() {
+        stubChallenge401();
+        String tokenFinalPath = TOKEN_PATH + "-final";
+        String location = tokenFinalPath + "?service=" + REGISTRY_SERVICE
+                + "&scope=" + URLEncoder.encode(CHALLENGE_SCOPE, StandardCharsets.UTF_8);
+        wireMockServer.stubFor(get(urlPathEqualTo(TOKEN_PATH))
+                .willReturn(aResponse().withStatus(302).withHeader("Location", location)));
+        String expectedBasic = expectedBasicAuth("user", "s3cr3t");
+        wireMockServer.stubFor(get(urlPathEqualTo(tokenFinalPath))
+                .withHeader("Authorization", equalTo(expectedBasic))
+                .withQueryParam("service", equalTo(REGISTRY_SERVICE))
+                .withQueryParam("scope", equalTo(CHALLENGE_SCOPE))
+                .willReturn(jsonResponse(200, """
+                        {"token": "%s"}
+                        """.formatted(MINTED_TOKEN))));
+        stubTagsListSuccess();
+
+        OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
+                BASE_URL + "/v2/" + REPO, Optional.of("user"), Optional.of("s3cr3t"),
+                DEFAULT_SELECTION, SEMVER_PARSER);
+
+        latestSource.version();
+
+        wireMockServer.verify(getRequestedFor(urlPathEqualTo(tokenFinalPath))
+                .withHeader("Authorization", equalTo(expectedBasic))
+                .withQueryParam("service", equalTo(REGISTRY_SERVICE))
+                .withQueryParam("scope", equalTo(CHALLENGE_SCOPE)));
+    }
+
+    @Test
+    void sameOriginAuthenticatedTagsRedirect_finalRequest_carriesBearerToken_notBasicCredential() {
+        stubChallenge401();
+        stubTokenEndpointWithBasicAuth("user", "s3cr3t");
+        String tagsFinalPath = TAGS_PATH + "-final";
+        wireMockServer.stubFor(get(urlPathEqualTo(TAGS_PATH))
+                .withHeader("Authorization", equalTo("Bearer " + MINTED_TOKEN))
+                .willReturn(aResponse().withStatus(302).withHeader("Location", tagsFinalPath)));
+        wireMockServer.stubFor(get(urlPathEqualTo(tagsFinalPath))
+                .withHeader("Authorization", equalTo("Bearer " + MINTED_TOKEN))
+                .willReturn(jsonResponse(200, tagsListBody("1.9.0"))));
+
+        OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
+                BASE_URL + "/v2/" + REPO, Optional.of("user"), Optional.of("s3cr3t"),
+                DEFAULT_SELECTION, SEMVER_PARSER);
+
+        VersionValue result = latestSource.version();
+
+        assertEquals("1.9.0", result.value());
+        wireMockServer.verify(getRequestedFor(urlPathEqualTo(tagsFinalPath))
+                .withHeader("Authorization", equalTo("Bearer " + MINTED_TOKEN)));
+    }
+
+    @Test
+    void crossOriginTokenRedirect_targetReceivesNoBasicAuthorization_butIsStillContacted() {
+        stubChallenge401();
+        String crossOriginPath = "/token-cross-origin";
+        String crossOriginLocation = "http://localhost:" + CROSS_ORIGIN_PORT + crossOriginPath
+                + "?service=" + REGISTRY_SERVICE
+                + "&scope=" + URLEncoder.encode(CHALLENGE_SCOPE, StandardCharsets.UTF_8);
+        wireMockServer.stubFor(get(urlPathEqualTo(TOKEN_PATH))
+                .willReturn(aResponse().withStatus(302).withHeader("Location", crossOriginLocation)));
+        crossOriginWireMockServer.stubFor(get(urlPathEqualTo(crossOriginPath))
+                .willReturn(jsonResponse(200, """
+                        {"token": "%s"}
+                        """.formatted(MINTED_TOKEN))));
+        stubTagsListSuccess();
+
+        OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
+                BASE_URL + "/v2/" + REPO, Optional.of("user"), Optional.of("s3cr3t"),
+                DEFAULT_SELECTION, SEMVER_PARSER);
+
+        VersionValue result = latestSource.version();
+
+        assertEquals("1.25.3", result.value(),
+                "the cross-origin token redirect must still be followed to a working target");
+        crossOriginWireMockServer.verify(getRequestedFor(urlPathEqualTo(crossOriginPath))
+                .withHeader("Authorization", absent()));
+    }
+
+    @Test
+    void crossOriginAuthenticatedTagsRedirect_targetReceivesNoBearerAuthorization() {
+        stubChallenge401();
+        stubTokenEndpointWithBasicAuth("user", "s3cr3t");
+        String crossOriginPath = "/tags-cross-origin";
+        wireMockServer.stubFor(get(urlPathEqualTo(TAGS_PATH))
+                .withHeader("Authorization", equalTo("Bearer " + MINTED_TOKEN))
+                .willReturn(aResponse().withStatus(302)
+                        .withHeader("Location", "http://localhost:" + CROSS_ORIGIN_PORT + crossOriginPath)));
+        crossOriginWireMockServer.stubFor(get(urlPathEqualTo(crossOriginPath))
+                .willReturn(jsonResponse(200, tagsListBody("2.2.2"))));
+
+        OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
+                BASE_URL + "/v2/" + REPO, Optional.of("user"), Optional.of("s3cr3t"),
+                DEFAULT_SELECTION, SEMVER_PARSER);
+
+        VersionValue result = latestSource.version();
+
+        assertEquals("2.2.2", result.value(),
+                "the cross-origin authenticated-tags redirect must still be followed to a working target");
+        crossOriginWireMockServer.verify(getRequestedFor(urlPathEqualTo(crossOriginPath))
+                .withHeader("Authorization", absent()));
+    }
+
+    @Test
+    void httpsToHttpDowngrade_onTokenLeg_refusedBeforeContactingTheHttpTarget() {
+        // Raw probe + challenge stay on the primary plain-HTTP server (succeed normally); only the
+        // challenge's realm points at the untrusted HTTPS server, so this isolates the token leg.
+        String realmPath = "/token-https";
+        String wwwAuthenticate = "Bearer realm=\"" + httpsBaseUrl + realmPath
+                + "\",service=\"" + REGISTRY_SERVICE + "\",scope=\"" + CHALLENGE_SCOPE + "\"";
+        wireMockServer.stubFor(get(urlPathEqualTo(TAGS_PATH))
+                .willReturn(aResponse().withStatus(401).withHeader("WWW-Authenticate", wwwAuthenticate)));
+        httpsWireMockServer.stubFor(get(urlPathEqualTo(realmPath))
+                .willReturn(aResponse().withStatus(301)
+                        .withHeader("Location", "http://localhost:" + PORT + "/downgraded-token")));
+
+        OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
+                BASE_URL + "/v2/" + REPO, Optional.of("user"), Optional.of("s3cr3t"),
+                DEFAULT_SELECTION, SEMVER_PARSER);
+
+        assertThrows(RuntimeException.class, latestSource::version,
+                "an HTTPS token realm redirecting to plain HTTP must never resolve to a version");
+        wireMockServer.verify(0, getRequestedFor(urlPathEqualTo("/downgraded-token")));
+    }
+
+    @Test
+    void httpsToHttpDowngrade_onAuthenticatedTagsLeg_refusedBeforeContactingTheHttpTarget() {
+        // The whole registry is HTTPS here so the authenticated-tags client's baseUri (which shares
+        // the source's single baseUrl with the raw probe) is HTTPS too. The self-signed cert is
+        // deliberately untrusted (OciRegistryLatestSource has no truststore knob), so this may fail
+        // as early as the raw probe's own TLS handshake rather than at an explicit redirect — see the
+        // class-level comment on httpsWireMockServer. Either way the plain-HTTP downgrade target must
+        // never be contacted.
+        httpsWireMockServer.stubFor(get(urlPathEqualTo(TAGS_PATH))
+                .willReturn(aResponse().withStatus(301)
+                        .withHeader("Location", "http://localhost:" + PORT + "/downgraded-tags")));
+
+        OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
+                httpsBaseUrl + "/v2/" + REPO, Optional.of("user"), Optional.of("s3cr3t"),
+                DEFAULT_SELECTION, SEMVER_PARSER);
+
+        assertThrows(RuntimeException.class, latestSource::version,
+                "an HTTPS registry redirecting the authenticated-tags leg to plain HTTP must never "
+                        + "resolve to a version");
+        wireMockServer.verify(0, getRequestedFor(urlPathEqualTo("/downgraded-tags")));
+    }
+
+    // ---- issue 05 gap-fix: authenticated-leg non-2xx and authenticated pagination ---------------
+    // These two tests pin down APPROVED behavior of the diagnostic guard added alongside the
+    // redirect-following work above: a FINAL non-2xx response on the tags-page fetch must fail
+    // closed (IllegalStateException, a RuntimeException) rather than being silently mis-parsed —
+    // including on the AUTHENTICATED (post-mint, Bearer-carrying) leg — and the authenticated leg
+    // must thread Link-header pagination the same way the anonymous leg does (see
+    // OciRegistryLatestSourcePaginationIT for the anonymous multi-page style this mirrors).
+
+    @Test
+    void authenticatedTagsRequest_nonSuccessStatus_failsClosed_throwsRuntimeException() {
+        stubChallenge401();
+        stubTokenEndpoint();
+        // The unauthenticated raw probe still gets the 401 challenge (via stubChallenge401 above,
+        // which matches any request to TAGS_PATH regardless of headers). The Bearer-carrying retry
+        // must be matched by a MORE SPECIFIC stub (WireMock prefers the more specific match), which
+        // returns a non-2xx here instead of a tags list.
+        wireMockServer.stubFor(get(urlPathEqualTo(TAGS_PATH))
+                .withHeader("Authorization", equalTo("Bearer " + MINTED_TOKEN))
+                .willReturn(aResponse()
+                        .withStatus(500)
+                        .withHeader("Content-Type", "text/plain")
+                        .withBody("internal registry error")));
+
+        OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
+                BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(), DEFAULT_SELECTION, SEMVER_PARSER);
+
+        assertThrows(RuntimeException.class, latestSource::version,
+                "a token-minted-but-tags-fail scenario (non-2xx on the authenticated leg) must fail "
+                        + "closed rather than silently mis-parsing the response body");
+    }
+
+    @Test
+    void authenticatedDance_paginatesAcrossTwoPages_andReturnsLargestFromPageTwo() {
+        stubChallenge401();
+        stubTokenEndpoint();
+
+        String pageOneLink = "<" + TAGS_PATH + "?n=2&last=1.1.0>; rel=\"next\"";
+        wireMockServer.stubFor(get(urlPathEqualTo(TAGS_PATH))
+                .withHeader("Authorization", equalTo("Bearer " + MINTED_TOKEN))
+                .withQueryParam("n", equalTo("2"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withHeader("Link", pageOneLink)
+                        .withBody(tagsListBody("1.0.0", "1.1.0"))));
+
+        wireMockServer.stubFor(get(urlPathEqualTo(TAGS_PATH))
+                .withHeader("Authorization", equalTo("Bearer " + MINTED_TOKEN))
+                .withQueryParam("n", equalTo("2"))
+                .withQueryParam("last", equalTo("1.1.0"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(tagsListBody("2.0.0")))); // no Link = last page; largest tag lives here
+
+        OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
+                BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
+                new TagSelection(2, 100, Optional.empty(), false), SEMVER_PARSER);
+
+        VersionValue result = latestSource.version();
+
+        assertEquals("2.0.0", result.value(),
+                "the authenticated (Bearer) leg must thread Link-header pagination across pages just "
+                        + "like the anonymous leg, so the largest tag on page 2 is selected");
+        wireMockServer.verify(getRequestedFor(urlPathEqualTo(TAGS_PATH))
+                .withHeader("Authorization", equalTo("Bearer " + MINTED_TOKEN))
+                .withQueryParam("last", equalTo("1.1.0")));
+    }
+
+    private static String expectedBasicAuth(String username, String password) {
+        return "Basic " + Base64.getEncoder()
+                .encodeToString((username + ":" + password).getBytes(StandardCharsets.UTF_8));
     }
 
     // ---- stub helpers -------------------------------------------------------------------------

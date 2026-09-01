@@ -88,6 +88,17 @@ test {
         excludeTags 'performance'
     }
 
+    // The TDD loop's fast lane selects only isolated unit tests. Three tests currently live under
+    // the unit package but boot Quarkus, so keep them in the full JVM suite only.
+    if (project.hasProperty('unitTestsOnly')) {
+        filter {
+            includeTestsMatching 'org.yardship.unit.*'
+            excludeTestsMatching 'org.yardship.unit.adapters.in.mcp.ApplicationMcpToolsTests'
+            excludeTestsMatching 'org.yardship.unit.adapters.in.metrics.MetricsControllerTests'
+            excludeTestsMatching 'org.yardship.unit.adapters.out.versionsource.ApplicationConfigLoaderTests'
+        }
+    }
+
     // Bound the single test-fork JVM's heap explicitly instead of relying on JVM ergonomics
     // (~1/4 of physical RAM, i.e. multiple GB and host-dependent). Each @QuarkusTest profile
     // (SurfaceAuthTestProfile, WebOnlyAuthTestProfile, BothSurfacesAuthTestProfile,

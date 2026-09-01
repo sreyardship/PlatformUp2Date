@@ -60,3 +60,7 @@
 
 # AI planning
 .scratch
+
+# Extra
+POST*
+.pi

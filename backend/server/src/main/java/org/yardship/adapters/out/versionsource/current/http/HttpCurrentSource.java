@@ -18,9 +18,13 @@ import java.io.IOException;
  *
  * <p>A plain (non-CDI) POJO holding a ready {@link HttpCurrentVersionClient}, built and injected by its
  * factory via {@code HttpCurrentVersionClientFactory}. This source only does extraction: the
- * {@link VersionResponseExceptionMapper} registration (so a non-2xx upstream surfaces as a thrown
- * exception the scrape loop can isolate) lives entirely with the client factory now — this slice
- * wires no authentication onto that client.
+ * {@link VersionResponseExceptionMapper} usage (so a non-2xx upstream surfaces as a thrown
+ * exception the scrape loop can isolate), any authentication and TLS configuration, and — per
+ * ADR-0029 (see {@code docs/adr/0029-authorization-does-not-cross-redirect-origins.md}) —
+ * redirect-following, all live entirely with the client factory / transport now. A configured
+ * {@code url} that responds with a supported redirect (301/302/303/307/308) reaches the final JSON
+ * body transparently to this class: {@code client.getCurrentVersion()} already returns the FINAL
+ * response's body, so extraction here is identical whether or not a redirect occurred.
  */
 public class HttpCurrentSource implements CurrentVersionSource, Closeable {
 
