@@ -28,8 +28,17 @@ public class BasicAuthFilter implements ClientRequestFilter {
 
     @Override
     public void filter(ClientRequestContext requestContext) {
+        requestContext.getHeaders().putSingle(HttpHeaders.AUTHORIZATION, basicHeaderValue(username, password));
+    }
+
+    /**
+     * The {@code Authorization} header value for a {@code username}/{@code password} pair — shared
+     * with adapters that attach the same credential outside the JAX-RS filter chain (e.g. a
+     * hand-rolled redirect transport that needs the exact same header format on re-issued requests).
+     */
+    public static String basicHeaderValue(String username, String password) {
         String credential = Base64.getEncoder()
                 .encodeToString((username + ":" + password).getBytes(StandardCharsets.UTF_8));
-        requestContext.getHeaders().putSingle(HttpHeaders.AUTHORIZATION, "Basic " + credential);
+        return "Basic " + credential;
     }
 }

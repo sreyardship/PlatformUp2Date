@@ -3,11 +3,9 @@ package org.yardship.adapters.out.versionsource.latest.ociregistry;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.quarkus.rest.client.reactive.QuarkusRestClientBuilder;
 import jakarta.ws.rs.core.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.yardship.adapters.out.versionsource.VersionResponseExceptionMapper;
 import org.yardship.adapters.out.versionsource.auth.BasicAuthFilter;
 import org.yardship.adapters.out.versionsource.auth.BearerAuthFilter;
 import org.yardship.adapters.out.versionsource.http.RedirectFollowingHttpGet;
@@ -18,6 +16,7 @@ import org.yardship.core.ports.out.LatestVersionSource;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -69,6 +68,8 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
     private static final Pattern LINK_NEXT_URL = Pattern.compile("<([^>]+)>;\\s*rel=\"next\"");
     /** Extracts the {@code last=…} value from a Link URL's query string. */
     private static final Pattern LINK_LAST_PARAM = Pattern.compile("[?&]last=([^&]+)");
+    /** Bound on the response body length included in a scrape-failure diagnostic message. */
+    private static final int MAX_BODY_LENGTH = 512;
 
     private final String baseUrl;
     private final Optional<String> username;
@@ -122,12 +123,12 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
      * lambda that wraps the appropriate HTTP client.
      *
      * <p>Direct-200 path: the first page is already fetched by the raw probe; subsequent pages are
-     * fetched by a new {@link OciRegistryTagsClient} per page. The first page is reused (not
-     * re-fetched) to avoid a redundant HTTP call.
+     * fetched via {@link #fetchAnonymousPage}. The first page is reused (not re-fetched) to avoid a
+     * redundant HTTP call.
      *
-     * <p>401 path: the raw 401 response carries no usable tags; a bearer token is minted once, and
-     * all pages (including page one) are fetched with the single authenticated client, which is
-     * closed after all pages are accumulated.
+     * <p>401 path: the raw 401 response carries no usable tags; a bearer token is minted once
+     * ({@link #mintToken}), and all pages (including page one) are fetched via
+     * {@link #fetchAuthenticatedPage} carrying that token.
      */
     private VersionValue fetchVersionWithDance() {
         AnonymousPageFetch rawFirst = fetchAnonymousPage(buildTagsListUri(selection.pageSize(), null));
@@ -149,6 +150,7 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
                 }
                 AnonymousPageFetch fetch = fetchAnonymousPage(
                         nextUri.get().orElseGet(() -> buildTagsListUri(n, last)));
+                requireSuccessfulTagsPageResponse(fetch.response());
                 nextUri.set(fetch.nextUri());
                 return toTagsPage(fetch.response());
             };
@@ -160,15 +162,18 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
             String wwwAuthenticate = rawFirstResponse.getHeaderString("WWW-Authenticate");
             BearerChallenge challenge = parseChallenge(wwwAuthenticate);
             String token = mintToken(challenge);
-            OciRegistryTagsClient authenticatedClient = buildAuthenticatedTagsClient(token);
-            try {
-                // Re-use one authenticated client across all pages (one close at the end).
-                PagedTagsFetcher authenticatedFetcher = (n, last) -> toTagsPage(
-                        retryOnConnectionFailure(() -> authenticatedClient.tagsList(n, last)));
-                return paginateAndSelectVersion(authenticatedFetcher);
-            } finally {
-                closeQuietly(authenticatedClient);
-            }
+            // The NEXT authenticated page is fetched at the absolute URI resolved from the Link
+            // header of the page just fetched — never reconstructed from baseUrl — mirroring the
+            // anonymous path (see AnonymousPageFetch) so a redirected canonical authenticated
+            // endpoint (ADR-0029) still paginates correctly.
+            AtomicReference<Optional<URI>> nextUri = new AtomicReference<>(Optional.empty());
+            PagedTagsFetcher authenticatedFetcher = (n, last) -> {
+                URI uri = nextUri.get().orElseGet(() -> buildTagsListUri(n, last));
+                AuthenticatedPageFetch fetch = fetchAuthenticatedPage(uri, token);
+                nextUri.set(fetch.nextUri());
+                return toTagsPage(fetch.response());
+            };
+            return paginateAndSelectVersion(authenticatedFetcher);
         }
 
         throw new IllegalStateException(
@@ -341,39 +346,89 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
     }
 
     /**
-     * Builds the tags client WITH the {@link BearerAuthFilter} (minted token) and the
-     * {@link VersionResponseExceptionMapper} (so a non-2xx on the authenticated retry surfaces as a
-     * clear failure). The anonymous (direct-200 / no-challenge) path no longer uses a declarative
-     * REST-client build at all — it goes through {@link RedirectFollowingHttpGet} (ADR-0029) — so
-     * this is the only remaining {@link OciRegistryTagsClient} builder.
+     * One authenticated {@code tags/list} fetch, pairing the adapted {@link Response} with the
+     * absolute URI of the NEXT page (if any) — the authenticated-leg counterpart to
+     * {@link #fetchAnonymousPage}. Fetched via {@link RedirectFollowingHttpGet} (ADR-0029) with only
+     * the minted Bearer token in the header map: on a same-origin redirect it is retained, on a
+     * cross-origin redirect it is stripped, and an HTTPS→HTTP downgrade is refused before the
+     * plain-HTTP target is ever contacted.
      */
-    private OciRegistryTagsClient buildAuthenticatedTagsClient(String bearerToken) {
-        return QuarkusRestClientBuilder.newBuilder()
-                .baseUri(URI.create(baseUrl))
-                .register(VersionResponseExceptionMapper.class)
-                .register(new BearerAuthFilter(bearerToken))
-                .build(OciRegistryTagsClient.class);
+    private record AuthenticatedPageFetch(Response response, Optional<URI> nextUri) {}
+
+    private AuthenticatedPageFetch fetchAuthenticatedPage(URI uri, String bearerToken) {
+        Map<String, String> headers = Map.of("Authorization", BearerAuthFilter.bearerHeaderValue(bearerToken));
+        HttpResponse<String> httpResponse =
+                retryOnConnectionFailure(() -> redirectFollowingHttpGet.get(uri, headers));
+        Response response = toJaxRsResponse(httpResponse);
+        // Every call here fetches an authenticated (post-mint) tags page — never the raw probe
+        // whose 401 drives the bearer dance (that response is inspected separately in
+        // fetchVersionWithDance and never passed through this method) — so any non-2xx here is
+        // an unexpected scrape failure, not a legitimate challenge.
+        requireSuccessfulTagsPageResponse(response);
+        Optional<URI> nextUri = httpResponse.headers().firstValue("Link")
+                .flatMap(OciRegistryLatestSource::parseNextLinkUrl)
+                .map(httpResponse.uri()::resolve);
+        return new AuthenticatedPageFetch(response, nextUri);
     }
 
     /**
-     * Mints a bearer token from the realm advertised in {@code challenge}. Sends
-     * {@code Authorization: Basic base64(user:pass)} to the realm when both username and password
-     * are present; otherwise mints anonymously.
+     * Diagnostic guard for a page fetch that is EXPECTED to be 2xx (an authenticated tags page, or
+     * an anonymous page 2+): on a non-2xx, fails closed with an {@link IllegalStateException}
+     * carrying the HTTP status and a truncated body — restoring the informativeness the old
+     * {@code VersionResponseExceptionMapper}-based design gave for free — BEFORE the response is
+     * handed to {@link #toTagsPage}, whose generic {@code readEntity} {@code ProcessingException}
+     * would otherwise swallow both the status and the body.
+     *
+     * <p>Must never be called on the raw first-page probe: its {@code 401} is a legitimate bearer
+     * challenge, handled by {@link #parseChallenge} in {@link #fetchVersionWithDance}, not a
+     * failure.
+     */
+    private static void requireSuccessfulTagsPageResponse(Response response) {
+        int status = response.getStatus();
+        if (status < 200 || status >= 300) {
+            String body = response.hasEntity() ? String.valueOf(response.getEntity()) : "";
+            throw new IllegalStateException("HTTP " + status + " response: " + truncate(body));
+        }
+    }
+
+    /** Truncates a response body to a bounded length for safe inclusion in an error message. */
+    private static String truncate(String body) {
+        if (body == null) {
+            return "null";
+        }
+        return body.length() <= MAX_BODY_LENGTH ? body : body.substring(0, MAX_BODY_LENGTH) + "…[truncated]";
+    }
+
+    /**
+     * Mints a bearer token from the realm advertised in {@code challenge}, via
+     * {@link RedirectFollowingHttpGet} (ADR-0029) so a redirected realm is followed to its canonical
+     * token endpoint. Sends {@code Authorization: Basic base64(user:pass)} ({@link
+     * BasicAuthFilter#basicHeaderValue}) to the realm when both username and password are present;
+     * otherwise mints anonymously (empty header map). The {@code service} and {@code scope} values
+     * are echoed verbatim from the challenge as URL-encoded query parameters on the realm URI — the
+     * transport itself retains the credential on same-origin hops only and strips it cross-origin.
      */
     private String mintToken(BearerChallenge challenge) {
-        QuarkusRestClientBuilder builder = QuarkusRestClientBuilder.newBuilder()
-                .baseUri(URI.create(challenge.realm()));
-        username.filter(u -> !u.isBlank())
-                .flatMap(u -> password.filter(p -> !p.isBlank()).map(p -> new BasicAuthFilter(u, p)))
-                .ifPresent(builder::register);
-        OciTokenClient tokenClient = builder.build(OciTokenClient.class);
-        try {
-            Response tokenResponse = retryOnConnectionFailure(
-                    () -> tokenClient.mint(challenge.service(), challenge.scope()));
-            return extractToken(tokenResponse);
-        } finally {
-            closeQuietly(tokenClient);
-        }
+        URI realmUri = buildTokenRealmUri(challenge);
+        Map<String, String> headers = username.filter(u -> !u.isBlank())
+                .flatMap(u -> password.filter(p -> !p.isBlank())
+                        .map(p -> BasicAuthFilter.basicHeaderValue(u, p)))
+                .map(basic -> Map.of("Authorization", basic))
+                .orElseGet(Map::of);
+        HttpResponse<String> tokenResponse =
+                retryOnConnectionFailure(() -> redirectFollowingHttpGet.get(realmUri, headers));
+        return extractToken(tokenResponse.body());
+    }
+
+    /**
+     * Builds the token-mint request URI: the challenge's {@code realm}, verbatim, with the
+     * challenge's {@code service} and {@code scope} appended as URL-encoded query parameters.
+     */
+    private static URI buildTokenRealmUri(BearerChallenge challenge) {
+        String query = "service=" + URLEncoder.encode(challenge.service(), StandardCharsets.UTF_8)
+                + "&scope=" + URLEncoder.encode(challenge.scope(), StandardCharsets.UTF_8);
+        String separator = challenge.realm().contains("?") ? "&" : "?";
+        return URI.create(challenge.realm() + separator + query);
     }
 
     /**
@@ -416,8 +471,7 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
      * Extracts the bearer token value from a token-mint response JSON body. Prefers the
      * {@code token} field; falls back to {@code access_token} (ADR-0013).
      */
-    private static String extractToken(Response tokenResponse) {
-        String json = tokenResponse.readEntity(String.class);
+    private static String extractToken(String json) {
         try {
             JsonNode node = OBJECT_MAPPER.readTree(json);
             if (node.has("token") && !node.get("token").isNull()) {
@@ -440,12 +494,10 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
      * and directs clients to automatically retry idempotent requests on it; every call this
      * source makes is a GET, so the retry is always safe.
      *
-     * <p>Only transport failures caused by an {@link IOException} are retried — whether raised as a
-     * {@link jakarta.ws.rs.ProcessingException} by the declarative REST-client calls (the
-     * authenticated/token legs) or as a plain {@link RuntimeException} by
-     * {@link RedirectFollowingHttpGet} (the anonymous leg, ADR-0029). HTTP error responses (any
-     * status, including the expected 401 challenge) and non-I/O failures propagate untouched on the
-     * first attempt.
+     * <p>Only transport failures caused by an {@link IOException} are retried — every leg (raw
+     * probe, token mint, authenticated tags) is wrapped as a plain {@link RuntimeException} by
+     * {@link RedirectFollowingHttpGet} (ADR-0029). HTTP error responses (any status, including the
+     * expected 401 challenge) and non-I/O failures propagate untouched on the first attempt.
      */
     private static <T> T retryOnConnectionFailure(Supplier<T> call) {
         try {
@@ -468,21 +520,6 @@ public class OciRegistryLatestSource implements LatestVersionSource, Closeable {
             }
         }
         return false;
-    }
-
-    /**
-     * Best-effort close for a transiently-built REST client. Silently ignores {@link IOException}
-     * so a failed close never masks a real result or exception from the caller's {@code finally}
-     * block.
-     */
-    private static void closeQuietly(Object client) {
-        if (client instanceof Closeable c) {
-            try {
-                c.close();
-            } catch (IOException ignored) {
-                // best-effort; do not mask the real result or exception
-            }
-        }
     }
 
     @Override
