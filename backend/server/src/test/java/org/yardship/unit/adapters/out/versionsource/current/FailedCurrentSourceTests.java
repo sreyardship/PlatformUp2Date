@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link FailedCurrentSource} — the no-op {@link CurrentVersionSource} returned by
- * {@code HttpCurrentSourceFactory} (issue 02) when an app's {@code auth} config is malformed at the
+ * {@code HttpCurrentSourceFactory} when an app's {@code auth} config is malformed at the
  * VALUE level (unknown {@code type}, or {@code basic} missing/blank credentials). It carries a clear
  * message and throws it on every {@code version()} call, so the app surfaces as FAILED every scrape
  * via the existing per-app isolation in {@code ApplicationVersionService.scrape()} — instead of the

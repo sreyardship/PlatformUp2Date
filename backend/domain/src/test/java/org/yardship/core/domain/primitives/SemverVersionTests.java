@@ -13,10 +13,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Behavior suite for {@link SemverVersion}, the semver-backed {@link VersionValue}. Ported verbatim
- * from the former {@code VersionTests} (deleted alongside the old {@code Version} class) — every
- * assertion is semantically identical; only the concrete type ({@code SemverVersion}) and the Diff
- * home ({@code VersionValue.Diff}) changed.
+ * Behavior suite for {@link SemverVersion}, the semver-backed {@link VersionValue}, including
+ * parsing, ordering, equality, and {@link VersionValue.Diff} semantics.
  *
  * <p>This is a pure domain unit test — no Quarkus context needed.
  */

@@ -1,32 +1,12 @@
-// Issue 04 (SPA authorization UX — expiry, denial, logout) — the 401 branch of the axios
-// response interceptor.
+// Contract for the response interceptor's 401 handling:
+//   1. When web auth is enabled, attempt silent renewal.
+//   2. On success, retry the original request exactly once through axiosClient.
+//   3. On failure, start a full-page sign-in redirect and reject the interceptor promise.
+// With web auth disabled, and for non-401 responses, errors continue to throw synchronously.
+// Keep the handler non-async so those default branches preserve that synchronous contract; only
+// the 401-with-auth branch returns a Promise.
 //
-// CONTRACT PINNED FOR THIS SLICE:
-//   On a 401 (missing/expired/invalid token) AND isWebAuthEnabled():
-//     1. Attempt a silent renew via userManager.signinSilent().
-//     2. If it RESOLVES: retry the original request exactly once via
-//        axiosClient.request(err.config) and resolve the interceptor's promise with that
-//        result. The caller (versionClient → App.fetchVersionData) never sees the 401 —
-//        "never left staring at a broken board". This is the chosen alternative from the
-//        two the issue offered (retry vs. reject-so-App-refetches): retrying inside the
-//        interceptor is self-contained and needs no App-level retry wiring.
-//     3. If it REJECTS: call userManager.signinRedirect() (full-page redirect to the IdP).
-//        The interceptor's promise rejects too (moot once the browser navigates away, but
-//        keeps the promise contract sane for any code that runs before that happens).
-//   401 with web auth DISABLED, and every non-401 status, are UNCHANGED — still a synchronous
-//   throw of err.response (network errors still throw the original error). This is what keeps
-//   axiosClient.test.js's existing 500/429/503/network-error assertions green.
-//
-// IMPLEMENTATION NOTE for the implementer: the handler must stay a *non-async* function whose
-// default path synchronously throws (as pinned by axiosClient.test.js's
-// `expect(() => errorInterceptor(...)).toThrow(...)`). Only the 401+enabled branch may return a
-// Promise (built via userManager.signinSilent().then(...)); do not make the whole handler
-// `async`, or every branch starts returning a rejected Promise instead of throwing synchronously,
-// which breaks the pinned sync tests.
-//
-// MANUAL / SYSTEM TEST NOTE: the real silent-renew iframe round-trip against an IdP and the real
-// signinRedirect() navigation are not unit-testable — userManager is fully mocked here. The real
-// end-to-end 401 → renew/redirect flow against a live IdP is a manual system test.
+// userManager is mocked here because iframe renewal and browser navigation require a system test.
 
 vi.mock('../auth/userManager', () => ({
   isWebAuthEnabled: vi.fn(),

@@ -36,7 +36,7 @@ public class WireMockVersionResource implements QuarkusTestResourceLifecycleMana
                 .willReturn(json("{\"version\":\"1.0.0\"}")));
         // The github-release source lists releases at <base>/repos/{repo}/releases and picks the
         // largest semver tag, so the latest leg is served as a Releases array (query carries
-        // per_page). This reproduces issue #39's exact shape: GitHub moved the repository, so the
+        // per_page). This reproduces GitHub's moved-repository response shape, where the
         // /repos/... path 301-redirects to a /repositories/<id>/... path that serves the releases —
         // proving the built artifact follows the redirect end to end, not just the direct path.
         wireMockServer.stubFor(get(urlPathEqualTo("/repos/good/latest/releases"))

@@ -15,7 +15,7 @@ import java.lang.annotation.Target;
  * {@link org.yardship.core.services.ApplicationVersionService}.
  *
  * <p>Distinct from {@link TargetedScrapeBudget} so agent-driven targeted-scrape traffic cannot starve
- * the UI's full-Refresh budget (issue 03).
+ * the UI's full-refresh budget.
  */
 @Qualifier
 @Retention(RetentionPolicy.RUNTIME)

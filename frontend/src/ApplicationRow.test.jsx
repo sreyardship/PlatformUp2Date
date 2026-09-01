@@ -40,7 +40,7 @@ const renderRow = (props) =>
     </table>
   )
 
-// Slice 01: each side is a { version, readAt } object.
+// Each side is a { version, readAt } object.
 const FIXED_READ_AT = '2026-07-01T10:00:00.000Z'
 
 const baseVer = (overrides) => ({
@@ -269,7 +269,7 @@ describe('changelog control', () => {
   })
 })
 
-// --- Issue 03: Unknown (Unresolved) app display ------------------------------------------
+// --- Unknown (Unresolved) app display ----------------------------------------------------
 //
 // When an app is Unresolved (resolution === 'Unresolved', drift === null):
 //   - A grey "Unknown" status badge is shown (distinct from the drift severity colours).
@@ -381,15 +381,15 @@ describe('Unknown (Unresolved) app display', () => {
   })
 })
 
-// --- Slice 01: per-side readAt display (reworked) ----------------------------------------
+// --- Per-side readAt display -------------------------------------------------------------
 //
 // Each version cell is now a single line (the version string, or "—"). The always-visible
 // "read Xm ago" caption is gone. Instead the version string itself is a hover target:
 // hovering it reveals a tooltip: "read <relative> ago — <absolute local time>".
 //
 // Relative time is humanized with floor division: minutes under 1h, hours under 1d, days
-// after that. This module delegates the formatting to freshness.js (slice 01 also creates
-// freshness.js — see freshness.test.js for unit-level boundary tests).
+// after that. This module delegates formatting to freshness.js; freshness.test.js covers the
+// unit-level boundaries.
 //
 // Sides without a readAt show "—" (when version is null) and expose no hover tooltip.
 // Tests freeze Date.now() via vi.setSystemTime so the relative math is deterministic.
@@ -489,7 +489,7 @@ describe('per-side readAt display', () => {
   })
 })
 
-// --- Slice 02: failed-refresh warning icon display --------------------------------------
+// --- Failed-refresh warning icon display ------------------------------------------------
 //
 // When a side's `failedAt` is present the row renders an amber WarningAmberIcon after
 // the version string (or after "—" for a value-less side). There are NO always-visible
@@ -549,8 +549,7 @@ describe('failed-refresh marker display', () => {
   })
 
   test('no always-visible "read … ago" text when failedAt is present (ReadAtCaption removed)', () => {
-    // Slice 01 had a bridge ReadAtCaption that showed "read Xm ago" when failedAt was present.
-    // Slice 02 removes it — the read time is in the hover tooltip only.
+    // The read time belongs in the hover tooltip, not in an always-visible caption.
     renderRow({
       name: 'app',
       ver: {

@@ -22,8 +22,7 @@ import java.util.Map;
  * {@link org.yardship.core.domain.primitives.VersionParser} internally from {@code format} rather
  * than receiving them pre-built.
  *
- * <p>Outcome mapping (see {@link ValidationOutcome.CalverOk}'s design note for the full
- * rationale — mirrors issue 04's {@code changelog} precedent):
+ * <p>Outcome mapping (see {@link ValidationOutcome.CalverOk} for the rationale):
  * <ul>
  *   <li>{@code format} parses as a legal {@code CalverFormat} and {@code versionRaw} parses
  *       against it → {@link ValidationOutcome.CalverOk} with the resolved token -> displayed-value
@@ -32,8 +31,8 @@ import java.util.Map;
  *       {@link ValidationOutcome.ConfigInvalid}, the {@code CalverFormat} constructor's message,
  *       verbatim.</li>
  *   <li>{@code versionRaw} does not parse under the built {@code format} →
- *       {@link ValidationOutcome.ConfigInvalid} (design call, consistent with issue 04: no
- *       body-acquisition step for {@code FetchFailed}/{@code ValidButEmpty} to describe —
+ *       {@link ValidationOutcome.ConfigInvalid} because there is no body-acquisition step for
+ *       {@code FetchFailed}/{@code ValidButEmpty} to describe —
  *       {@code --version} is part of the invocation itself, like {@code --format}).</li>
  * </ul>
  */

@@ -1,7 +1,4 @@
-// Issue 03 (SPA becomes an OIDC client) — SEAM CONTRACT, implemented per the tester's RED-phase
-// stub (see the header comment this file used to carry, still true of the shape below).
-//
-// This is the non-React bridge between the axios request interceptor (a module-level singleton,
+// Non-React bridge between the axios request interceptor (a module-level singleton,
 // src/api/axiosClient.js) and the React OIDC context (react-oidc-context's <AuthProvider>, wired
 // at the composition root, src/auth/AuthRoot.jsx / src/index.jsx). Both sides share this SAME
 // oidc-client-ts UserManager instance/settings so the access token the AuthProvider obtains via

@@ -13,13 +13,12 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for {@link VersionApplication} after the slice 01 shape change: each side is now a
- * {@link SideObservation} rather than a bare {@link VersionValue}.
+ * Unit tests for {@link VersionApplication}, whose sides are represented by
+ * {@link SideObservation} values.
  *
  * <p>{@link VersionApplication#isOld()}, {@link VersionApplication#drift()}, and
  * {@link VersionApplication#hasDriftAtLeast} must still work for resolved apps (both sides have a
- * value). This slice only ever produces resolved observations, so those predicates must be correct
- * for the resolved case.
+ * value). These tests verify those predicates for the resolved case.
  */
 public class VersionApplicationTests {
 
@@ -131,7 +130,7 @@ public class VersionApplicationTests {
         assertTrue(majorBehind.hasDriftAtLeast(VersionValue.Diff.MAJOR));
     }
 
-    // --- Issue 03: Unresolved apps (value-less sides) -----------------------------------------
+    // --- Unresolved apps (value-less sides) --------------------------------------------------
     //
     // VersionApplication now accepts sides without a value (pending/failed sides). `isResolved()`
     // returns true only when BOTH sides have a value. `drift()` and `isOld()` throw
@@ -218,7 +217,7 @@ public class VersionApplicationTests {
 
     @Test
     void unresolvedApp_neverReportsDriftNone_criticalInvariant() {
-        // THE critical invariant from AC: an Unresolved app must NEVER return NONE from drift().
+        // An Unresolved app must never report NONE drift.
         // "NONE" in the frontend means "up to date" — an unknown app must not be silently treated as
         // up-to-date. The guard must throw rather than fall through to the NONE branch.
         VersionApplication app = new VersionApplication(validName, pending(), latest);
@@ -247,7 +246,7 @@ public class VersionApplicationTests {
                 "isOld() must throw IllegalStateException when latest has no value");
     }
 
-    // --- Issue 05: hasFailedScrape() — at least one side's newest attempt was a failure ----------
+    // --- hasFailedScrape(): at least one side's newest attempt was a failure -------------------
     //
     // hasFailedScrape() is the domain predicate the list_applications_with_failed_scrapes MCP tool
     // filters on. It delegates to SideObservation.failedRefresh() for each side.

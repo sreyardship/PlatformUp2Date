@@ -54,8 +54,8 @@ public class ApplicationMcpServerIT {
     @InjectMock
     ApplicationVersionPort applicationVersionPort;
 
-    // Issue 03 (changelog link on the MCP surface, ADR-0021): the shared per-app template lookup
-    // (slice 01). Mocked here so each test controls exactly which apps carry a template, mirroring
+    // Shared per-app changelog template lookup for the MCP surface (ADR-0021). Mocked here so
+    // each test controls which apps carry a template, mirroring
     // VersionControllerIT's approach for the REST sibling.
     @InjectMock
     ChangelogTemplates changelogTemplates;
@@ -162,7 +162,7 @@ public class ApplicationMcpServerIT {
                 .thenAssertResults();
     }
 
-    // === Issue 05: list_applications_with_failed_scrapes + get_application freshness fields ======
+    // === Failed-scrape listing and application freshness fields =================================
 
     /** A side with a prior success that was then followed by a newer failure. */
     private SideObservation failedRefreshSide(String version) {
@@ -318,7 +318,7 @@ public class ApplicationMcpServerIT {
                 .thenAssertResults();
     }
 
-    // === Issue 03: changelogUrl on the MCP surface (ADR-0021) ======================================
+    // === changelogUrl on the MCP surface (ADR-0021) =============================================
     //
     // The core resolution logic (token substitution, per-scheme legality) is fully covered by
     // ChangelogTemplateTests (unit) and the null/non-null branching by ApplicationMcpToolsTests

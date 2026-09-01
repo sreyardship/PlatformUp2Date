@@ -19,8 +19,8 @@ public interface ApplicationConfigLoader {
     ScrapeTrigger scrapeTrigger();
 
     /**
-     * Targeted-scrape rolling-window budget (issue 03) — separate from {@link #scrapeTrigger()} so
-     * agent-driven targeted-scrape work cannot starve the UI's full-Refresh budget. Defaults: at most
+     * Targeted-scrape rolling-window budget, separate from {@link #scrapeTrigger()} so
+     * agent-driven targeted-scrape work cannot starve the UI's full-refresh budget. Defaults: at most
      * 30 triggers per 1h sliding window (larger than the full-scrape default of 10/1h).
      */
     TargetedScrapeTrigger targetedScrapeTrigger();
@@ -39,7 +39,7 @@ public interface ApplicationConfigLoader {
         /**
          * The version scheme this app's versions are parsed and compared under. Drives the single
          * per-app {@link VersionParser} the resolver builds and threads into both legs. Defaults to
-         * {@code semver}, preserving today's behaviour for every existing app; SmallRye maps the
+         * {@code semver}, preserving the default behavior for existing apps; SmallRye maps the
          * enum name case-insensitively, so {@code semver} in YAML binds to {@link VersionScheme#SEMVER}.
          */
         @WithDefault("semver")
@@ -68,9 +68,7 @@ public interface ApplicationConfigLoader {
 
     /**
      * Tagged version source: a {@code type} discriminator plus the union of type-specific fields.
-     * Today only the {@code url} of the {@code http} (current) and {@code github-release} (latest)
-     * types is read; the {@code namespace}/{@code workload}/{@code container} fields are reserved
-     * for the Kubernetes source added in a later slice and are absent for http/github apps.
+     * Fields that do not apply to the selected source type are absent.
      */
     interface VersionSource {
         String type();
@@ -80,7 +78,7 @@ public interface ApplicationConfigLoader {
          * Optional path to a PEM file holding a custom certificate authority used to verify the TLS
          * server certificate of the {@code http} current source's {@code url}. A transport concern
          * (sibling of {@link #url()}), deliberately NOT under {@link #auth()}. Absent leaves the JVM
-         * default trust bundle in place for this app, preserving today's behaviour for every existing
+         * default trust bundle in place for this app, preserving the default behavior for existing
          * app. When present, the {@code HttpCurrentSourceFactory} reads the PEM once at boot, loads
          * its X.509 certificate(s) into an in-memory truststore and pins it onto THIS app's REST
          * client only ({@code curl --cacert} semantics: replace, not augment) — never a JVM-global
@@ -95,7 +93,7 @@ public interface ApplicationConfigLoader {
          * REST client trusts ANY TLS server certificate and does not verify the server hostname
          * against it — full {@code curl -k} semantics, scoped to THIS app's client only (never a
          * JVM-global TLS setting). A transport concern (sibling of {@link #url()} and
-         * {@link #caCert()}). Absent defaults to {@code false}, preserving today's behaviour for
+         * {@link #caCert()}). Absent defaults to {@code false}, preserving standard TLS behavior for
          * every existing app. Mutually exclusive with {@link #caCert()}: configuring both is refused
          * by the {@code HttpCurrentSourceFactory} as a value-level misconfiguration (mapped to a
          * {@code FailedCurrentSource}, never a boot crash) rather than silently picking one.
@@ -150,18 +148,16 @@ public interface ApplicationConfigLoader {
          * REPORTED result is stripped.
          *
          * <p>Absent for non-applicable kinds; defaults to {@code false} when absent, preserving
-         * today's behaviour (prerelease preserved) for every existing app.
+         * the default behavior of preserving prerelease segments.
          */
         Optional<Boolean> stripPrerelease();
 
         /**
-         * Optional per-app authentication fragment for the {@code http} current source (Harbor case
-         * study, issue 02; see ADR-0008). Absent leaves the request unauthenticated, preserving
-         * today's behaviour for every existing app. Username/password/token are env-expandable
-         * (e.g. {@code ${HARBOR_USER:}}), so an unset variable resolves to an empty/blank value
-         * rather than failing to bind at boot; the factory that consumes this fragment is
-         * responsible for treating a missing/blank credential as a value-level misconfiguration. The
-         * {@code token} field is reserved for the bearer scheme added in a later slice.
+         * Optional per-app authentication fragment for the {@code http} current source (ADR-0008).
+         * Absent leaves the request unauthenticated. Username, password, and token values are
+         * env-expandable (e.g. {@code ${HARBOR_USER:}}), so an unset variable resolves to a blank
+         * value rather than failing to bind at boot. The consuming factory treats missing or blank
+         * credentials as value-level misconfiguration.
          */
         Optional<Auth> auth();
 
@@ -264,7 +260,7 @@ public interface ApplicationConfigLoader {
 
             /**
              * Optional path to a file holding the bearer token, read by {@code FileBearerAuthFilter}
-             * on EVERY request (issue 01: token-file). The file is NOT read at boot — only the path
+             * on every request. The file is not read at boot — only the path
              * string is validated as non-blank — so a projected Kubernetes serviceaccount token that
              * rotates on disk is always re-read fresh rather than expiring into a 401 storm.
              * Mutually exclusive with {@link #token()}: under {@code auth.type: bearer} exactly one of

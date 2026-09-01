@@ -10,7 +10,7 @@ import org.yardship.core.ports.out.ScrapeRateLimiter;
 import org.yardship.core.ports.out.TargetedScrapeBudget;
 
 /**
- * Composition root for the two rolling-window {@link ScrapeRateLimiter} budgets (issue 03):
+ * Composition root for the two rolling-window {@link ScrapeRateLimiter} budgets:
  * the full-fleet scrape's budget (Valkey ZSET {@code scrape:budget}, sized from
  * {@code platform-config.scrape-trigger}) and the targeted-scrape budget (Valkey ZSET
  * {@code scrape:targeted:budget}, sized from {@code platform-config.targeted-scrape-trigger}).

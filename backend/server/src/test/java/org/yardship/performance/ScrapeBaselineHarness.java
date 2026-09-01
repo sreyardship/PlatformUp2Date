@@ -41,14 +41,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  *
  * <p>Contains three test methods:
  * <ul>
- *   <li>{@link #baseline_oneScrape_printsElapsedMs_andReturnsExpectedAppCount()} — the original
- *       slice-01 tracer bullet: drives ONE scrape over the first
+ *   <li>{@link #baseline_oneScrape_printsElapsedMs_andReturnsExpectedAppCount()} drives one scrape
+ *       over the first
  *       {@link ScrapePerfWireMockResource#APP_COUNT} apps and prints the raw wall-clock.</li>
- *   <li>{@link #warmupAndIterations_printsMedianMinMax()} — the slice-02 stable-statistic harness:
+ *   <li>{@link #warmupAndIterations_printsMedianMinMax()} provides stable statistics:
  *       runs {@link #WARMUP_COUNT} warmup scrapes (timings discarded), then {@link #ITERATION_COUNT}
  *       timed iterations over the first {@link ScrapePerfWireMockResource#APP_COUNT} apps, and
  *       reduces wall-clocks to median + min + max.</li>
- *   <li>{@link #sweep_printsPerNBaselineTable()} — the slice-03 sweep: for each N in {@link #SWEEP}
+ *   <li>{@link #sweep_printsPerNBaselineTable()} runs an app-count sweep; for each N in {@link #SWEEP}
  *       it measures a sub-list of the first N apps and prints an aligned per-N table showing
  *       median/min/max. The sequential wall-clock should grow roughly linearly with N.</li>
  * </ul>
@@ -74,13 +74,12 @@ class ScrapeBaselineHarness {
     // is never actually consulted by the staleness check.
     private static final Duration SCRAPE_INTERVAL = Duration.ofHours(1);
 
-    // Slice-02 constants: warmup discards JIT / connection-pool variance;
-    // iterations produce the stable statistic.
+    // Warmup discards JIT and connection-pool variance; iterations produce stable statistics.
     private static final int WARMUP_COUNT = 1;
     private static final int ITERATION_COUNT = 7;
 
     /**
-     * Slice-03 sweep: N values to measure in order.
+     * App counts to measure in order.
      * {@link ScrapePerfWireMockResource#MAX_N} must be ≥ max(SWEEP).
      * Sequential wall-clock should grow roughly as 2 * N * {@link ScrapePerfWireMockResource#STUB_DELAY_MS} ms.
      */
@@ -110,7 +109,7 @@ class ScrapeBaselineHarness {
     }
 
     /**
-     * Slice-02: warmup + repeated iterations → stable statistic.
+     * Warmup plus repeated iterations produce stable statistics.
      *
      * <p>Runs {@link #WARMUP_COUNT} warmup scrape(s) whose timings are discarded (absorbs JIT and
      * connection-pool startup). Then runs {@link #ITERATION_COUNT} timed iterations, each starting
@@ -129,8 +128,8 @@ class ScrapeBaselineHarness {
         int n = ScrapePerfWireMockResource.APP_COUNT;
         Stats stats = measure(firstN(n), n);
 
-        // Label apps/iters explicitly: 'apps' is the configured app count (the quantity slice 03
-        // sweeps as N), 'iters' is how many timed runs were reduced into this statistic.
+        // 'apps' is the configured app count; 'iters' is the number of timed runs reduced into
+        // this statistic.
         System.out.printf(
                 "[perf] apps=%d iters=%d delay=%dms → median=%dms min=%dms max=%dms%n",
                 n,
@@ -142,16 +141,16 @@ class ScrapeBaselineHarness {
     }
 
     /**
-     * Slice-03: app-count sweep → baseline table.
+     * App-count sweep producing a baseline table.
      *
      * <p>For each N in {@link #SWEEP}, builds a first-N sub-list wrapper over the injected
      * {@link VersionSources} (which is sized to {@link ScrapePerfWireMockResource#MAX_N}),
-     * measures it with the same warmup + iterations logic as slice 02, and records the row.
+     * measures it with the same warmup and iteration logic, and records the row.
      * After the sweep, prints ONE aligned table with columns N | median(ms) | min(ms) | max(ms).
      *
      * <p>The sequential baseline should show wall-clock growing roughly linearly with N
      * (≈ 2 * N * {@link ScrapePerfWireMockResource#STUB_DELAY_MS} ms) — that linear column is
-     * the baseline against which slice 04's parallel version will be judged.
+     * a baseline for evaluating parallel scrape performance.
      *
      * <p>No timing assertion is made. Self-guard: each sweep point's sub-list must return
      * exactly N apps.

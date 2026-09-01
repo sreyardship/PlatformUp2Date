@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Per-app {@link VersionParser} lookup (issue 01), built EAGERLY at startup from {@link
+ * Per-app {@link VersionParser} lookup, built eagerly at startup from {@link
  * ApplicationConfigLoader}'s per-app {@code version-scheme}/{@code calver-format} config so a
  * calver app with a missing/invalid format fails boot rather than surfacing mid-scrape.
  *

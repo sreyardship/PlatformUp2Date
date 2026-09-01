@@ -8,7 +8,7 @@ import java.util.Optional;
 
 /**
  * A per-side version observation: the value read from one side (current or latest),
- * when it was last read successfully, and — in later slices — when it last failed.
+ * when it was last read successfully, and when the most recent failed read occurred.
  *
  * <p>Invariant: if {@link #value()} is present then {@link #lastSuccessAt()} must also
  * be present. A value without a success timestamp is not a valid observation — it would
@@ -29,8 +29,7 @@ public record SideObservation(
 
     /**
      * Factory for a fully resolved observation: both the version value and the instant
-     * at which it was successfully read are present; lastFailureAt is absent (this slice
-     * never records failures).
+     * at which it was successfully read are present; {@code lastFailureAt} is absent.
      */
     public static SideObservation resolved(VersionValue value, Instant lastSuccessAt) {
         return new SideObservation(

@@ -39,23 +39,14 @@ import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
  * {@link org.yardship.adapters.out.versionsource.auth.BearerAuthFilter} so the latest leg carries
  * {@code Authorization: Bearer <token>}; when constructed without one it sends no auth header.
  *
- * <p><b>This issue retargets the adapter from GitHub's time-ordered {@code GET /releases/latest}
- * (single object) to {@code GET /releases} (array), selecting the maximum semver among
- * {@code prerelease == false && draft == false} releases by {@code tag_name} — see ADR-0010. The
- * stub endpoint below is therefore {@code /releases} (an array), not {@code /latest} (an object), and
- * every stubbed release JSON object now carries {@code tag_name}/{@code prerelease}/{@code draft} —
- * real Jackson/JSON-B deserialization of those three new {@link
- * org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleaseResponseDTO} fields is exercised here, not
- * just hand-built fakes (see {@code GithubReleaseLatestSourceTests} for the pure-selection-logic unit
- * coverage via a fake client).</b>
+ * <p>The adapter uses GitHub's paged {@code GET /releases} array rather than the single-object
+ * {@code GET /releases/latest} endpoint. It selects the maximum semver among non-prerelease,
+ * non-draft releases by {@code tag_name} (ADR-0010). These tests exercise real deserialization of
+ * the {@code tag_name}, {@code prerelease}, and {@code draft} fields; pure selection logic is
+ * covered by {@code GithubReleaseLatestSourceTests}.
  *
- * <p>The default {@code GithubReleaseLatestSource(String, Optional<String>)} constructor is assumed
- * to keep defaulting {@code page-size} to 30 (the factory's default; this adapter-level constructor
- * itself defaults the wire-level {@code per_page} the same way when not told otherwise — see the
- * dedicated {@code per_page} assertion below, which pins 30 as the default sent on the wire when this
- * 2-arg constructor is used). If the implementer instead threads page-size through a 3rd constructor
- * argument, only the {@code read_sendsConfiguredPerPage_asQueryParam} test below needs to change to
- * use that constructor — the rest of this suite is agnostic to that choice.
+ * <p>The two-argument constructor defaults the wire-level {@code per_page} value to 30. Tests that
+ * need another page size use the explicit page-size constructor.
  *
  * <p>{@code @QuarkusTest} is used because {@code QuarkusRestClientBuilder} needs a running Quarkus
  * context — matching the existing IT style. The source is constructed directly (plain object) with
@@ -221,10 +212,10 @@ class GithubReleaseLatestSourceIT {
                 .withHeader("Authorization", absent()));
     }
 
-    // --- ADR-0029 redirect contract (issue 01 tracer bullet) --------------------------------------
+    // --- ADR-0029 redirect contract -------------------------------------------------------------
 
     /**
-     * Reproduces issue #39's motivating flow verbatim: GitHub moved the {@code vmware-tanzu/velero}
+     * Reproduces a moved-repository flow: GitHub moved the {@code vmware-tanzu/velero}
      * repository, so {@code GET /repos/vmware-tanzu/velero/releases?per_page=30} 301s to
      * {@code /repositories/99143276/releases?per_page=30} (relative Location, query string carried
      * through). The fixture ONLY succeeds at the repository-id path, so a pass here proves both the

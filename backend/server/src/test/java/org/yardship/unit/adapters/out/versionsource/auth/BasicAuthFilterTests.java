@@ -16,7 +16,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link BasicAuthFilter} — the {@code ClientRequestFilter} that authenticates the
- * {@code http} current source's outbound requests with HTTP Basic auth (issue 02, Harbor case study:
+ * {@code http} current source's outbound requests with HTTP Basic auth (Harbor case study:
  * {@code container-registry.sreyardship.com/api/v2.0/systeminfo} only returns {@code harbor_version}
  * when authenticated).
  *

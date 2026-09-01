@@ -18,8 +18,8 @@ import java.util.Optional;
 
 /**
  * Fetches {@code /releases} over {@link RedirectFollowingHttpGet} instead of a declarative
- * REST-client proxy, so a 301/302/303/307/308 response (e.g. GitHub's "repository moved" redirect
- * from issue #39) is followed per ADR-0029 rather than immediately surfacing as a failure.
+ * REST-client proxy, so a 301/302/303/307/308 response such as GitHub's "repository moved"
+ * redirect is followed per ADR-0029 rather than immediately surfacing as a failure.
  *
  * <p>Reuses {@link BearerAuthFilter#bearerHeaderValue(String)} for the exact credential format the
  * {@code latest} leg has always sent, and {@link VersionResponseExceptionMapper} for the exact

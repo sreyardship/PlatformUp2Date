@@ -12,8 +12,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for {@link SideObservation}: the per-side version observation value object
- * introduced in slice 01.
+ * Unit tests for {@link SideObservation}, the per-side version observation value object.
  *
  * <p>Pins down:
  * <ul>
@@ -45,11 +44,11 @@ class SideObservationTests {
     }
 
     @Test
-    void resolved_lastFailureAt_isEmpty_thisSlice() {
+    void resolved_lastFailureAt_isEmpty() {
         SideObservation obs = SideObservation.resolved(VERSION, FIXED_NOW);
 
         assertTrue(obs.lastFailureAt().isEmpty(),
-                "slice 01 never sets lastFailureAt on a successful read; that arrives in slice 02");
+                "a successful read must not record a failure timestamp");
     }
 
     @Test
@@ -76,7 +75,7 @@ class SideObservationTests {
         assertTrue(obs.lastFailureAt().isEmpty());
     }
 
-    // --- Slice 02: failedRefresh() truth table ------------------------------------------------
+    // --- failedRefresh() truth table ----------------------------------------------------------
     //
     // failedRefresh() == true when the most recent event on this side was a failure.
     // Formally: lastFailureAt is present AND (lastSuccessAt is absent OR lastFailureAt > lastSuccessAt).
@@ -116,8 +115,7 @@ class SideObservationTests {
     @Test
     void failedRefresh_neverSucceeded_failurePresent_returnsTrue() {
         // The side has never had a successful read (no value, no lastSuccessAt), but a failure was
-        // recorded. This slice keeps existing value — the no-value case is handled in issue 03, but
-        // the truth table must still cover it here via the SideObservation ctor (no value → no lastSuccessAt).
+        // recorded. Cover the no-value case directly through the SideObservation constructor.
         Instant failureAt = Instant.parse("2026-07-01T10:05:00Z");
 
         SideObservation obs = new SideObservation(

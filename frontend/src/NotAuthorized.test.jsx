@@ -1,15 +1,5 @@
-// Issue 04 (SPA authorization UX) — the Not-authorized surface.
-//
-// Renders when the backend answers a data request with 403: the caller's token validated but
-// lacks the web Surface's role (pu2d-web) — authenticated but not entitled. Sibling to
-// BackendUnavailable.jsx, but a DISTINCT state (see CONTEXT.md's "Not authorized" definition):
-// never lumped in with "backend didn't answer", never an empty fleet, and — because retrying the
-// exact same request just gets another 403 — no plain no-op "Retry" button. The pinned action
-// here is "Log out" (RP-initiated logout, so the user can switch to an entitled account), backed
-// by the same userManager seam TopBar's logout control uses.
-//
-// This component does not exist yet — module-resolution failure here is the expected RED state
-// for this slice; the implementer creates ./NotAuthorized.jsx.
+// A 403 means the caller is authenticated but lacks the web role. This state stays distinct from
+// backend unavailability and offers logout, rather than retry, so the user can switch accounts.
 
 vi.mock('./auth/userManager', () => ({
   isWebAuthEnabled: vi.fn(() => true),
@@ -38,7 +28,7 @@ test('renders a "Not authorized" title', () => {
 test('body copy explains the account is authenticated but not entitled — pinned wording', () => {
   render(<NotAuthorized />)
 
-  // Matches the exact issue framing: "your account isn't authorized for this app"
+  // Keep the message specific to account authorization.
   expect(screen.getByText(/your account isn't authorized for this app/i)).toBeInTheDocument()
 })
 

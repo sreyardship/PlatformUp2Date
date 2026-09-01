@@ -53,8 +53,7 @@ public class ApplicationMcpToolsTests {
     @InjectMock
     private ApplicationVersionPort applicationVersionPort;
 
-    // Issue 03 (changelog link on the MCP surface, ADR-0021): the shared per-app template lookup
-    // built in slice 01 (org.yardship.adapters.out.versionsource.ChangelogTemplates). Mocked here
+    // Shared per-app changelog templates are built by ChangelogTemplates (ADR-0021). Mocked here
     // so each test controls exactly which apps carry a template, mirroring VersionControllerIT's
     // approach for the REST sibling.
     @InjectMock
@@ -296,7 +295,7 @@ public class ApplicationMcpToolsTests {
         verify(applicationVersionPort, times(1)).targetedScrape(any());
     }
 
-    // === Issue 05: expanded ApplicationView (resolution + per-side freshness instants) ============
+    // === ApplicationView resolution and per-side freshness fields ==============================
 
     // --- Helpers for the four-state SideObservation matrix ---
 
@@ -504,7 +503,7 @@ public class ApplicationMcpToolsTests {
         assertFalse(names.contains("pending-app"), "pending app must be excluded");
     }
 
-    // --- list_outdated_applications: regression — unchanged behaviour with issue 05 ---
+    // --- list_outdated_applications behavior with expanded ApplicationView ---
 
     @Test
     void listOutdatedApplications_regression_excludesUnresolvedApps() {
@@ -567,10 +566,10 @@ public class ApplicationMcpToolsTests {
                 "description must say the targeted budget is separate from trigger_scrape's: " + description);
     }
 
-    // === Issue 03: changelogUrl on the MCP surface (ADR-0021) ======================================
+    // === changelogUrl on the MCP surface (ADR-0021) =============================================
     //
     // ApplicationView must carry the same nullable changelogUrl the REST payload carries, resolved
-    // from the shared ChangelogTemplates bean (slice 01) — the exact same semantics as
+    // from the shared ChangelogTemplates bean, with the same semantics as
     // ApplicationStatus.from: null when no template is configured, null when the latest side has no
     // known version, otherwise the template resolved against the displayed latest version.
 

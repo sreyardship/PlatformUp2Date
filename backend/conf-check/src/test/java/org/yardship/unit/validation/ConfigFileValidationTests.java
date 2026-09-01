@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Fast unit tests for {@link ConfigFileValidation}, the {@code config} gate's composing use case
- * (issue 06). {@link ConfigFileValidation} depends only on the {@link BodySource} port (via an
+ * {@link ConfigFileValidation} depends only on the {@link BodySource} port (via an
  * injected {@code Function<String, BodySource>} factory) rather than any concrete HTTP adapter, so
  * these tests exercise the composing/branching logic under test (applicability, offline-skipping,
  * aggregate exit code) against fake {@link BodySource}s — no real HTTP server, no WireMock, no

@@ -55,8 +55,7 @@ describe('isWebAuthEnabled()', () => {
 })
 
 // ────────────────────────────────────────────────────────────────────────────
-// Access-token storage — the AC "access token is never written to localStorage
-// or sessionStorage". userManager must be configured with an in-memory
+// Access tokens are never written to localStorage or sessionStorage. userManager uses an in-memory
 // userStore (oidc-client-ts InMemoryWebStorage), so storing a signed-in User
 // never touches real browser storage.
 //

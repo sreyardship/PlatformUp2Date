@@ -5,8 +5,8 @@ import io.quarkus.test.junit.QuarkusTestProfile;
 import java.util.Map;
 
 /**
- * Auth-ON profile for the <b>web-only</b> corner of the four surface on/off combinations (issue
- * 02, docs/adr/0028): sets {@code WEB_OIDC_ROLE} but deliberately leaves {@code MCP_OIDC_ROLE}
+ * Auth-on profile for the <b>web-only</b> corner of the four surface combinations
+ * (docs/adr/0028). Sets {@code WEB_OIDC_ROLE} but deliberately leaves {@code MCP_OIDC_ROLE}
  * unset, so {@code /api/v1} is gated while {@code /api/mcp} stays open — the mirror image of
  * {@link SurfaceAuthTestProfile} (mcp-only). Same shared realm/Dev Services/audience setup as
  * {@link SurfaceAuthTestProfile} — see that class's Javadoc for the realm's users/clients, which

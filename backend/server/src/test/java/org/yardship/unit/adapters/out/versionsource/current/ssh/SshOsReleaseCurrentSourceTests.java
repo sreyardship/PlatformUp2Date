@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for {@code SshOsReleaseCurrentSource} — specifically the <em>deferred-lifecycle
- * contract</em> required by slice 01:
+ * contract:
  *
  * <ol>
  *   <li>The constructor must store config and collaborators ONLY — no {@link SshClient} built,

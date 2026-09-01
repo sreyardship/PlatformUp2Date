@@ -151,7 +151,7 @@ class K8sImageCurrentSourceIT {
         assertThrows(RuntimeException.class, source::version);
     }
 
-    // ---- strip-prerelease (slice 05) ---------------------------------------------------------
+    // ---- strip-prerelease -------------------------------------------------------------------
 
     @Test
     void stripPrerelease_false_preservesPrereleaseSegment_defaultBehaviour() {
@@ -170,7 +170,7 @@ class K8sImageCurrentSourceIT {
     @Test
     void stripPrerelease_true_stripsPrerelease_fromAlpineTag() {
         // stripPrerelease=true: a tag "1.23.0-alpine" must be reported as "1.23.0".
-        // Without the strip implementation, version() returns "1.23.0-alpine" → test fails red.
+        // The returned version must omit the prerelease suffix.
         client.apps().deployments().inNamespace(NAMESPACE)
                 .resource(deployment("strip-true", container("app", "myrepo/app:1.23.0-alpine")))
                 .create();

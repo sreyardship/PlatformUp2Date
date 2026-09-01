@@ -7,11 +7,9 @@ import org.yardship.core.domain.exceptions.InvalidVersionException;
 import static org.yardship.core.domain.primitives.DomainValidator.notNull;
 
 /**
- * Semver-backed {@link VersionValue}. Wraps a semver4j {@link Semver} and ports the exact
- * semantics of the former {@code Version} class verbatim — constructor v-prefix trim,
- * {@link InvalidVersionException} on unparseable input, build-metadata-ignored-for-ordering
- * semantics, and the {@code equals}/{@code hashCode} behaviour (build metadata IS significant
- * for equality, per semver4j's own contract, even though it is ignored for ordering and drift).
+ * Semver-backed {@link VersionValue}. Trims a leading {@code v}, rejects unparseable input with
+ * {@link InvalidVersionException}, and ignores build metadata for ordering. Build metadata remains
+ * significant for {@code equals}/{@code hashCode}, per semver4j's contract.
  */
 public final class SemverVersion implements VersionValue {
 

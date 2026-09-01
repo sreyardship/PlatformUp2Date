@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Integration test proving the full-scrape and targeted-scrape rolling-window budgets (issue 03) are
+ * Integration test proving that the full-scrape and targeted-scrape rolling-window budgets are
  * INDEPENDENT: each is a distinct {@link ScrapeRateLimiter} bean over its own Valkey ZSET key
  * ({@code scrape:budget} vs. {@code scrape:targeted:budget}), so draining one must never affect the
  * other's admission decisions.

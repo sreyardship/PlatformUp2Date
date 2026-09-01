@@ -4,7 +4,7 @@ import java.util.Optional;
 
 /**
  * The result of checking ONE surface (regex/pointer/changelog/calver) for ONE app in the
- * {@code config} gate (issue 06). Three-way {@link Status}, not a plain
+ * {@code config} gate. Three-way {@link Status}, not a plain
  * {@code Optional<ValidationOutcome>}, because "no outcome" is ambiguous on its own: it could mean
  * "this surface isn't configured for this app" ({@link Status#NOT_APPLICABLE} — e.g. an app whose
  * {@code latest.type} is {@code github-release}, which has no CLI-transparent validator) or "this

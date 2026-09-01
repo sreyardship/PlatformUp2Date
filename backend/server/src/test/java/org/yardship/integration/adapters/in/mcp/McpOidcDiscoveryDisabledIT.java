@@ -6,8 +6,8 @@ import org.junit.jupiter.api.Test;
 import static io.restassured.RestAssured.given;
 
 /**
- * Auth-OFF regression pin for RFC 9728 discovery (docs/adr/0026, issue 02): with
- * {@code OIDC_ISSUER}/{@code OIDC_AUDIENCE} both unset (today's default, exercised by the
+ * Auth-off regression for RFC 9728 discovery (docs/adr/0026): with
+ * {@code OIDC_ISSUER}/{@code OIDC_AUDIENCE} both unset (the default, exercised by the
  * default test profile — see {@code ApplicationMcpServerIT}, which this class does not touch), no
  * protected-resource metadata must be served. Deliberately a plain {@code @QuarkusTest} with no
  * {@code @TestProfile}: Keycloak Dev Services stays off, matching production's default-off mode.

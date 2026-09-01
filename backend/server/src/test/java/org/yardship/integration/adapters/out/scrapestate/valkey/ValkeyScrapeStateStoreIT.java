@@ -32,18 +32,18 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * <p>Fixtures use the two apps configured in {@code src/test/resources/application.properties}:
  * {@code test-app} (semver, defaults) and {@code test-calver-app} (calver, format
- * {@code YYYY.MM.MICRO}) — see {@link org.yardship.adapters.out.versionsource.VersionParsers}. Since
- * issue 02, {@code ValkeyScrapeStateStore} retypes every stored value using the app's CONFIGURED
+ * {@code YYYY.MM.MICRO}) — see {@link org.yardship.adapters.out.versionsource.VersionParsers}.
+ * {@code ValkeyScrapeStateStore} retypes every stored value using the app's configured
  * parser rather than any scheme information persisted in the snapshot (ADR-0022), so every fixture
  * app name here must be one of these two configured names.
  *
  * <p>Verifies:
  * <ul>
  *   <li>A write→read round-trip preserves the snapshot shape (apps + lastAttemptAt).</li>
- *   <li>Per-side {@code lastSuccessAt} is round-tripped correctly (slice 01).</li>
+ *   <li>Per-side {@code lastSuccessAt} is round-tripped correctly.</li>
  *   <li>A safety TTL is set on the backing key so a stuck snapshot eventually expires.</li>
  *   <li>The persisted JSON is bare strings + timestamps only — no {@code versionScheme}/
- *       {@code calverFormat} fields (issue 02 / ADR-0022).</li>
+ *       {@code calverFormat} fields (ADR-0022).</li>
  *   <li>Rehydration always follows the app's CONFIGURED scheme, ignoring any (legacy or
  *       deliberately lying) scheme fields present in the stored JSON.</li>
  * </ul>
@@ -82,8 +82,8 @@ class ValkeyScrapeStateStoreIT {
 
     @Test
     void writeThenRead_roundTripsPerSideLastSuccessAt() {
-        // Slice 01 contract: the per-side lastSuccessAt is persisted and rehydrated faithfully.
-        // lastFailureAt must be absent on a successful read (it is populated in slice 02).
+        // Per-side success timestamps are persisted and rehydrated faithfully. A successful read
+        // has no failure timestamp.
         Instant successAt = Instant.parse("2026-07-01T10:00:00Z");
         VersionApplication app = new VersionApplication(
                 "test-app",
@@ -103,7 +103,7 @@ class ValkeyScrapeStateStoreIT {
         assertEquals(successAt, roundTripped.current().lastSuccessAt().orElseThrow(),
                 "current lastSuccessAt must round-trip exactly");
         assertTrue(roundTripped.current().lastFailureAt().isEmpty(),
-                "lastFailureAt must be absent in slice 01 (no failures modelled yet)");
+                "lastFailureAt must be absent for a successful current-side read");
 
         // Latest side
         assertTrue(roundTripped.latest().isResolved(), "latest must be resolved after a successful read");
@@ -111,10 +111,10 @@ class ValkeyScrapeStateStoreIT {
         assertEquals(successAt, roundTripped.latest().lastSuccessAt().orElseThrow(),
                 "latest lastSuccessAt must round-trip exactly");
         assertTrue(roundTripped.latest().lastFailureAt().isEmpty(),
-                "lastFailureAt must be absent in slice 01 (no failures modelled yet)");
+                "lastFailureAt must be absent for a successful latest-side read");
     }
 
-    // --- Slice 02: lastFailureAt round-trip ---------------------------------------------------
+    // --- lastFailureAt round-trip -------------------------------------------------------------
     //
     // When a side has a prior value + lastSuccessAt AND a newer lastFailureAt (failed-refresh
     // state), the full DTO must be persisted and rehydrated faithfully — including lastFailureAt.
@@ -127,8 +127,7 @@ class ValkeyScrapeStateStoreIT {
         Instant successAt = Instant.parse("2026-07-01T10:00:00Z");
         Instant failureAt = Instant.parse("2026-07-01T10:05:00Z"); // newer than successAt
 
-        // Construct directly via the public ctor (the implementer will add a factory; the ctor is
-        // already public and used in tests, so this is a stable seam).
+        // Construct directly through the public value-object constructor.
         SideObservation failedCurrentSide = new SideObservation(
                 Optional.of(new SemverVersion("1.0.0")),
                 Optional.of(successAt),
@@ -159,7 +158,7 @@ class ValkeyScrapeStateStoreIT {
         assertEquals("2.0.0", roundTripped.latest().value().orElseThrow().value());
     }
 
-    // --- Issue 03: Unresolved app (null-value side) round-trip ----------------------------------
+    // --- Unresolved app (null-value side) round-trip --------------------------------------------
     //
     // An Unresolved app has at least one side with no value. The DTO stores value as NULL for such
     // sides. This test verifies:
@@ -249,7 +248,7 @@ class ValkeyScrapeStateStoreIT {
         assertTrue(ttlSeconds > 0, "expected a positive safety TTL on the snapshot key, got: " + ttlSeconds);
     }
 
-    // --- Issue 02: the snapshot is observed strings + timestamps, nothing else (ADR-0022) --------
+    // --- Snapshot contains observed strings and timestamps only (ADR-0022) ----------------------
     //
     // The DTO no longer carries versionScheme/calverFormat fields at all: retyping happens on read,
     // driven entirely by the app's CONFIGURED parser (VersionParsers.forApp), never by anything
@@ -277,14 +276,11 @@ class ValkeyScrapeStateStoreIT {
                 "the written snapshot must contain no calverFormat field (ADR-0022): " + rawJson);
     }
 
-    // --- Issue 02: calver-scheme apps must round-trip as CalverVersion, not SemverVersion --------
+    // --- Calver apps round-trip as CalverVersion, not SemverVersion -----------------------------
     //
-    // Retyping on read is driven entirely by the app's CONFIGURED scheme (test-calver-app is
-    // configured as calver/YYYY.MM.MICRO in src/test/resources/application.properties), not by
-    // anything persisted alongside the value. This is a live production incident for the fleet's
-    // one calver app (openwrt-router): the persisted value used to come back as a SemverVersion,
-    // and any code path that needs it to genuinely be a CalverVersion (e.g. ChangelogTemplate
-    // resolving a calver token) throws ClassCastException.
+    // Retyping is driven by the app's configured scheme, not by metadata persisted alongside the
+    // value. Calver values must rehydrate as CalverVersion so calver-specific behavior such as
+    // changelog token resolution remains available.
     //
     // NOTE on CalverVersion.equals(): it compares CalverFormat by reference identity
     // (`format == that.format`), and CalverFormat has no equals() override. A CalverVersion
@@ -293,16 +289,8 @@ class ValkeyScrapeStateStoreIT {
     // expected to be FALSE even though the two are semantically identical. These tests therefore
     // assert on value()/scheme()/isOlderThan()/diff() behaviour rather than CalverVersion.equals().
 
-    // Deliberately chosen so the raw strings ALSO parse as valid semver (major.minor.patch, no
-    // zero-padding). This matters for the red-phase failure mode: the pre-fix adapter blindly does
-    // `new SemverVersion(value)` for any app with no persisted versionScheme field, and a genuinely
-    // calver-shaped string like "24.04" (2 components) would fail that parse and blow up inside
-    // read() itself with InvalidVersionException — masking the actual production bug, which is
-    // silent MIS-typing (a value that happens to parse as semver comes back as the wrong
-    // VersionValue subtype), not a parse failure. Using "2024.4.1"/"2024.5.2" reproduces the real
-    // incident: read() succeeds pre-fix (wrongly, as SemverVersion) and the failure only surfaces
-    // downstream where CalverVersion-specific behaviour is required — exactly like
-    // ChangelogTemplate.resolveToken casting to CalverVersion in production.
+    // These raw values also parse as semver. That ensures the tests detect an incorrect subtype,
+    // rather than passing only because a semver parse happened to fail.
     private static final CalverFormat CALVER_FORMAT = new CalverFormat("YYYY.MM.MICRO");
 
     @Test
@@ -409,14 +397,14 @@ class ValkeyScrapeStateStoreIT {
         assertEquals("https://example.com/changelog/2024.5.2", resolved);
     }
 
-    // --- Issue 02: legacy snapshots (still carrying the old scheme fields) must read fine, and the
+    // --- Legacy snapshots carrying old scheme fields remain readable, and the
     // fields must have NO EFFECT on the result — rehydration always follows config, never the
     // persisted fields (ADR-0022). Backward compatibility is free: Quarkus's ObjectMapper ignores
     // unknown JSON properties, so these old fields simply get dropped on deserialisation.
 
     @Test
     void read_legacySnapshotWithNoSchemeFieldsAtAll_rehydratesFromConfig() {
-        // Oldest possible shape: no versionScheme/calverFormat keys at all (pre-issue-01 snapshot).
+        // Oldest supported shape: no versionScheme or calverFormat keys.
         // For a semver-configured app (test-app) this must still rehydrate as SemverVersion.
         Instant successAt = Instant.parse("2026-07-01T10:00:00Z");
         Instant attemptAt = Instant.parse("2026-07-01T10:00:05Z");
@@ -534,7 +522,7 @@ class ValkeyScrapeStateStoreIT {
         assertEquals("2024.5.2", latest.value());
     }
 
-    // --- Issue 03: unconfigured entries are dropped at read time ---------------------------------
+    // --- Unconfigured entries are dropped at read time ------------------------------------------
     //
     // Config defines the fleet. An entry whose app name is not in platform-config.apps has no
     // scheme declaration to interpret under and is stale residue (e.g. left behind after a config
@@ -542,10 +530,8 @@ class ValkeyScrapeStateStoreIT {
     // than fail the whole read — a config removal should take effect on the very next read, on
     // every surface, rather than lingering for up to a scrape interval.
     //
-    // NOTE on logging: no test in this file asserts on log output (there's no existing capture
-    // pattern to reuse), so per the acceptance criterion "a debug/info log noting the skipped name"
-    // is left to be verified by code review rather than by a new test-only logging-capture pattern
-    // introduced just for this slice.
+    // Logging is not asserted here because the suite has no shared log-capture fixture; these tests
+    // focus on observable rehydration behavior.
 
     @Test
     void read_snapshotWithAnUnconfiguredEntry_omitsIt_configuredEntriesUnaffected() {
@@ -632,7 +618,7 @@ class ValkeyScrapeStateStoreIT {
                 "lastAttemptAt must still round-trip even when every entry is dropped");
     }
 
-    // --- Issue 04: a scheme-mismatched stored value degrades its side to value-less, never the
+    // --- A scheme-mismatched stored value degrades its side to value-less, never the
     // read ----------------------------------------------------------------------------------------
     //
     // A stored value can predate a config change (semver -> calver flip) or simply not match the

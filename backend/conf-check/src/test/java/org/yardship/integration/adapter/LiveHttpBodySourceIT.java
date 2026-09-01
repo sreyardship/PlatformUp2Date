@@ -26,13 +26,9 @@ import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
  * server, mirroring the style of the backend's {@code HttpRegexLatestSourceIT}. Uses port 8090 (the
  * backend suite already claims 8089) so both suites can run concurrently without a port clash.
  *
- * <p><b>RED PHASE (issue 03):</b> {@code LiveHttpBodySource} currently builds a plain
- * {@code HttpClient.newHttpClient()} with the JDK default {@code Redirect.NEVER}, so every redirect
- * test below is expected to fail until the implementer gives this module its OWN small
- * redirect-following transport (mirroring {@code RedirectFollowingHttpGet} in
- * {@code :backend:server}, but NOT imported from it — that would create a
- * conf-check -> server dependency, which is explicitly disallowed) and maps its failure modes to
- * {@link BodySource.BodyFetchException}.
+ * <p>Redirect handling is implemented inside this module rather than importing the server's
+ * transport, which would create a forbidden conf-check-to-server dependency. Transport failures
+ * are exposed as {@link BodySource.BodyFetchException}.
  */
 class LiveHttpBodySourceIT {
 
@@ -108,7 +104,7 @@ class LiveHttpBodySourceIT {
                 "a connection error must translate to a fetch failure, not propagate a raw IOException");
     }
 
-    // --- ADR-0029 redirect parity (issue 03) ------------------------------------------------------
+    // --- Redirect handling (ADR-0029) -----------------------------------------------------------
 
     @Test
     void redirect301_returnsFinalBodyVerbatim() {

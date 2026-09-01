@@ -30,7 +30,7 @@ import static org.yardship.integration.adapters.in.mcp.SurfaceAuthTestProfile.WE
 import static org.yardship.integration.adapters.in.mcp.WebAuthEnforcedIT.fetchAccessToken;
 
 /**
- * The headline proof for issue 02 (docs/adr/0026, docs/adr/0028): under
+ * Cross-surface isolation contract (docs/adr/0026 and docs/adr/0028): under
  * {@link BothSurfacesAuthTestProfile} (both {@code MCP_OIDC_ROLE} and {@code WEB_OIDC_ROLE} set,
  * ONE shared issuer+audience), each surface is gated by its OWN role, independent of the other —
  * a token minted for the shared audience is admitted or rejected per-surface based purely on

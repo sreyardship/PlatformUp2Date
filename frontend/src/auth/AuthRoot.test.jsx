@@ -1,24 +1,17 @@
-// Issue 03 (SPA becomes an OIDC client) — composition-root gating.
-//
-// `AuthRoot` is the seam extracted from src/index.jsx so this behavior is unit-testable without
-// driving index.jsx's real ReactDOM.createRoot(...).render(...) side effect (which needs a live
-// #root DOM node and has no meaningful "render output" to assert against in jsdom). The
-// implementer wires src/index.jsx to render <AuthRoot /> in place of the current <App /> — see
-// this repo's tester report for the exact expected shape.
+// `AuthRoot` isolates composition-root authentication so it can be tested without driving
+// index.jsx's ReactDOM.createRoot(...).render(...) side effect.
 //
 // Contract:
 //   - web auth DISABLED (isWebAuthEnabled() false): renders <App/> directly. No <AuthProvider>,
-//     no react-oidc-context useAuth() call, no redirect — exactly today's behavior.
+//     no react-oidc-context useAuth() call and no redirect.
 //   - web auth ENABLED + unauthenticated: does NOT render the board; triggers signinRedirect()
 //     exactly once (the full-page redirect to the IdP).
 //   - web auth ENABLED + still loading (mid-flow, e.g. processing the redirect callback): does
 //     NOT render the board and does NOT redirect again.
 //   - web auth ENABLED + authenticated: renders <App/> (the board).
 //
-// What this test deliberately does NOT attempt: driving a real IdP redirect round-trip in jsdom.
-// react-oidc-context's useAuth/AuthProvider are mocked — we assert OUR wiring calls the right
-// hooks with the right outcome, not the library's internals. The real full-page redirect is a
-// system-test-only concern, covered manually (see tester report).
+// A real IdP redirect cannot be driven in jsdom. The react-oidc-context hooks are mocked here;
+// the full-page redirect remains a system-test concern.
 
 vi.mock('../auth/userManager', () => ({
   isWebAuthEnabled: vi.fn(),

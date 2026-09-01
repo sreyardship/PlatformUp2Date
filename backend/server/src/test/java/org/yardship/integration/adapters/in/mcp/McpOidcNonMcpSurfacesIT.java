@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.when;
 
 /**
- * Isolation guard for docs/adr/0026 / issue 03: turning MCP endpoint OAuth ON must change
+ * Isolation guard for docs/adr/0026: turning MCP endpoint OAuth on must change
  * NOTHING for the REST API ({@code /api/v1/*}) or health ({@code /q/health}) — their protection
  * story (edge proxy / private network) is out of scope for this switch, and remains so.
  *
@@ -98,7 +98,7 @@ class McpOidcNonMcpSurfacesIT {
 
     @Test
     void metrics_withNoCredentials_isReachable_whenMcpAuthIsOn() {
-        // issue 02 regression: /metrics is not under /api/v1* or /api/mcp*, so it must stay
+        // /metrics is not under /api/v1* or /api/mcp*, so it must stay
         // open regardless of which surfaces (if any) are role-gated.
         stubOneApp();
 

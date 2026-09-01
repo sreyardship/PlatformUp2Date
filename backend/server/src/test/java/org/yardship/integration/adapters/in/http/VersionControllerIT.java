@@ -27,9 +27,8 @@ import static org.mockito.Mockito.when;
  * HTTP-level tests for {@code GET /api/v1/version}. The inbound port is mocked so these
  * exercise the controller + JAX-RS mapping in isolation from Valkey.
  *
- * <p>Slice 01 wire shape: each side is now an object {@code {version, readAt}} rather than a bare
- * string. Top-level {@code outdated} and {@code drift} are preserved. {@code readAt} is an
- * absolute ISO instant (raw UTC, no relative math server-side; relative rendering is client-side).
+ * <p>Each side is an object {@code {version, readAt}} rather than a bare string. Top-level
+ * {@code outdated} and {@code drift} are preserved. {@code readAt} is an absolute ISO instant (raw UTC, no relative math server-side; relative rendering is client-side).
  *
  * <p>One happy-path snapshot-shape test proves the JSON serialization. The fail-closed 503
  * path covers the sole transport behaviour: when the snapshot source is unavailable the
@@ -41,8 +40,8 @@ class VersionControllerIT {
     @InjectMock
     ApplicationVersionPort applicationVersionPort;
 
-    // Slice 01 (changelog link, ADR-0021): the per-app template lookup the controller threads
-    // into ApplicationStatus.from(...). Mocked here so each test controls exactly which apps
+    // Per-app changelog templates are threaded into ApplicationStatus.from(...) (ADR-0021).
+    // Mocked here so each test controls which apps
     // carry a template, independent of the (untemplated) shared test 'platform-config'.
     @InjectMock
     ChangelogTemplates changelogTemplates;
@@ -92,7 +91,7 @@ class VersionControllerIT {
                 .body("'argocd'.latest.readAt", equalTo("2026-07-01T10:00:00Z"));
     }
 
-    // --- Slice 02: per-side failedAt field ----------------------------------------------------
+    // --- Per-side failedAt field --------------------------------------------------------------
     //
     // The wire shape gains a nullable `failedAt` on each VersionSide.
     //   - null   when the newest attempt for that side succeeded
@@ -147,7 +146,7 @@ class VersionControllerIT {
                 .body("'prometheus'.current.readAt", equalTo("2026-07-01T10:00:00Z"));
     }
 
-    // --- Issue 03: Unresolved apps — wire shape --------------------------------------------------
+    // --- Unresolved apps: wire shape ------------------------------------------------------------
     //
     // An Unresolved app (at least one side has no value) must emit:
     //   - A top-level `resolution` field: "Unresolved"
@@ -257,7 +256,7 @@ class VersionControllerIT {
                 .body("'resolved-app'.drift", equalTo("MAJOR"));
     }
 
-    // --- Slice 01 (changelog link, ADR-0021): top-level nullable changelogUrl -------------------
+    // --- Top-level nullable changelogUrl (ADR-0021) --------------------------------------------
     //
     // The core resolution logic (token substitution, zero-padding, per-scheme legality) is fully
     // covered by ChangelogTemplateTests (unit). This IT proves only what only real JSON wiring can

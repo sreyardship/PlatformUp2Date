@@ -17,7 +17,7 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
 
 /**
  * Boots a real Keycloak container (Testcontainers {@link GenericContainer}, not Dev Services) for
- * the native auth-on MCP smoke test (issue 04, docs/adr/0026).
+ * the native auth-on MCP smoke test (docs/adr/0026).
  *
  * <p>Keycloak Dev Services cannot be reused here the way {@code SurfaceAuthTestProfile} (JVM
  * {@code @QuarkusTest} suite) reuses it: that profile derives {@code OIDC_ISSUER} from the
@@ -34,7 +34,7 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
  * {@code quarkus-devservices-keycloak} module defaults to, so the auth-on native smoke stays on
  * the same Keycloak version as the JVM auth-on suite's Dev-Services container. The realm import
  * ({@code mcp-oidc-test-realm.json}, copied into {@code src/integrationTest/resources} from the
- * slice-01 fixture in {@code src/test/resources}) defines the same two clients: {@code mcp-client}
+ * fixture in {@code src/test/resources}) defines the same two clients: {@code mcp-client}
  * (audience {@code mcp-api}) and {@code other-client} (audience {@code other-api}), user
  * {@code alice}/{@code alice} (carrying the {@code pu2d-mcp} realm role), and user
  * {@code bob}/{@code bob} (without it, for the 403 case).

@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link FileBearerAuthFilter} — the sibling of {@code BearerAuthFilter} that reads
- * the bearer token from a file on EVERY request (issue 01: token-file). A projected Kubernetes
+ * the bearer token from a file on every request. A projected Kubernetes
  * serviceaccount token rotates on disk, so the filter must re-read (and trim) the file per request
  * rather than capturing the token at construction.
  *

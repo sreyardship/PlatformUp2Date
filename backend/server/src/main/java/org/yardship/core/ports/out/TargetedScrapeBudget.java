@@ -13,7 +13,7 @@ import java.lang.annotation.Target;
  * {@code platform-config.targeted-scrape-trigger}). Spent only by
  * {@link org.yardship.core.services.ApplicationVersionService#targetedScrape}, deliberately sized
  * larger than {@link FullScrapeBudget} (default 30/1h vs 10/1h) so agent-driven update work has its
- * own headroom and cannot starve the UI's full-Refresh budget (issue 03).
+ * own headroom and cannot starve the UI's full-refresh budget.
  */
 @Qualifier
 @Retention(RetentionPolicy.RUNTIME)

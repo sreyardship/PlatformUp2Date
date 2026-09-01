@@ -118,7 +118,7 @@ class PrometheusDriftRendererTests {
     }
 
     // -------------------------------------------------------------------------
-    // Issue 04 — per-(app, side) freshness gauges
+    // Per-(app, side) freshness gauges
     // -------------------------------------------------------------------------
 
     @Test
@@ -281,7 +281,7 @@ class PrometheusDriftRendererTests {
     }
 
     // -------------------------------------------------------------------------
-    // Issue 01 — application-info gauge (every configured app)
+    // Application-info gauge for every configured app
     // -------------------------------------------------------------------------
 
     /** A side that was never attempted: no value, no success timestamp, no failure timestamp. */

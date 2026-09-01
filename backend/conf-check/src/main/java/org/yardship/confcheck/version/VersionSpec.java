@@ -18,7 +18,7 @@ import java.util.Optional;
  * {@link org.yardship.confcheck.outcome.ValidationOutcome.ConfigInvalid} without depending on
  * {@code IllegalArgumentException} (an exception type too generic to safely catch narrowly).
  *
- * <p>(Issue 04) {@link #calverFormat()} additionally exposes the parsed {@link CalverFormat}
+ * <p>{@link #calverFormat()} exposes the parsed {@link CalverFormat}
  * itself — {@code changelog} needs it directly (as {@code Optional<CalverFormat>}) to construct a
  * {@code ChangelogTemplate}, not just a {@link VersionParser} that hides it internally. Built
  * independently from the same {@code calverFormat} string {@link VersionParser} uses, under the

@@ -9,9 +9,8 @@ import org.jboss.logging.Logger;
 import java.util.Optional;
 
 /**
- * CDI startup observer for the shared-issuer, role-gated auth boot-mode contract (docs/adr/0026,
- * docs/adr/0028, issue 01) — the generalization of the former MCP-only
- * {@code McpOidcBootModeAnnouncer}. Resolves {@link SurfaceAuthMode} from the operator-facing env
+ * CDI startup observer for the shared-issuer, role-gated auth boot-mode contract (docs/adr/0026
+ * and docs/adr/0028). Resolves {@link SurfaceAuthMode} from the operator-facing env
  * vars and logs the single unambiguous mode line on every boot, so a typo'd variable name is
  * visible on first boot. Resolution throws {@link SurfaceAuthConfigurationException} for either
  * illegal state (issuer-without-audience, role-without-issuer), which propagates out of this

@@ -5,7 +5,7 @@ import java.util.Optional;
 
 /**
  * The result of a CLI validation, sealed to the four outcome kinds every scheme-aware validator
- * (regex, pointer, changelog, calver-format, config — issues 02-06) can produce. Each case carries
+ * (regex, pointer, changelog, calver-format, and config) can produce. Each case carries
  * a distinct process exit code so scripts/CI invoking the CLI can branch on failure kind without
  * parsing output text.
  *
@@ -29,7 +29,7 @@ import java.util.Optional;
  * (1 is deliberately skipped: reserved for uncaught/unexpected errors — e.g. a bug or an I/O failure
  * outside the fetch path — so it stays distinguishable from the deliberate outcomes above.)
  *
- * <p><b>Design note (issue 03):</b> {@link Ok} and {@link ValidButEmpty} above are shaped around
+ * <p>{@link Ok} and {@link ValidButEmpty} are shaped around
  * {@code regex}'s "list of candidates, one winner" result. {@code pointer} always extracts at most
  * one value, and the failure kinds are different (body not JSON / pointer absent / non-textual —
  * not "candidates that failed to parse"), so its success/valid-but-empty payload doesn't fit those
@@ -140,7 +140,7 @@ public sealed interface ValidationOutcome {
      * configured scheme (and, for calver, declared in the {@code calver-format}), and it resolved
      * against {@code --version} to produce a URL.
      *
-     * <p><b>Design note (issue 04):</b> {@code changelog} is a pure-function check — no body, no
+     * <p>{@code changelog} is a pure-function check — no body, no
      * network — so unlike {@code regex}/{@code pointer} there is no "candidates found, none
      * usable" state: a template either fails fast at construction (a bad placeholder — reported as
      * {@link ConfigInvalid}, reusing that case unchanged, same as an invalid {@code --scheme}/
@@ -169,10 +169,9 @@ public sealed interface ValidationOutcome {
      * {@link org.yardship.core.domain.primitives.CalverFormat} and {@code --version} parsed
      * against it, producing the token -> displayed-value {@link CalverMapping}.
      *
-     * <p><b>Design note (issue 05):</b> like {@code changelog} (issue 04), {@code calver} is a
-     * pure-function check with no body/network step, so it collapses to the same two-outcome
-     * shape: {@link CalverOk} (0) and {@link ConfigInvalid} (2). Consistent with issue 04's
-     * precedent, BOTH failure modes reuse {@link ConfigInvalid}: a malformed/unknown-token
+     * <p>Like {@code changelog}, {@code calver} is a pure-function check with no body/network
+     * step, so it collapses to two outcomes: {@link CalverOk} (0) and {@link ConfigInvalid} (2).
+     * Both failure modes reuse {@link ConfigInvalid}: a malformed/unknown-token
      * {@code --format} (rejected by {@code CalverFormat}'s constructor) and a {@code --version}
      * that does not fit that format (rejected by {@code VersionParser#parse}) are both "the
      * invocation itself is malformed" — there is no body-acquisition step for
@@ -197,8 +196,8 @@ public sealed interface ValidationOutcome {
      * The {@code config} gate's changelog surface succeeded: {@code changelog-url}'s placeholders
      * are all legal for the app's scheme (and, for calver, declared in its {@code calver-format}).
      *
-     * <p><b>Design note (issue 06) — narrower than {@link ChangelogOk}:</b> {@code changelog}
-     * (issue 04) needs a {@code --version} to fully resolve the template into a URL. The
+     * <p>This check is narrower than {@link ChangelogOk}: {@code changelog} needs a
+     * {@code --version} to fully resolve the template into a URL. The
      * {@code config} gate validates a STATIC file with no fetched/live version to resolve
      * against — there is no "current version" until a real scrape runs — so, rather than inventing
      * a synthetic sample version (fragile: what synthetic value is guaranteed to fit an arbitrary
@@ -227,8 +226,8 @@ public sealed interface ValidationOutcome {
      * The {@code config} gate's calver surface succeeded: {@code calver-format} parses as a legal
      * calver.org format string.
      *
-     * <p><b>Design note (issue 06) — narrower than {@link CalverOk}:</b> same reasoning as
-     * {@link ChangelogTemplateValid}: {@code calver} (issue 05) needs a sample {@code --version} to
+     * <p>This check is narrower than {@link CalverOk} for the same reason as
+     * {@link ChangelogTemplateValid}: {@code calver} needs a sample {@code --version} to
      * resolve a token -> displayed-value mapping, but the {@code config} gate has no live version to
      * offer. The gate instead checks only that {@code calver-format} constructs a legal
      * {@link org.yardship.core.domain.primitives.CalverFormat} — i.e. it is well-formed and every
@@ -247,12 +246,11 @@ public sealed interface ValidationOutcome {
     }
 
     /**
-     * The aggregate result of the {@code config} gate (issue 06): one {@link AppValidationResult}
+     * The aggregate result of the {@code config} gate: one {@link AppValidationResult}
      * per app in the file, in file order.
      *
      * <p>Unlike every other case in this sealed interface, this one's {@link #exitCode()} is NOT a
-     * fixed constant — it is computed from whether any app failed, per the acceptance criterion
-     * "aggregate exit code is nonzero iff any app failed": {@link #ALL_OK_EXIT_CODE} (0) when every
+     * fixed constant — it is computed from whether any app failed: {@link #ALL_OK_EXIT_CODE} (0) when every
      * app's every {@code RAN} surface passed, else {@link #SOME_FAILED_EXIT_CODE} (5) — a new value,
      * not a reuse of {@link ConfigInvalid}/{@link FetchFailed}/{@link ValidButEmpty}, because "one or
      * more apps in a multi-app file failed" is a distinct failure KIND from any single-surface

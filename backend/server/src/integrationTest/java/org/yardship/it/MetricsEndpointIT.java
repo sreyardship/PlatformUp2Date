@@ -54,12 +54,12 @@ class MetricsEndpointIT {
     }
 
     /**
-     * Issue 04 — confirms the two new per-side timestamp gauges are wired end-to-end, and
+     * Confirms that the two per-side timestamp gauges are wired end-to-end, and
      * that an Unresolved app (bad-app, whose endpoints always fail) is absent from drift.
      *
      * <p>Strategy: poll until good-app's success gauge appears (proves at least one complete
      * scrape cycle ran). At that point bad-app has also been attempted and is Unresolved.
-     * Assert presence/type-header of the new gauge families and absence of bad-app from drift.
+     * Assert gauge-family presence and type headers, and the absence of bad-app from drift.
      */
     @Test
     void metricsEndpoint_exposesPerSideTimestampGauges_andUnresolvedAppAbsentFromDrift()
@@ -80,7 +80,7 @@ class MetricsEndpointIT {
                 assertTrue(body.contains(
                         "pu2d_scrape_last_success_timestamp_seconds{app=\"good-app\",side=\"latest\"}"),
                         "expected latest-side success gauge for good-app in: " + body);
-                // The new gauge family header must be present
+                // The gauge family header must be present.
                 assertTrue(body.contains("# TYPE pu2d_scrape_last_success_timestamp_seconds gauge"),
                         "expected TYPE line for success gauge in: " + body);
                 // Unresolved bad-app must not appear in drift — drift is undefined without both values

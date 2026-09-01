@@ -33,12 +33,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * These are STRUCTURAL (boot-time) failures, consistent with {@code GithubReleaseLatestSourceFactory}'s
  * treatment of a missing/malformed {@code repo}.
  *
- * <p>The {@link ApplicationConfigLoader.VersionSource} fake below is an anonymous implementation.
- * It must implement ALL current methods of the interface — plus the new {@code regex()} method
- * added by this slice (the implementer adds {@code Optional<String> regex()} to
- * {@link ApplicationConfigLoader.VersionSource}). If the interface acquires further methods in a
- * later slice, this helper will need updating — consistent with the same pattern in
- * {@code GithubReleaseLatestSourceFactoryTests}.
+ * <p>The {@link ApplicationConfigLoader.VersionSource} fake below is an anonymous implementation
+ * and therefore must implement every method on that interface. Keep it in sync when the config
+ * shape changes, as in {@code GithubReleaseLatestSourceFactoryTests}.
  */
 class HttpRegexLatestSourceFactoryTests {
 
@@ -144,7 +141,7 @@ class HttpRegexLatestSourceFactoryTests {
     /**
      * Minimal anonymous {@link ApplicationConfigLoader.VersionSource} implementation for tests.
      * All methods not relevant to {@code http-regex} return {@code Optional.empty()}.
-     * The implementer MUST add {@code Optional<String> regex()} to the interface — this fake
+     * The fake includes {@code Optional<String> regex()} and
      * provides it, so these tests will fail to compile until the interface has that method.
      */
     private static ApplicationConfigLoader.VersionSource source(

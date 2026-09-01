@@ -10,8 +10,7 @@ vi.mock('./api/versionClient', () => ({
   default: { triggerScrape: vi.fn(), getVersions: vi.fn() },
 }))
 
-// Issue 04 (SPA authorization UX) — the logout control.
-// Shown ONLY when web auth is enabled (isWebAuthEnabled()); absent otherwise (pinned both ways).
+// The logout control is shown only when web auth is enabled.
 // onClick performs RP-initiated logout: clears the in-memory user (removeUser()) AND redirects to
 // the IdP end-session endpoint (signoutRedirect()). The real IdP end-session round-trip is not
 // unit-testable — userManager is fully mocked here; that round-trip is a manual system test.
@@ -49,8 +48,7 @@ const rateLimitedResponse = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  // Default to disabled so the pre-existing tests below (which never touch auth) keep behaving
-  // exactly as before this slice.
+  // Default to disabled for tests that do not exercise authentication.
   isWebAuthEnabled.mockReturnValue(false)
 })
 
@@ -130,7 +128,7 @@ test('429/RATE_LIMITED: button disables and counts down from retryAfterSeconds, 
 })
 
 // ────────────────────────────────────────────────────────────────────────────
-// Logout control — slice 04
+// Logout control
 // ────────────────────────────────────────────────────────────────────────────
 
 test('no logout control is rendered when web auth is disabled', () => {

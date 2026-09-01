@@ -1,7 +1,7 @@
 name: Publish edge images
 
 # Merges to main publish :edge (moving) and :sha-<short> (immutable) tags for
-# both images, per docs/adr/0023 / the migration plan. Reuses build-images.yml
+# both images (docs/adr/0023). Reuses build-images.yml
 # so edge and release (release.yml) can never drift on how the images are
 # actually built.
 on:

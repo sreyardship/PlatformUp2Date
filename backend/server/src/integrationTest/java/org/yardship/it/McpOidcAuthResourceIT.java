@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * The native auth-on MCP smoke (issue 04, docs/adr/0026). Runs against the <em>built</em>
+ * Native auth-on MCP smoke test (docs/adr/0026). Runs against the <em>built</em>
  * artifact — the GraalVM native binary in CI's native pipeline, the JVM-packaged jar locally via
  * {@code gradle quarkusIntTest} — with {@link KeycloakContainerResource} providing a real
  * Keycloak issuer (a Testcontainers container, not Dev Services; see that class's Javadoc for
@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * <p>{@code quarkus-oidc} brings JWT parsing, JWKS fetch/caching, and OIDC discovery — all
  * reflection/TLS-sensitive machinery under GraalVM (ADR 0025 prior art: this project has been
  * bitten by native reachability regressions that only a native-run test can see). A JVM-mode
- * green alone would not be evidence the same machinery survives native-image analysis.
+ * alone would not prove that the same machinery survives native-image analysis.
  *
  * <p>Uses a plain {@link HttpClient} rather than {@code McpAssured}/RestAssured (neither is on
  * the {@code integrationTest} source set's classpath, and both are designed for in-JVM
@@ -72,7 +72,7 @@ class McpOidcAuthResourceIT {
                 "WWW-Authenticate challenge must be a Bearer challenge: " + wwwAuthenticate);
         assertTrue(wwwAuthenticate.contains("resource_metadata"),
                 "WWW-Authenticate challenge must carry the RFC 9728 resource_metadata pointer "
-                        + "(docs/adr/0026, issue 02): " + wwwAuthenticate);
+                        + "(docs/adr/0026): " + wwwAuthenticate);
     }
 
     @Test

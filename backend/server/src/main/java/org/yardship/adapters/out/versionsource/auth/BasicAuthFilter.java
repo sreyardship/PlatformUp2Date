@@ -10,7 +10,7 @@ import java.util.Base64;
 /**
  * Adds {@code Authorization: Basic <base64(username:password)>} to outbound requests so the
  * {@code http} current source can authenticate against an upstream that requires HTTP Basic auth
- * (Harbor case study, issue 02; see ADR-0008).
+ * (see ADR-0008).
  *
  * <p><b>Residual assumption:</b> like {@link BearerAuthFilter}, this trusts that the credential
  * belongs to the configured {@code url}. There is no host check here — the credential is sent to

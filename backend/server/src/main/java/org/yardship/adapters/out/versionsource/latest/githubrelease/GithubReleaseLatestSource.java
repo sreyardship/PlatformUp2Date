@@ -20,7 +20,7 @@ import java.util.Optional;
  * <p>A plain (non-CDI), per-app object wrapping a {@link GithubReleaseClient} built for this app's
  * URL. The production client (see {@link RedirectFollowingGithubReleaseClient}) fetches over a
  * bounded, credential-origin-aware redirect-following transport per ADR-0029: GitHub's Releases
- * API path for a moved repository 301-redirects to a {@code /repositories/<id>/} path (issue #39),
+ * API path for a moved repository can redirect to a {@code /repositories/<id>/} path,
  * and that redirect is followed rather than surfacing as a failure. It <b>owns the GitHub auth
  * concern</b>: when a non-blank token is supplied the request carries
  * {@code Authorization: Bearer <token>} (retained across a redirect only while same-origin, per

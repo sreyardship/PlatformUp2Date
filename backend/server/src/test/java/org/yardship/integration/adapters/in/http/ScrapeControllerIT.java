@@ -21,7 +21,7 @@ import static org.mockito.Mockito.when;
  *
  * <ul>
  *   <li>SCRAPED → 200 with the {@link ScrapeStatus} body (outcome + per-app counts);</li>
- *   <li>IN_PROGRESS → still 200 (no HTTP error in this slice; the outcome is conveyed in the body);</li>
+ *   <li>IN_PROGRESS → still 200 because the outcome is conveyed in the body;</li>
  *   <li>fail-closed: when the scrape-state source is unavailable (port throws), the endpoint returns
  *       503 via the shared {@code ScrapeStateUnavailableExceptionMapper}.</li>
  * </ul>
@@ -52,7 +52,7 @@ class ScrapeControllerIT {
 
     @Test
     void postScrape_scraped_bodyExposesPerAppTargetResults() {
-        // Reuses the full-scrape TargetResult factory added in issue 02: one entry per app, side
+        // Full-scrape results contain one entry per app and side
         // BOTH, succeeded/reason naming which app failed and why — not just an aggregate count.
         when(applicationVersionPort.triggerScrape()).thenReturn(
                 ScrapeStatus.scraped(

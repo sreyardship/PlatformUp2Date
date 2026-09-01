@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Pins the bounded-parallel scrape contract introduced in issue 04.
+ * Pins the bounded-parallel scrape contract.
  *
  * <p>Uses the 8-arg visible-for-testing constructor:
  * {@code ApplicationVersionService(VersionSources, ScrapeStateStore, ScrapeLock,
@@ -97,9 +97,8 @@ class ParallelScrapeServiceTests {
      * concurrently. Each source atomically increments an in-flight counter on entry, records the
      * running maximum, sleeps briefly so overlap is forced, then decrements on exit.
      *
-     * <p><b>Assert: {@code observedMax > 1}</b> — proves parallelism happened. On the current
-     * sequential implementation the in-flight count never exceeds 1, so this assertion
-     * <em>FAILS on the current sequential code</em> — that is intentional red-phase behaviour.
+     * <p><b>Assert: {@code observedMax > 1}</b> — proves that work overlaps rather than executing
+     * sequentially.
      *
      * <p><b>Assert: {@code observedMax <= cap}</b> — proves the Semaphore gate is respected and
      * the implementation is bounded, not an unbounded fan-out.
@@ -190,15 +189,15 @@ class ParallelScrapeServiceTests {
         assertEquals(Outcome.SCRAPED, status.outcome(),
                 "a per-app failure must be isolated and must not abort the scrape");
 
-        // Count invariant (issue 03): 5 attempted, 2 failed (Unresolved), 3 succeeded.
-        // ALL apps are persisted — the new invariant is applications.size() == attempted.
+        // Count invariant: 5 attempted, 2 failed (Unresolved), 3 succeeded.
+        // All apps are persisted, so applications.size() equals attempted.
         assertEquals(5, status.appsAttempted());
         assertEquals(2, status.appsFailed());
         assertEquals(3, status.appsSucceeded());
         assertEquals(
                 status.appsAttempted(),
                 store.lastWrittenApps.size(),
-                "issue 03 ScrapeResult invariant: applications.size() == attempted (all apps persisted)");
+                "applications.size() must equal attempted so all apps are persisted");
 
         // ALL apps (including Unresolved ones) written to store must be in config order.
         List<String> writtenNames = store.lastWrittenApps.stream()

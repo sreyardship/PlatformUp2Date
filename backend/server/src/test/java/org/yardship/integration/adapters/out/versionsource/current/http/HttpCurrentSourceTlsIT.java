@@ -42,9 +42,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * -ext SAN=dns:localhost,ip:127.0.0.1 -validity 36500}. The same cert is extracted from that keystore
  * at runtime into the in-memory truststore for the success case, so the test needs no separate PEM.
  *
- * <p>RED PHASE: until {@code HttpCurrentVersionClientFactory.build(...)} registers the truststore via
- * {@code QuarkusRestClientBuilder.trustStore(...)}, the success case fails (the handshake is rejected
- * because the supplied truststore is ignored).
+ * <p>The success case verifies that {@code HttpCurrentVersionClientFactory.build(...)} registers
+ * the supplied truststore on the app-scoped client.
  */
 @QuarkusTest
 class HttpCurrentSourceTlsIT {

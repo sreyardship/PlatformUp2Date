@@ -30,8 +30,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Integration tests for the OCI bearer-token dance (issue 02) against a standalone WireMock server
- * on port 8091 (distinct from the no-challenge slice-01 tests on port 8090 in
+ * Integration tests for the OCI bearer-token dance against a standalone WireMock server
+ * on port 8091 (distinct from the no-challenge tests on port 8090 in
  * {@link OciRegistryLatestSourceIT}).
  *
  * <p>Covers:
@@ -65,7 +65,7 @@ class OciRegistryLatestSourceAuthIT {
 
     static WireMockServer wireMockServer;
 
-    // ---- issue 05: redirect fixtures -----------------------------------------------------------
+    // ---- redirect fixtures -------------------------------------------------------------------
     // A second, independently-hosted plain-HTTP server standing in for a different origin (distinct
     // port from the primary 8091) — used only by the cross-origin-authorization tests below: a
     // redirect Location pointing here has a different effective port than the request that produced
@@ -305,7 +305,7 @@ class OciRegistryLatestSourceAuthIT {
                 "Fallback scope must be used when the registry omits scope from the challenge");
     }
 
-    // ---- regression: no-challenge path (slice 01) still works with auth-aware source -----------
+    // ---- no-challenge path still works with an auth-aware source -------------------------------
 
     @Test
     void noChallengeRegression_directSuccess_stillWorksWithAuthAwareSource() {
@@ -325,14 +325,8 @@ class OciRegistryLatestSourceAuthIT {
                 "Direct-200 path must still work unchanged after the bearer-dance feature is added");
     }
 
-    // ---- issue 05: redirected authentication-dance ---------------------------------------------
-    // RED PHASE: mintToken(...) and buildAuthenticatedTagsClient(...) currently build plain
-    // QuarkusRestClientBuilder clients with no redirect-following transport, so every test below
-    // that stubs a 301/302 on the token or authenticated-tags leg is expected to fail until the
-    // implementer routes those two legs through RedirectFollowingHttpGet (ADR-0029), the same way
-    // slice 04 already did for the anonymous raw-probe leg. The raw-probe leg already follows
-    // redirects (slice 04), so the FIRST part of the end-to-end scenario below (301 -> 401 challenge)
-    // may already pass on its own.
+    // ---- redirected authentication dance (ADR-0029) -------------------------------------------
+    // The raw probe, token request, and authenticated tags request all share redirect policy.
 
     @Test
     void endToEndDance_followsRedirectsOnAllThreeHttpLegs_andReturnsTheSelectedVersion() {
@@ -539,7 +533,7 @@ class OciRegistryLatestSourceAuthIT {
         wireMockServer.verify(0, getRequestedFor(urlPathEqualTo("/downgraded-tags")));
     }
 
-    // ---- issue 05 gap-fix: authenticated-leg non-2xx and authenticated pagination ---------------
+    // ---- authenticated-leg non-2xx and authenticated pagination ------------------------------
     // These two tests pin down APPROVED behavior of the diagnostic guard added alongside the
     // redirect-following work above: a FINAL non-2xx response on the tags-page fetch must fail
     // closed (IllegalStateException, a RuntimeException) rather than being silently mis-parsed —

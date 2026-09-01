@@ -19,17 +19,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Contract for the new tagged-union shape of {@code platform-config} apps (Slice 1).
+ * Contract for the tagged-union shape of {@code platform-config} apps.
  *
- * Each app's {@code current}/{@code latest} is no longer a bare string but a nested
- * interface carrying a {@code type} discriminator plus the union of optional type-specific
- * fields. This slice keeps the existing consumer working by reading {@code url} for the
- * {@code http} (current) and {@code github-release} (latest) types; the {@code namespace}/
- * {@code workload}/{@code container} fields are anticipated for Slice 3 and must be present
- * on the interface but absent (empty) for an http/github app.
+ * Each app's {@code current}/{@code latest} is a nested interface carrying a {@code type}
+ * discriminator plus the union of optional type-specific fields. Fields that do not apply to an
+ * HTTP or GitHub source remain absent.
  *
- * Config source is the migrated {@code src/test/resources/application.properties} default
- * test config (a single app named {@code test-app}), so no dedicated TestProfile is needed.
+ * The default test configuration comes from
+ * {@code src/test/resources/application.properties} (a single app named {@code test-app}), so no dedicated TestProfile is needed.
  */
 @QuarkusTest
 class ApplicationConfigLoaderTests {
@@ -56,7 +53,7 @@ class ApplicationConfigLoaderTests {
         assertEquals("https://example.test/latest", app.latest().url().get());
     }
 
-    // --- Issue 03: targeted-scrape budget config, separate and larger than scrape-trigger ------
+    // --- Targeted-scrape budget config, separate and larger than scrape-trigger ---------------
 
     @Test
     void targetedScrapeTrigger_defaultsTo30PerWindow_largerThanTheFullScrapeDefaultOf10() {
@@ -74,7 +71,7 @@ class ApplicationConfigLoaderTests {
     void anticipatedKubernetesFields_areAbsentForHttpAndGithubSources() {
         AppConfig app = configLoader.apps().getFirst();
 
-        // Slice 3 fields exist on the shape but are unset for http/github apps.
+        // Kubernetes-specific fields are unset for HTTP and GitHub sources.
         assertFalse(app.current().namespace().isPresent());
         assertFalse(app.current().workload().isPresent());
         assertFalse(app.current().container().isPresent());
@@ -83,7 +80,7 @@ class ApplicationConfigLoaderTests {
         assertFalse(app.latest().container().isPresent());
     }
 
-    // --- Issue 02: optional auth fragment on VersionSource (Harbor case study) ----------------
+    // --- Optional auth fragment on VersionSource ---------------------------------------------
 
     @Test
     void auth_isAbsent_forAnAppConfiguredWithoutAnAuthBlock() {
@@ -93,20 +90,19 @@ class ApplicationConfigLoaderTests {
                 "test-app has no 'auth' block configured, so current.auth() must be empty");
     }
 
-    // Note: "an 'auth:' block without 'type' fails to bind at boot" (acceptance criterion) is NOT
-    // separately tested here. 'type()' is declared without @WithDefault/Optional, which is exactly
-    // how every other REQUIRED leaf on this @ConfigMapping (e.g. VersionSource.type() itself,
+    // An auth block without type is not tested separately here. type() is declared without
+    // @WithDefault or Optional, like every other required leaf on this @ConfigMapping (e.g. VersionSource.type() itself,
     // AppConfig.name()) already behaves — SmallRye throws a binding/conversion failure at startup
     // when a required leaf under a populated parent group is missing. Asserting that boot-failure
     // behaviour would require io.quarkus.test.QuarkusUnitTest (a separate classloader/test-engine
     // harness), which is not on this module's test classpath (only quarkus-junit5 is); pulling it in
-    // for one test is out of scope for this slice. The implementer must declare 'Auth.type()' as a
-    // bare (non-Optional) String, matching VersionSource.type() — see HttpCurrentSourceFactoryTests
+    // for this binding assertion would add a separate test engine. Auth.type() remains a bare
+    // non-Optional String, matching VersionSource.type() — see HttpCurrentSourceFactoryTests
     // and this class's own currentLeg_isTaggedHttpSourceWithUrl for the established required-leaf
     // pattern this relies on.
     @Test
     void auth_exposesTypeUsernamePasswordAndToken_whenPresent() {
-        // Pins the shape of the new nested Auth interface via a hand-rolled fake, the same way
+        // Pins the nested Auth interface shape through a hand-rolled fake, the same way
         // HttpCurrentSourceFactoryTests fakes VersionSource — this is the interface CONTRACT, not a
         // config-binding test (the binding-from-yaml path is covered by
         // auth_isAbsent_forAnAppConfiguredWithoutAnAuthBlock plus the dev application.yml entry).
@@ -119,11 +115,11 @@ class ApplicationConfigLoaderTests {
         assertEquals(Optional.empty(), auth.tokenFile());
     }
 
-    // --- Issue 01: token-file leaf on the bearer Auth fragment ---------------------------------
+    // --- Token-file leaf on the bearer Auth fragment ------------------------------------------
 
     @Test
     void auth_exposesTokenFile_whenPresent() {
-        // Pins the new optional token-file leaf on the Auth contract (bearer, file-backed token):
+        // Pins the optional token-file field on the bearer auth contract:
         // an operator may supply the token from a file (e.g. a projected K8s serviceaccount token)
         // instead of a literal/env 'token'.
         Auth auth = fakeAuth("bearer", Optional.empty(), Optional.empty(),
@@ -170,7 +166,7 @@ class ApplicationConfigLoaderTests {
         };
     }
 
-    // --- Slice 01 (changelog link, ADR-0021): app-level 'changelog-url' ------------------------
+    // --- App-level changelog-url (ADR-0021) ---------------------------------------------------
 
     @Test
     void changelogUrl_isEmpty_whenAbsentFromConfig() {
@@ -184,7 +180,7 @@ class ApplicationConfigLoaderTests {
     @Test
     void changelogUrl_bindsAtAppLevel_siblingOfVersionScheme_whenPresent() {
         // Bound through a standalone SmallRyeConfig (like ApplicationConfigLoaderSshBindingTests)
-        // rather than the shared src/test/resources/application.properties, so this slice's
+        // rather than the shared src/test/resources/application.properties, so this test's
         // binding contract is pinned without perturbing every other test that reads 'test-app'.
         Map<String, String> props = baseProps();
         props.put("platform-config.apps[0].name", "argo-cd");

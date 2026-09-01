@@ -15,7 +15,7 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.when;
 
 /**
- * The "web on / mcp off" corner of the four on/off combinations (issue 02, docs/adr/0026,
+ * The "web on / mcp off" corner of the four on/off combinations (docs/adr/0026 and
  * docs/adr/0028) — the mirror image of {@link McpOidcNonMcpSurfacesIT} (mcp on / web off). Runs
  * under {@link WebOnlyAuthTestProfile}, which sets {@code WEB_OIDC_ROLE} but leaves
  * {@code MCP_OIDC_ROLE} unset: {@code /api/v1} must be gated (proven by {@link WebAuthEnforcedIT}

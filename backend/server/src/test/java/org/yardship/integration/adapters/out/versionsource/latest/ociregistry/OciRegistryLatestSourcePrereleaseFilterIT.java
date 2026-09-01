@@ -22,8 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Integration tests for the {@code prerelease-filter} feature (slice 04) and
- * {@code strip-prerelease} feature (slice 05) of {@link OciRegistryLatestSource} (ADR-0014).
+ * Integration tests for the {@code prerelease-filter} and {@code strip-prerelease} behavior of
+ * {@link OciRegistryLatestSource} (ADR-0014).
  *
  * <p>Uses a standalone WireMock server on port 8093, distinct from the no-challenge tests on 8090
  * ({@link OciRegistryLatestSourceIT}), the bearer-dance tests on 8091
@@ -105,14 +105,14 @@ class OciRegistryLatestSourcePrereleaseFilterIT {
                 "no tag matches filter=alpine → must throw as a per-app scrape failure");
     }
 
-    // ---- strip-prerelease (slice 05) ---------------------------------------------------------
+    // ---- strip-prerelease -------------------------------------------------------------------
 
     @Test
     void withAlpineFilter_andStripPrerelease_reportsStrippedVersion() {
         // filter=alpine + strip=true:
         //   - SELECTION: picks the largest -alpine tag → "1.22.0-alpine" (full tag, correct ranking)
         //   - REPORT:    strips the prerelease → "1.22.0"
-        // Without the strip implementation the source still returns "1.22.0-alpine" → test fails red.
+        // The returned version must omit the selected tag's prerelease suffix.
         wireMockServer.stubFor(get(urlPathEqualTo(TAGS_PATH))
                 .willReturn(jsonResponse(200, tagsListBody(
                         "1.0.0", "1.20.0-alpine", "1.22.0-alpine",

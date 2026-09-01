@@ -17,8 +17,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * RFC 9728 discovery coverage (docs/adr/0026, issue 02) for the auth-ON MCP endpoint: the
- * {@code WWW-Authenticate} challenge on the endpoint enforced in slice 01, and the
+ * RFC 9728 discovery coverage (docs/adr/0026) for the auth-on MCP endpoint: the
+ * {@code WWW-Authenticate} challenge on the protected endpoint, and the
  * protected-resource metadata document that challenge's {@code resource_metadata} pointer
  * resolves to. A deliberate sibling of {@link McpOidcAuthEnforcedIT} (rather than an addition to
  * it) so that class stays single-purpose (token enforcement only) while this one owns discovery.
@@ -28,8 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * code, not response headers, and this test needs to read {@code WWW-Authenticate} itself.
  *
  * <p>The well-known path is deliberately NOT hard-coded: it is derived from the
- * {@code resource_metadata} URL the server itself advertises in the challenge, per the issue's
- * guidance (Quarkus may serve it at the host-root {@code /.well-known/oauth-protected-resource}
+ * {@code resource_metadata} URL advertised in the challenge. Quarkus may serve it at the host-root
+ * {@code /.well-known/oauth-protected-resource}
  * rather than a per-resource variant) — this test only asserts the invariant that matters
  * (unrelocated to under {@code /api}, per ADR 0026's consequence about the HTTPRoute).
  */

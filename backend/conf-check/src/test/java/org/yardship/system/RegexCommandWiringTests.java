@@ -27,9 +27,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * End-to-end wiring test: invokes the real {@code regex} picocli command (offline body source,
- * literal flags) and asserts both rendered stdout and process exit code. This is the tip of the
- * pyramid for this slice — {@link org.yardship.unit.validation.RegexExtractionValidationTests}
- * already covers the "largest wins" logic exhaustively, so this only proves the command wires
+ * literal flags) and asserts both rendered stdout and process exit code. Unit tests in
+ * {@link org.yardship.unit.validation.RegexExtractionValidationTests} cover the selection logic;
+ * this class verifies that the command wires
  * {@code BodySource -> VersionSpec -> RegexExtractionValidation -> ReportRenderer} together and
  * that the exit codes from {@link ValidationOutcome} actually reach the process.
  */
@@ -119,9 +119,7 @@ class RegexCommandWiringTests {
                 "supplying both --body-file and --url must be rejected as a usage error");
     }
 
-    // --- ADR-0029 redirect parity (issue 03): --url wiring must use the FIXED LiveHttpBodySource
-    // adapter, not just exercise it in isolation. RED PHASE: fails until LiveHttpBodySource follows
-    // redirects (see LiveHttpBodySourceIT). ------------------------------------------------------
+    // Verify that the --url command path uses LiveHttpBodySource's redirect handling (ADR-0029).
 
     @Test
     void ok_urlToARedirect_exitsZero_andPrintsWinnerFromTheFinalBody() {

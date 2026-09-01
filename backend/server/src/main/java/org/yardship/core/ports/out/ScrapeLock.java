@@ -10,9 +10,8 @@ package org.yardship.core.ports.out;
  *
  * <p>The contract is a plain {@code tryAcquire()}/{@code release()} pair (rather than a
  * {@code runExclusively(Supplier)} shape) so callers can branch on the boolean: the lock winner
- * scrapes, the losers serve the shared snapshot. Slice 03's manual trigger reuses that lost-lock
- * branch to surface an IN_PROGRESS result, which a {@code Supplier}-based API could not express
- * cleanly.
+ * scrapes, while the losers serve the shared snapshot or report an IN_PROGRESS result. A
+ * {@code Supplier}-based API could not express that branch cleanly.
  *
  * <p>The core never imports Valkey/Redis types — only this port.
  */

@@ -38,7 +38,7 @@ import java.util.Optional;
  * building the {@link KeyStore} and mapping any value-level CA misconfiguration to a
  * {@code FailedCurrentSource} before calling this thin boundary.
  *
- * <p>The {@code insecureSkipTlsVerify} parameter is the {@code curl -k} escape hatch (issue 01):
+ * <p>The {@code insecureSkipTlsVerify} parameter is the {@code curl -k} escape hatch:
  * scoped to THIS client only — never a JVM-global trust setting. Mutually exclusive with
  * {@code trustStore} at the caller ({@code HttpCurrentSourceFactory}) level; this boundary does not
  * itself enforce that.

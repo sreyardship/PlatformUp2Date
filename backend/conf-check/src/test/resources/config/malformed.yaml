@@ -1,4 +1,4 @@
-# Fixture for YamlAppConfigReaderTests (issue 06): deliberately invalid YAML syntax (an unclosed
+# Fixture for YamlAppConfigReaderTests: deliberately invalid YAML syntax (an unclosed
 # flow-mapping bracket), used to assert AppConfigReader.ConfigReadException is thrown rather than a
 # raw Jackson/SnakeYAML parse exception leaking out of the port.
 platform-config:

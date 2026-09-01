@@ -1,5 +1,4 @@
-// Shared drift-severity logic. Slices 04/05 reuse driftCounts/severityColor
-// for the table and status badges, so keep this module framework-free.
+// Framework-free drift-severity logic shared by the table and status badges.
 
 // UNKNOWN is at the end so indexOf maps it to the highest numeric position, placing
 // it at the TOP of the default descending status sort (most-important-first) and at
@@ -18,7 +17,7 @@ export const severityColor = {
   UNKNOWN: '#9e9e9e',
 }
 
-// Status label shown on the per-row drift badge (slice 04 ApplicationRow).
+// Status labels shown on per-row drift badges.
 export const driftStatusLabel = {
   NONE: 'Up to Date',
   PATCH: 'Patch Available',

@@ -27,9 +27,8 @@ import java.util.function.Function;
  * Composition root for the driven version sources: turns the CDI-discovered per-kind factories plus
  * the configured apps into one {@link ApplicationSources} pair per app, built once at startup.
  *
- * <p>Replaces the old {@code ApplicationVersionClient}: it no longer scrapes (the service owns the
- * loop) — it only assembles and holds the resolved sources and owns their {@link Closeable}
- * lifecycle. Adding a source kind is a new factory bean and nothing else; this resolver never names
+ * <p>The resolver only assembles and holds sources and owns their {@link Closeable} lifecycle;
+ * {@code ApplicationVersionService} owns the scrape loop. Adding a source kind is a new factory bean and nothing else; this resolver never names
  * a {@code type} string itself.
  *
  * <p>Fail-fast at construction: a duplicate factory {@code type()} or an unknown config {@code type}
