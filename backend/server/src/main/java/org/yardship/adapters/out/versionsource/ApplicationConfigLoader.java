@@ -116,14 +116,31 @@ public interface ApplicationConfigLoader {
         Optional<String> registry();
 
         /**
-         * Optional regular expression read only by the {@code http-regex} latest source. The source
-         * fetches {@link #url()} as text and applies this pattern, taking <b>capture group 1</b> of
-         * every match as a candidate version string (parsed via the app's scheme; the largest wins).
-         * The {@code HttpRegexLatestSourceFactory} validates at boot that it is present;
-         * {@code RegexVersionExtractor}, built inside the source, validates that it compiles and has
-         * at least one capture group. Absent for non-{@code http-regex} kinds.
+         * Optional regular expression read by the {@code http-regex} latest source and, optionally,
+         * the {@code http-header} current source. Both apply this pattern via the shared
+         * {@code RegexVersionExtractor}, taking <b>capture group 1</b> as each candidate version
+         * string (parsed via the app's scheme): {@code http-regex} takes the LARGEST parseable
+         * candidate over every match (a latest-leg selection), {@code http-header} takes the FIRST
+         * (a current-leg observation is not a selection — ADR-0030). For {@code http-regex} the
+         * {@code HttpRegexLatestSourceFactory} validates at boot that it is present; for
+         * {@code http-header} it is optional (absent = the raw trimmed header value is parsed
+         * directly). Either way, {@code RegexVersionExtractor}, built inside the source, validates
+         * that a configured pattern compiles and has at least one capture group. Absent for every
+         * other kind.
          */
         Optional<String> regex();
+
+        /**
+         * Optional HTTP response header name read only by the {@code http-header} current source.
+         * Matched against the wire <b>case-insensitively</b> (RFC 9110 §5.1 — field names are
+         * case-insensitive), unlike {@link #versionKey()}'s deliberately case-sensitive JSON
+         * Pointer (ADR-0007; JSON object keys ARE case-sensitive by specification). See
+         * {@code docs/adr/0030-http-header-current-source.md}. The
+         * {@code HttpHeaderCurrentSourceFactory} validates at boot that it is present and
+         * non-blank — a structural error, failing boot like {@link #url()} does, not a per-app
+         * degradation. Absent for non-{@code http-header} kinds.
+         */
+        Optional<String> versionHeader();
 
         Optional<String> namespace();
         Optional<String> workload();

@@ -133,6 +133,11 @@ class K8sImageCurrentSourceFactoryTests {
             }
 
             @Override
+            public Optional<String> versionHeader() {
+                return Optional.empty();
+            }
+
+            @Override
             public Optional<String> host() { return Optional.empty(); }
 
             @Override

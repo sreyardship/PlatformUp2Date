@@ -395,6 +395,7 @@ class SshOsReleaseCurrentSourceFactoryTests {
 
                 @Override public Optional<String> repo()               { return Optional.empty(); }
                 @Override public Optional<String> regex()              { return Optional.empty(); }
+                @Override public Optional<String> versionHeader()      { return Optional.empty(); }
                 @Override public Optional<String> namespace()          { return Optional.empty(); }
                 @Override public Optional<String> workload()           { return Optional.empty(); }
                 @Override public Optional<String> container()          { return Optional.empty(); }

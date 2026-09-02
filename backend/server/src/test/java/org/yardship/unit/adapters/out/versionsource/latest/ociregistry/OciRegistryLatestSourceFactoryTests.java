@@ -318,6 +318,7 @@ class OciRegistryLatestSourceFactoryTests {
 
             @Override
             public Optional<String> regex() { return Optional.empty(); }
+            @Override public Optional<String> versionHeader()      { return Optional.empty(); }
 
             @Override
             public Optional<String> host() { return Optional.empty(); }
@@ -422,6 +423,7 @@ class OciRegistryLatestSourceFactoryTests {
             @Override public String type() { return "oci-registry"; }
             @Override public Optional<String> url() { return Optional.empty(); }
             @Override public Optional<String> regex() { return Optional.empty(); }
+            @Override public Optional<String> versionHeader()      { return Optional.empty(); }
             @Override public Optional<String> host() { return Optional.empty(); }
             @Override public Optional<Integer> port() { return Optional.empty(); }
             @Override public Optional<String> user() { return Optional.empty(); }
