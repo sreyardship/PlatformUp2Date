@@ -49,6 +49,14 @@ import java.util.Optional;
  *                               design note above for where that default is actually applied.
  * @param currentStripPrerelease {@code current.strip-prerelease}; defaults to {@code false} when absent,
  *                               mirroring the backend's {@code Optional<Boolean>} + factory default.
+ * @param currentHeaderName     {@code current.version-header}, when configured (present for
+ *                               {@code http-header}; see slice 04 / ADR-0030). Header names are
+ *                               matched case-insensitively by the header surface, not by this
+ *                               record, which stores exactly what the YAML said.
+ * @param currentHeaderRegex    {@code current.regex}, when configured for an {@code http-header}
+ *                               current source; optional even when {@code currentType} is
+ *                               {@code http-header} (absent = the raw trimmed header value, per
+ *                               ADR-0030).
  * @param latestType            {@code latest.type} (e.g. {@code "http-regex"}, {@code "github-release"},
  *                               {@code "oci-registry"}); never null — required by the real schema.
  * @param latestUrl             {@code latest.url}, when configured (present for {@code http-regex}).
@@ -63,7 +71,10 @@ public record AppConfig(
         Optional<String> currentUrl,
         Optional<String> currentVersionKey,
         boolean currentStripPrerelease,
+        Optional<String> currentHeaderName,
+        Optional<String> currentHeaderRegex,
         String latestType,
         Optional<String> latestUrl,
         Optional<String> latestRegex) {
+
 }

@@ -6,6 +6,7 @@ import org.yardship.confcheck.outcome.SurfaceResult;
 import org.yardship.confcheck.outcome.ValidationOutcome;
 import org.yardship.confcheck.port.AppConfig;
 import org.yardship.confcheck.port.BodySource;
+import org.yardship.confcheck.port.ResponseSource;
 import org.yardship.confcheck.validation.ConfigFileValidation;
 import org.yardship.core.domain.primitives.VersionScheme;
 
@@ -33,10 +34,22 @@ class ConfigFileValidationTests {
     private static final Function<String, BodySource> NEVER_INVOKED =
             url -> { throw new AssertionError("bodySourceFactory must not be invoked, but was invoked for url: " + url); };
 
+    /**
+     * A response-source factory that fails the test immediately if it is ever invoked. None of
+     * the apps in this file are {@code http-header} apps, so the header surface's
+     * {@link ResponseSource} seam should never be exercised here; the header surface's own
+     * behaviour is pinned separately in {@code ConfigFileValidationHeaderSurfaceTests}. Passed to
+     * the two-arg {@link ConfigFileValidation} constructor everywhere in this file instead of the
+     * single-arg constructor, so production no longer needs a throwing back-compat stub for
+     * callers that never see an {@code http-header} app.
+     */
+    private static final Function<String, ResponseSource> RESPONSE_SOURCE_NEVER_INVOKED =
+            url -> { throw new AssertionError("responseSourceFactory must not be invoked, but was invoked for url: " + url); };
+
     @Test
     void regexOnlyApp_regexSurfaceRunsAndPasses_othersNotApplicable() {
         String url = "http://example.test/latest";
-        ConfigFileValidation validation = new ConfigFileValidation(fakeBodySource(Map.of(url, "v1.2.3")));
+        ConfigFileValidation validation = new ConfigFileValidation(fakeBodySource(Map.of(url, "v1.2.3")), RESPONSE_SOURCE_NEVER_INVOKED);
 
         AppConfig app = appConfig(
                 "regex-only", VersionScheme.SEMVER, Optional.empty(), Optional.empty(),
@@ -58,7 +71,7 @@ class ConfigFileValidationTests {
     void pointerOnlyApp_pointerSurfaceRunsAndPasses() {
         String url = "http://example.test/current";
         ConfigFileValidation validation =
-                new ConfigFileValidation(fakeBodySource(Map.of(url, "{\"version\":\"1.2.3\"}")));
+                new ConfigFileValidation(fakeBodySource(Map.of(url, "{\"version\":\"1.2.3\"}")), RESPONSE_SOURCE_NEVER_INVOKED);
 
         AppConfig app = appConfig(
                 "pointer-only", VersionScheme.SEMVER, Optional.empty(), Optional.empty(),
@@ -75,7 +88,7 @@ class ConfigFileValidationTests {
 
     @Test
     void changelogOnlyApp_changelogSurfaceRuns_bodySourceFactoryNeverInvoked() {
-        ConfigFileValidation validation = new ConfigFileValidation(NEVER_INVOKED);
+        ConfigFileValidation validation = new ConfigFileValidation(NEVER_INVOKED, RESPONSE_SOURCE_NEVER_INVOKED);
 
         AppConfig app = appConfig(
                 "changelog-only", VersionScheme.SEMVER, Optional.empty(),
@@ -94,7 +107,7 @@ class ConfigFileValidationTests {
 
     @Test
     void calverApp_calverSurfaceRuns_bodySourceFactoryNeverInvoked() {
-        ConfigFileValidation validation = new ConfigFileValidation(NEVER_INVOKED);
+        ConfigFileValidation validation = new ConfigFileValidation(NEVER_INVOKED, RESPONSE_SOURCE_NEVER_INVOKED);
 
         AppConfig app = appConfig(
                 "calver-only", VersionScheme.CALVER, Optional.of("YY.0M.MICRO"), Optional.empty(),
@@ -112,7 +125,7 @@ class ConfigFileValidationTests {
 
     @Test
     void offline_skipsRegexAndPointer_bodySourceFactoryNeverInvoked_butChangelogAndCalverStillRun() {
-        ConfigFileValidation validation = new ConfigFileValidation(NEVER_INVOKED);
+        ConfigFileValidation validation = new ConfigFileValidation(NEVER_INVOKED, RESPONSE_SOURCE_NEVER_INVOKED);
 
         AppConfig app = appConfig(
                 "full-app", VersionScheme.CALVER, Optional.of("YY.0M.MICRO"),
@@ -135,7 +148,7 @@ class ConfigFileValidationTests {
         String failingUrl = "http://example.test/latest";
         String okUrl = "http://example.test/ok-latest";
         ConfigFileValidation validation = new ConfigFileValidation(
-                fakeBodySource(Map.of(okUrl, "v1.0.0"), Set.of(failingUrl)));
+                fakeBodySource(Map.of(okUrl, "v1.0.0"), Set.of(failingUrl)), RESPONSE_SOURCE_NEVER_INVOKED);
 
         AppConfig failingApp = appConfig(
                 "failing-app", VersionScheme.SEMVER, Optional.empty(), Optional.empty(),
@@ -163,7 +176,7 @@ class ConfigFileValidationTests {
 
     @Test
     void appWithNothingApplicable_allFourSurfacesNotApplicable_bodySourceFactoryNeverInvoked() {
-        ConfigFileValidation validation = new ConfigFileValidation(NEVER_INVOKED);
+        ConfigFileValidation validation = new ConfigFileValidation(NEVER_INVOKED, RESPONSE_SOURCE_NEVER_INVOKED);
 
         AppConfig app = appConfig(
                 "nothing-applicable", VersionScheme.SEMVER, Optional.empty(), Optional.empty(),
@@ -230,6 +243,7 @@ class ConfigFileValidationTests {
             String currentType, Optional<String> currentUrl, Optional<String> currentVersionKey, boolean stripPrerelease,
             String latestType, Optional<String> latestUrl, Optional<String> latestRegex) {
         return new AppConfig(name, versionScheme, calverFormat, changelogUrl, currentType, currentUrl,
-                currentVersionKey, stripPrerelease, latestType, latestUrl, latestRegex);
+                currentVersionKey, stripPrerelease, Optional.empty(), Optional.empty(),
+                latestType, latestUrl, latestRegex);
     }
 }

@@ -308,3 +308,38 @@ quarkus:
       #     type: http-regex
       #     url: https://changelogs.ubuntu.com/meta-release-lts
       #     regex: 'Version: (\d+\.\d+)'
+      #
+      # --- Jenkins (http-header + http-regex) — DO NOT enable under %dev ---
+      #
+      # This block documents the shape an operator copies into the PRODUCTION ConfigMap
+      # (apps/service-spaces/platformup2date/app/ in the jumziCluster repo) to monitor a Jenkins
+      # controller. Commented out for the same reason as the other examples above: local dev has
+      # no reachable Jenkins, so the scrape would just produce a FailedCurrentSource every
+      # interval. Enable only where the URL is reachable. See docs/adr/0030.
+      #
+      # `github-release` does NOT work for Jenkins: jenkinsci/jenkins release *tags* are
+      # `jenkins-2.579`, which does not parse under ADR-0010's largest-semver rule. Use
+      # http-header/http-regex instead, as below.
+      #
+      # Jenkins does not publish its version in any response body — it publishes it in the
+      # X-Jenkins response header, on its top page and on every .../api/* page, and it does so
+      # even behind auth: a secured Jenkins answers the anonymous top page with 403 and still
+      # carries X-Jenkins on that same response. http-header reads the header regardless of
+      # status code for exactly this reason (see docs/adr/0030).
+      #
+      # LTS ONLY: LTS versions (2.568.2) are valid semver; weekly versions (2.579) have only two
+      # components and are rejected by the strict semver parser. A weekly-channel Jenkins needs a
+      # version-scheme change, not a source change, and is out of scope here.
+      #
+      # - name: jenkins
+      #   changelog-url: https://www.jenkins.io/changelog-stable/
+      #   current:
+      #     type: http-header
+      #     url: https://jenkins.example.com/
+      #     version-header: X-Jenkins
+      #   latest:
+      #     type: http-regex
+      #     # Redirects to the current LTS stable line and returns a bare version string
+      #     # (e.g. "2.568.2"), which http-regex reads directly.
+      #     url: https://updates.jenkins.io/stable/latestCore.txt
+      #     regex: '(\d+\.\d+\.\d+)'

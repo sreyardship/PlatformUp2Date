@@ -1,6 +1,7 @@
 package org.yardship.confcheck.command;
 
 import org.yardship.confcheck.adapter.LiveHttpBodySource;
+import org.yardship.confcheck.adapter.LiveHttpResponseSource;
 import org.yardship.confcheck.adapter.YamlAppConfigReader;
 import org.yardship.confcheck.outcome.ValidationOutcome;
 import org.yardship.confcheck.port.AppConfigReader;
@@ -45,7 +46,8 @@ public final class ConfigCommand implements Callable<Integer> {
         AppConfigReader reader = new YamlAppConfigReader(file);
         try {
             ValidationOutcome.ConfigFileResult result =
-                    new ConfigFileValidation(LiveHttpBodySource::new).validate(reader.apps(), offline);
+                    new ConfigFileValidation(LiveHttpBodySource::new, LiveHttpResponseSource::new)
+                            .validate(reader.apps(), offline);
             return renderer.render(result, System.out);
         } catch (AppConfigReader.ConfigReadException e) {
             return renderer.render(new ValidationOutcome.ConfigInvalid(e.getMessage()), System.out);

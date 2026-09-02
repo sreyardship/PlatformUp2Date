@@ -3,16 +3,17 @@ package org.yardship.confcheck;
 import org.yardship.confcheck.command.CalverCommand;
 import org.yardship.confcheck.command.ChangelogCommand;
 import org.yardship.confcheck.command.ConfigCommand;
+import org.yardship.confcheck.command.HeaderCommand;
 import org.yardship.confcheck.command.PointerCommand;
 import org.yardship.confcheck.command.RegexCommand;
 import picocli.CommandLine.Command;
 
 /**
- * Composition root for the regex, pointer, changelog, calver, and config subcommands.
+ * Composition root for the regex, pointer, header, changelog, calver, and config subcommands.
  */
 @Command(name = "conf-check", mixinStandardHelpOptions = true,
-        subcommands = {RegexCommand.class, PointerCommand.class, ChangelogCommand.class, CalverCommand.class,
-                ConfigCommand.class})
+        subcommands = {RegexCommand.class, PointerCommand.class, HeaderCommand.class, ChangelogCommand.class,
+                CalverCommand.class, ConfigCommand.class})
 public final class RootCommand implements Runnable {
 
     @Override

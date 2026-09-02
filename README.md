@@ -83,7 +83,7 @@ of your own:
 ```
 
 `current` and `latest` are independent, pluggable sources. Every source type
-(`http`, `k8s-image`, `ssh-os-release`, `github-release`, `oci-registry`,
+(`http`, `http-header`, `k8s-image`, `ssh-os-release`, `github-release`, `oci-registry`,
 `http-regex`) and every key is documented in
 [`docs/configuration.md`](docs/configuration.md), and the
 [`conf-check` CLI](docs/conf-check.md) validates an entry before you deploy

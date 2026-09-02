@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 
 /**
  * Validates an {@code http-regex} {@code regex} against a body: compiles the regex, finds every
@@ -39,19 +38,12 @@ public final class RegexExtractionValidation {
     public ValidationOutcome validate(String body, String regex, VersionParser parser) {
         Pattern pattern;
         try {
-            pattern = Pattern.compile(regex);
-        } catch (PatternSyntaxException e) {
-            return new ValidationOutcome.ConfigInvalid(
-                    "Invalid regex '" + regex + "': " + e.getMessage());
+            pattern = RegexPatternValidation.compileWithCaptureGroup(regex);
+        } catch (RegexPatternValidation.InvalidPatternException e) {
+            return new ValidationOutcome.ConfigInvalid(e.getMessage());
         }
 
-        Matcher matcher = pattern.matcher("");
-        if (matcher.groupCount() < 1) {
-            return new ValidationOutcome.ConfigInvalid(
-                    "Regex '" + regex + "' has no capture group 1 to parse a version from.");
-        }
-
-        matcher = pattern.matcher(body);
+        Matcher matcher = pattern.matcher(body);
         List<RegexCandidate> candidates = new ArrayList<>();
         RegexCandidate winner = null;
         while (matcher.find()) {
