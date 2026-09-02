@@ -39,7 +39,7 @@ class ApplicationConfigLoaderTests {
         AppConfig app = configLoader.apps().getFirst();
 
         assertEquals("test-app", app.name());
-        assertEquals("http", app.current().type());
+        assertEquals("http-json", app.current().type());
         assertTrue(app.current().url().isPresent(), "current.url must be read");
         assertEquals("https://example.test/version", app.current().url().get());
     }
@@ -184,7 +184,7 @@ class ApplicationConfigLoaderTests {
         // binding contract is pinned without perturbing every other test that reads 'test-app'.
         Map<String, String> props = baseProps();
         props.put("platform-config.apps[0].name", "argo-cd");
-        props.put("platform-config.apps[0].current.type", "http");
+        props.put("platform-config.apps[0].current.type", "http-json");
         props.put("platform-config.apps[0].current.url", "https://example.test/version");
         props.put("platform-config.apps[0].latest.type", "github-release");
         props.put("platform-config.apps[0].latest.repo", "argoproj/argo-cd");

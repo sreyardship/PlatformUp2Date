@@ -83,7 +83,7 @@ class ApplicationConfigLoaderSshBindingTests {
     void sshFields_areEmpty_whenAbsentFromConfiguration() {
         Map<String, String> props = baseProps();
         props.put("platform-config.apps[0].name", "plain-http-app");
-        props.put("platform-config.apps[0].current.type", "http");
+        props.put("platform-config.apps[0].current.type", "http-json");
         props.put("platform-config.apps[0].current.url", "https://example.test/version");
         props.put("platform-config.apps[0].latest.type", "github-release");
         props.put("platform-config.apps[0].latest.repo", "owner/repo");
