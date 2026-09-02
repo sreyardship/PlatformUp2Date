@@ -42,7 +42,9 @@ class YamlAppConfigReaderIT {
         assertTrue(chaosSocial.calverFormat().isEmpty());
         assertEquals("https://github.com/mastodon/mastodon/releases/tag/v{version}",
                 chaosSocial.changelogUrl().orElseThrow());
-        assertEquals("http", chaosSocial.currentType());
+        assertEquals("http-json", chaosSocial.currentType(),
+                "the reader transcribes current.type verbatim; the fixture uses the current "
+                        + "'http-json' kind, not the retired 'http' name");
         assertEquals("https://chaos.social/api/v1/instance", chaosSocial.currentUrl().orElseThrow());
         assertEquals("/version", chaosSocial.currentVersionKey().orElseThrow(),
                 "an explicitly configured version-key must be reported verbatim");
@@ -57,7 +59,7 @@ class YamlAppConfigReaderIT {
         assertEquals("YY.0M.MICRO", openwrtRouter.calverFormat().orElseThrow());
         assertEquals("https://openwrt.org/releases/{YY}.{0M}/notes-{version}",
                 openwrtRouter.changelogUrl().orElseThrow());
-        assertEquals("http", openwrtRouter.currentType());
+        assertEquals("http-json", openwrtRouter.currentType());
         assertEquals("https://downloads.example.test/current-version.json", openwrtRouter.currentUrl().orElseThrow());
         assertTrue(openwrtRouter.currentVersionKey().isEmpty(),
                 "version-key omitted in YAML must stay genuinely absent, not defaulted by the reader "

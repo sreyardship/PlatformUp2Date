@@ -4,7 +4,7 @@
 platform-config:
   apps:
     - name: broken
-      current: [type: http
+      current: [type: http-json
       latest:
         type: http-regex
         url: https://example.test/latest

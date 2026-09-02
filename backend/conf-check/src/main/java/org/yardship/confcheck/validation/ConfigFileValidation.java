@@ -26,7 +26,7 @@ import java.util.function.Function;
  *       {@code latest.type == "http-regex"} and both {@code latest.url}/{@code latest.regex} are
  *       configured.</li>
  *   <li>{@link PointerExtractionValidation} against {@code current.url}'s live-fetched body, when
- *       {@code current.type == "http"}. {@code current.version-key}'s documented
+ *       {@code current.type == "http-json"}. {@code current.version-key}'s documented
  *       {@code "/version"} default (see {@link AppConfig#currentVersionKey()}'s javadoc) is applied
  *       HERE, not by the reader.</li>
  *   <li>{@link HeaderExtractionValidation} against {@code current.url}'s live-fetched response —
@@ -54,7 +54,7 @@ import java.util.function.Function;
  */
 public final class ConfigFileValidation {
 
-    private static final String HTTP_CURRENT_TYPE = "http";
+    private static final String HTTP_JSON_CURRENT_TYPE = "http-json";
     private static final String HTTP_HEADER_CURRENT_TYPE = "http-header";
     private static final String HTTP_REGEX_LATEST_TYPE = "http-regex";
     private static final String DEFAULT_POINTER = "/version";
@@ -137,7 +137,7 @@ public final class ConfigFileValidation {
     }
 
     private SurfaceResult pointerSurface(AppConfig app, boolean offline) {
-        boolean applicable = HTTP_CURRENT_TYPE.equals(app.currentType());
+        boolean applicable = HTTP_JSON_CURRENT_TYPE.equals(app.currentType());
         if (!applicable) {
             return SurfaceResult.notApplicable(SurfaceResult.Surface.POINTER);
         }

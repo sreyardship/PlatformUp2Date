@@ -6,7 +6,7 @@ platform-config:
   apps:
     - changelog-url: https://example.test/releases/{version}
       current:
-        type: http
+        type: http-json
         url: https://example.test/current
       latest:
         type: http-regex

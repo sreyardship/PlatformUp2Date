@@ -2,7 +2,7 @@
 #
 # Mirrors docs/samples/platform-config.yaml's top-level shape (platform-config: apps: [...]) plus a
 # calver + http-regex app (mirroring the commented OpenWRT example in
-# backend/src/main/resources/application.yml, simplified to a plain "http" current instead of
+# backend/server/src/main/resources/application.yml, simplified to a plain "http-json" current instead of
 # "ssh-os-release" since AppConfig/the config gate does not model ssh at all), plus an app whose
 # current/latest kinds have no CLI-transparent validator at all (github-release / ssh-os-release) so
 # it exercises "nothing applicable to check".
@@ -12,7 +12,7 @@ platform-config:
       # version-scheme omitted deliberately: exercises the SEMVER default.
       changelog-url: https://github.com/mastodon/mastodon/releases/tag/v{version}
       current:
-        type: http
+        type: http-json
         url: https://chaos.social/api/v1/instance
         version-key: /version
       latest:
@@ -26,9 +26,9 @@ platform-config:
       changelog-url: https://openwrt.org/releases/{YY}.{0M}/notes-{version}
       current:
         # Simplified from the real ssh-os-release shape: AppConfig/the config gate has no
-        # CLI-transparent validator for ssh-os-release, so this fixture uses a plain http current
-        # instead, purely to exercise calver-format + http-regex together.
-        type: http
+        # CLI-transparent validator for ssh-os-release, so this fixture uses a plain http-json
+        # current instead, purely to exercise calver-format + http-regex together.
+        type: http-json
         url: https://downloads.example.test/current-version.json
         # version-key deliberately omitted: exercises the "absent, not defaulted by the reader"
         # design note on AppConfig#currentVersionKey().
