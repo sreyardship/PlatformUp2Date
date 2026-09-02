@@ -41,9 +41,10 @@ _Avoid_: Scrape request, scrape item
 
 **Version source**:
 Where a scrape reads a version from. An Application's *current* version is read
-from the running deployment — a version endpoint it serves (an *http* source, or
-an *http-header* source where the version is carried in a response header rather
-than the body), the deployed container image tag read from the Kubernetes API (a
+from the running deployment — a version endpoint it serves (an *http-json*
+source, which reads it out of the JSON response body, or an *http-header* source
+where the version is carried in a response header rather than the body), the
+deployed container image tag read from the Kubernetes API (a
 *k8s-image* source), or the OS release of the host it runs on, read over SSH (an
 *ssh-os-release* source). The *latest* version comes from an upstream source —
 GitHub Releases (a *github-release* source), the published image tags of an
@@ -53,9 +54,16 @@ plain upstream page (an *http-regex* source). A registry has no native "release"
 the *oci-registry* source treats the largest semver tag in the repository's tag
 list as the latest release — the same largest-semver selection *github-release*
 applies (see `docs/adr/0010`). Exactly one current source per Application.
+
+Three kinds fetch over plain HTTP and differ only in *where in the response they
+find the version* — *http-json* in the JSON body, *http-header* in a named
+response header, *http-regex* by pattern over the body as text — so each kind's
+name states its extraction, never just its transport (`docs/adr/0031`).
 _Avoid_: Upstream endpoint (a k8s-image source is the cluster's own state, not
 upstream), probe; "image" alone (a k8s-image current source reads the *deployed*
-tag, an oci-registry latest source reads *published* tags — different sides)
+tag, an oci-registry latest source reads *published* tags — different sides);
+bare *http* as a kind name (retired — it named the transport the three HTTP kinds
+share, not what distinguishes them)
 
 **Version scheme**:
 How an Application's version strings are interpreted and compared — `semver`

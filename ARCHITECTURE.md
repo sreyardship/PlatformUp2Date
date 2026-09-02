@@ -115,7 +115,7 @@ platform-config:
   apps:
     - name: git-tea
       current:
-        type: http                   # Tier A
+        type: http-json              # Tier A
         url: https://git.sreyardship.com/api/v1/version
         version-key: /version
       latest:

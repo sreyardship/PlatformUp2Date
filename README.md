@@ -75,7 +75,7 @@ of your own:
     - name: my-app
       changelog-url: https://github.com/me/my-app/releases/tag/v{version}
       current:
-        type: http                 # ask the running instance itself
+        type: http-json             # ask the running instance itself
         url: https://my-app.example.com/api/version
       latest:
         type: github-release
@@ -83,7 +83,7 @@ of your own:
 ```
 
 `current` and `latest` are independent, pluggable sources. Every source type
-(`http`, `http-header`, `k8s-image`, `ssh-os-release`, `github-release`, `oci-registry`,
+(`http-json`, `http-header`, `k8s-image`, `ssh-os-release`, `github-release`, `oci-registry`,
 `http-regex`) and every key is documented in
 [`docs/configuration.md`](docs/configuration.md), and the
 [`conf-check` CLI](docs/conf-check.md) validates an entry before you deploy
