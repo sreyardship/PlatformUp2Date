@@ -30,7 +30,7 @@ platform-config:
     - name: mastodon
       changelog-url: https://github.com/mastodon/mastodon/releases/tag/v{version}
       current:
-        type: http
+        type: http-json
         url: https://chaos.social/api/v1/instance
       latest:
         type: github-release
@@ -39,7 +39,7 @@ platform-config:
     - name: gitea
       changelog-url: https://github.com/go-gitea/gitea/releases/tag/v{version}
       current:
-        type: http
+        type: http-json
         url: https://gitea.com/api/v1/version
       latest:
         type: oci-registry

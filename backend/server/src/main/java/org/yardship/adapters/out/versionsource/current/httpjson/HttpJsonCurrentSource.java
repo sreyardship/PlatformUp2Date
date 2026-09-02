@@ -1,8 +1,7 @@
-package org.yardship.adapters.out.versionsource.current.http;
+package org.yardship.adapters.out.versionsource.current.httpjson;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.MissingNode;
-import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClient;
 import org.yardship.adapters.out.versionsource.VersionResponseExceptionMapper;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionValue;
@@ -12,12 +11,12 @@ import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * The {@code http} {@link CurrentVersionSource}: reads an app's current (deployed) version from an
+ * The {@code http-json} {@link CurrentVersionSource}: reads an app's current (deployed) version from an
  * HTTP endpoint's JSON response, extracting it via a configurable JSON Pointer (RFC 6901) — defaulting
  * to {@code /version} so the legacy {@code {"version":"…"}} contract keeps working unconfigured.
  *
- * <p>A plain (non-CDI) POJO holding a ready {@link HttpCurrentVersionClient}, built and injected by its
- * factory via {@code HttpCurrentVersionClientFactory}. This source only does extraction: the
+ * <p>A plain (non-CDI) POJO holding a ready {@link HttpJsonCurrentVersionClient}, built and injected by its
+ * factory via {@code HttpJsonCurrentVersionClientFactory}. This source only does extraction: the
  * {@link VersionResponseExceptionMapper} usage (so a non-2xx upstream surfaces as a thrown
  * exception the scrape loop can isolate), any authentication and TLS configuration, and — per
  * ADR-0029 (see {@code docs/adr/0029-authorization-does-not-cross-redirect-origins.md}) —
@@ -26,16 +25,16 @@ import java.io.IOException;
  * body transparently to this class: {@code client.getCurrentVersion()} already returns the FINAL
  * response's body, so extraction here is identical whether or not a redirect occurred.
  */
-public class HttpCurrentSource implements CurrentVersionSource, Closeable {
+public class HttpJsonCurrentSource implements CurrentVersionSource, Closeable {
 
     private static final int MAX_BODY = 512;
 
-    private final HttpCurrentVersionClient client;
+    private final HttpJsonCurrentVersionClient client;
     private final String versionKey;
     private final boolean stripPrerelease;
     private final VersionParser parser;
 
-    public HttpCurrentSource(HttpCurrentVersionClient client, String versionKey, boolean stripPrerelease,
+    public HttpJsonCurrentSource(HttpJsonCurrentVersionClient client, String versionKey, boolean stripPrerelease,
                              VersionParser parser) {
         this.client = client;
         this.versionKey = versionKey;
@@ -52,7 +51,7 @@ public class HttpCurrentSource implements CurrentVersionSource, Closeable {
             // 2.13+ dropping 'harbor_version' from anonymous /systeminfo — never trips the non-2xx
             // mapper, so the body is the only clue to what the endpoint actually returned.
             throw new IllegalStateException(
-                    "The 'http' current source's version-key '" + versionKey
+                    "The 'http-json' current source's version-key '" + versionKey
                             + "' did not resolve to a text value in the upstream response. Body: "
                             + truncate(root.toString()));
         }

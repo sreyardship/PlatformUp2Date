@@ -30,7 +30,7 @@ import java.util.Optional;
  * <p><b>Exfiltration boundary:</b> this source sends a GitHub token to the GitHub Releases API,
  * and ADR-0029 additionally guarantees that token never survives a redirect onto a different
  * origin. The auth concern is owned exclusively here — never on the {@code current}
- * ({@code HttpCurrentVersionClient}) leg. The {@code current} leg hits our own deployment
+ * ({@code HttpJsonCurrentVersionClient}) leg. The {@code current} leg hits our own deployment
  * endpoints; sending a GitHub token there would be a secret-exfiltration bug.
  *
  * <p><b>Residual assumption:</b> this trusts that {@code latest} always points at GitHub. If a

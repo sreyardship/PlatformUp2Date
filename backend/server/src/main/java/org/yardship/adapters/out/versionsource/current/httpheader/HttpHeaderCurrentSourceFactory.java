@@ -19,7 +19,7 @@ import java.util.Optional;
  * Factory for the {@code http-header} current-version kind (ADR-0030). Discovered as a CDI bean;
  * registered by mere existence — no central dispatcher is edited (ADR-0005). Validates its own
  * STRUCTURAL config fragment fail-fast in {@link #create}: a non-blank {@code url} and a non-blank
- * {@code version-header} are required, as {@code url} is for the {@code http} kind; a configured
+ * {@code version-header} are required, as {@code url} is for the {@code http-json} kind; a configured
  * {@code regex} must compile and have at least one capture group, validated by
  * {@link RegexVersionExtractor}'s constructor. All three THROW and fail boot.
  *
@@ -33,12 +33,12 @@ import java.util.Optional;
  *
  * <p>The {@code auth} / {@code ca-cert} / {@code insecure-skip-tls-verify} part of the fragment is
  * delegated to the shared, kind-labelled {@link HttpTransportConfig} collaborator — the
- * same one the {@code http} kind uses, constructed here with the {@code "http-header"} label so
+ * same one the {@code http-json} kind uses, constructed here with the {@code "http-header"} label so
  * its messages name this kind. A VALUE-level problem there (e.g. an unsupported {@code auth.type},
  * or a {@code ca-cert} file that cannot be read) is mapped to a {@link FailedCurrentSource} with a
  * WARN, never a thrown exception — the single app degrades, the fleet keeps scraping.
  *
- * <p>No CDI-injected collaborators: unlike the {@code http} kind (which needs a REST-client
+ * <p>No CDI-injected collaborators: unlike the {@code http-json} kind (which needs a REST-client
  * factory), this kind's transport is a plain {@link RedirectFollowingHttpGet}, built directly from
  * the resolved TLS inputs.
  */

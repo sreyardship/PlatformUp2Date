@@ -1,4 +1,4 @@
-package org.yardship.integration.adapters.out.versionsource.current.http;
+package org.yardship.integration.adapters.out.versionsource.current.httpjson;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -8,8 +8,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClient;
-import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClientFactory;
+import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentVersionClient;
+import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentVersionClientFactory;
 
 import java.io.InputStream;
 import java.security.KeyStore;
@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * HTTPS integration test proving the {@code ca-cert} replace-semantics contract of
- * {@link HttpCurrentVersionClientFactory#build}. WireMock is started with TLS using a self-signed
+ * {@link HttpJsonCurrentVersionClientFactory#build}. WireMock is started with TLS using a self-signed
  * {@code CN=localhost} certificate that is NOT in the JVM default trust bundle, so:
  *
  * <ul>
@@ -42,11 +42,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * -ext SAN=dns:localhost,ip:127.0.0.1 -validity 36500}. The same cert is extracted from that keystore
  * at runtime into the in-memory truststore for the success case, so the test needs no separate PEM.
  *
- * <p>The success case verifies that {@code HttpCurrentVersionClientFactory.build(...)} registers
+ * <p>The success case verifies that {@code HttpJsonCurrentVersionClientFactory.build(...)} registers
  * the supplied truststore on the app-scoped client.
  */
 @QuarkusTest
-class HttpCurrentSourceTlsIT {
+class HttpJsonCurrentSourceTlsIT {
 
     private static final String KEYSTORE_RESOURCE = "tls/wiremock-localhost.p12";
     private static final String KEYSTORE_PASSWORD = "password";
@@ -55,7 +55,7 @@ class HttpCurrentSourceTlsIT {
     static String httpsBaseUrl;
 
     @Inject
-    HttpCurrentVersionClientFactory clientFactory;
+    HttpJsonCurrentVersionClientFactory clientFactory;
 
     @BeforeAll
     static void startWireMock() throws Exception {
@@ -92,7 +92,7 @@ class HttpCurrentSourceTlsIT {
     void build_withTheWireMockCaInTheTrustStore_completesTheHttpsRequest() throws Exception {
         KeyStore trustStore = trustStoreHoldingWireMockCa();
 
-        HttpCurrentVersionClient client =
+        HttpJsonCurrentVersionClient client =
                 clientFactory.build(httpsBaseUrl + "/current", Optional.empty(), Optional.of(trustStore), false);
         JsonNode body = client.getCurrentVersion();
 
@@ -106,7 +106,7 @@ class HttpCurrentSourceTlsIT {
         // so the handshake must be rejected. That this still fails in the same class as the success
         // case proves the success case did NOT install a JVM-global truststore. Also pins that
         // insecure-skip-tls-verify never becomes the default: this call passes insecure=false.
-        HttpCurrentVersionClient client =
+        HttpJsonCurrentVersionClient client =
                 clientFactory.build(httpsBaseUrl + "/current", Optional.empty(), Optional.empty(), false);
 
         assertThrows(RuntimeException.class, client::getCurrentVersion,
@@ -118,7 +118,7 @@ class HttpCurrentSourceTlsIT {
         // Full curl -k semantics: no truststore configured (Optional.empty()) but
         // insecureSkipTlsVerify=true must still resolve the version against the self-signed WireMock
         // HTTPS endpoint — the JVM does not trust this cert and the hostname need not match.
-        HttpCurrentVersionClient client =
+        HttpJsonCurrentVersionClient client =
                 clientFactory.build(httpsBaseUrl + "/current", Optional.empty(), Optional.empty(), true);
         JsonNode body = client.getCurrentVersion();
 
@@ -129,7 +129,7 @@ class HttpCurrentSourceTlsIT {
 
     private static KeyStore trustStoreHoldingWireMockCa() throws Exception {
         KeyStore wireMockKeystore = KeyStore.getInstance("PKCS12");
-        try (InputStream in = HttpCurrentSourceTlsIT.class.getClassLoader()
+        try (InputStream in = HttpJsonCurrentSourceTlsIT.class.getClassLoader()
                 .getResourceAsStream(KEYSTORE_RESOURCE)) {
             wireMockKeystore.load(in, KEYSTORE_PASSWORD.toCharArray());
         }
@@ -143,6 +143,6 @@ class HttpCurrentSourceTlsIT {
 
     private static String resourcePath(String resource) throws Exception {
         return java.nio.file.Path.of(
-                HttpCurrentSourceTlsIT.class.getClassLoader().getResource(resource).toURI()).toString();
+                HttpJsonCurrentSourceTlsIT.class.getClassLoader().getResource(resource).toURI()).toString();
     }
 }

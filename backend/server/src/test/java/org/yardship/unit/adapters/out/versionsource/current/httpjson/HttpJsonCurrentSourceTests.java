@@ -1,12 +1,12 @@
-package org.yardship.unit.adapters.out.versionsource.current.http;
+package org.yardship.unit.adapters.out.versionsource.current.httpjson;
 
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClient;
-import org.yardship.adapters.out.versionsource.current.http.HttpCurrentSource;
+import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentVersionClient;
+import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentSource;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.VersionValue;
 
@@ -15,16 +15,16 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link HttpCurrentSource} as a pure POJO — NO Arc, NO WireMock. It is constructed
- * directly with a ready (fake) {@link HttpCurrentVersionClient}, a {@code version-key} JSON Pointer, and
+ * Unit tests for {@link HttpJsonCurrentSource} as a pure POJO — NO Arc, NO WireMock. It is constructed
+ * directly with a ready (fake) {@link HttpJsonCurrentVersionClient}, a {@code version-key} JSON Pointer, and
  * a {@code strip-prerelease} flag, and does only {@code JsonNode.at(pointer)} extraction plus optional
  * prerelease stripping. The REST-client-building concern lives entirely in
- * {@code HttpCurrentVersionClientFactory} now and is exercised separately at the integration level.
+ * {@code HttpJsonCurrentVersionClientFactory} now and is exercised separately at the integration level.
  *
  * <p>Construction and extraction are covered here as fast unit tests; HTTP client construction
- * remains in {@code HttpCurrentSourceIT} and the client-factory integration tests.
+ * remains in {@code HttpJsonCurrentSourceIT} and the client-factory integration tests.
  */
-class HttpCurrentSourceTests {
+class HttpJsonCurrentSourceTests {
     private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -32,7 +32,7 @@ class HttpCurrentSourceTests {
     @Test
     void version_resolvesTopLevelPointer_intoVersion() throws Exception {
         JsonNode body = MAPPER.readTree("{\"version\":\"1.0.0\"}");
-        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/version", false, SEMVER_PARSER);
+        HttpJsonCurrentSource source = new HttpJsonCurrentSource(fakeClient(body), "/version", false, SEMVER_PARSER);
 
         VersionValue result = source.version();
 
@@ -42,7 +42,7 @@ class HttpCurrentSourceTests {
     @Test
     void version_resolvesNonStandardTopLevelPointer() throws Exception {
         JsonNode body = MAPPER.readTree("{\"harbor_version\":\"v2.11.1-6b7ecba1\", \"other\":\"x\"}");
-        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/harbor_version", false, SEMVER_PARSER);
+        HttpJsonCurrentSource source = new HttpJsonCurrentSource(fakeClient(body), "/harbor_version", false, SEMVER_PARSER);
 
         VersionValue result = source.version();
 
@@ -52,7 +52,7 @@ class HttpCurrentSourceTests {
     @Test
     void version_resolvesNestedPointer() throws Exception {
         JsonNode body = MAPPER.readTree("{\"data\":{\"version\":\"3.4.5\"}}");
-        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/data/version", false, SEMVER_PARSER);
+        HttpJsonCurrentSource source = new HttpJsonCurrentSource(fakeClient(body), "/data/version", false, SEMVER_PARSER);
 
         VersionValue result = source.version();
 
@@ -62,7 +62,7 @@ class HttpCurrentSourceTests {
     @Test
     void version_withStripPrereleaseTrue_clearsThePreReleaseSegment() throws Exception {
         JsonNode body = MAPPER.readTree("{\"harbor_version\":\"v2.11.1-6b7ecba1\"}");
-        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/harbor_version", true, SEMVER_PARSER);
+        HttpJsonCurrentSource source = new HttpJsonCurrentSource(fakeClient(body), "/harbor_version", true, SEMVER_PARSER);
 
         VersionValue result = source.version();
 
@@ -72,7 +72,7 @@ class HttpCurrentSourceTests {
     @Test
     void version_withStripPrereleaseFalse_preservesThePreReleaseSegment() throws Exception {
         JsonNode body = MAPPER.readTree("{\"harbor_version\":\"v2.11.1-6b7ecba1\"}");
-        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/harbor_version", false, SEMVER_PARSER);
+        HttpJsonCurrentSource source = new HttpJsonCurrentSource(fakeClient(body), "/harbor_version", false, SEMVER_PARSER);
 
         VersionValue result = source.version();
 
@@ -84,7 +84,7 @@ class HttpCurrentSourceTests {
     @Test
     void version_throws_withClearTruncatedBodyMessage_whenPointerDoesNotResolve() throws Exception {
         JsonNode body = MAPPER.readTree("{\"auth_mode\":\"oidc_auth\"}");
-        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/missing", false, SEMVER_PARSER);
+        HttpJsonCurrentSource source = new HttpJsonCurrentSource(fakeClient(body), "/missing", false, SEMVER_PARSER);
 
         RuntimeException ex = assertThrows(RuntimeException.class, source::version);
 
@@ -92,12 +92,14 @@ class HttpCurrentSourceTests {
                 "the failure message must name the unresolved pointer; was: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("auth_mode"),
                 "the failure message must include the (truncated) upstream body; was: " + ex.getMessage());
+        assertTrue(ex.getMessage().contains("'http-json'"),
+                "the failure message must name the 'http-json' kind label; was: " + ex.getMessage());
     }
 
     @Test
     void version_throws_withClearMessage_whenPointerResolvesToANonTextualValue() throws Exception {
         JsonNode body = MAPPER.readTree("{\"version\":12345}");
-        HttpCurrentSource source = new HttpCurrentSource(fakeClient(body), "/version", false, SEMVER_PARSER);
+        HttpJsonCurrentSource source = new HttpJsonCurrentSource(fakeClient(body), "/version", false, SEMVER_PARSER);
 
         RuntimeException ex = assertThrows(RuntimeException.class, source::version);
 
@@ -107,7 +109,7 @@ class HttpCurrentSourceTests {
                 "the failure message must include the (truncated) upstream body; was: " + ex.getMessage());
     }
 
-    private static HttpCurrentVersionClient fakeClient(JsonNode body) {
+    private static HttpJsonCurrentVersionClient fakeClient(JsonNode body) {
         return () -> body;
     }
 }

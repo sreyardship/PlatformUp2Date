@@ -59,8 +59,8 @@ class HttpRegexLatestSourceIT {
 
     static WireMockServer wireMockServer;
 
-    // HTTPS-only server (self-signed CN=localhost cert, same fixture as HttpCurrentSourceTlsIT /
-    // HttpCurrentSourceRedirectIT) used only by the HTTPS-to-HTTP downgrade-refusal test.
+    // HTTPS-only server (self-signed CN=localhost cert, same fixture as HttpJsonCurrentSourceTlsIT /
+    // HttpJsonCurrentSourceRedirectIT) used only by the HTTPS-to-HTTP downgrade-refusal test.
     static WireMockServer httpsWireMockServer;
     static String httpsBaseUrl;
 

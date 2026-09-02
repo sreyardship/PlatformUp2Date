@@ -1,4 +1,4 @@
-package org.yardship.adapters.out.versionsource.current.http;
+package org.yardship.adapters.out.versionsource.current.httpjson;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The {@code http} current-version leg's redirect-aware transport, per ADR-0029: fetches the
+ * The {@code http-json} current-version leg's redirect-aware transport, per ADR-0029: fetches the
  * configured URL over {@link RedirectFollowingHttpGet} (rather than a declarative REST-client proxy
  * that does not follow 301/302/303/307/308 with the required credential-origin and TLS-downgrade
  * rules), then decodes the final JSON body.
@@ -27,7 +27,7 @@ import java.util.Optional;
  * {@link VersionFetchException} mapping the rest of the codebase relies on — this class only owns
  * the transport (redirect-following GET + TLS configuration + JSON body decoding), not the
  * failure-mapping policy. Renders whatever {@link ClientRequestFilter} the caller (typically
- * {@code HttpCurrentVersionClientFactory}) supplies into a literal {@code Authorization} header
+ * {@code HttpJsonCurrentVersionClientFactory}) supplies into a literal {@code Authorization} header
  * value on every request via {@link AuthorizationHeaderRenderer}, shared with the {@code
  * http-header} kind's transport, rather than registering the filter on a JAX-RS client, since
  * {@link RedirectFollowingHttpGet} needs a plain header map, not a filter chain. This preserves
@@ -35,13 +35,13 @@ import java.util.Optional;
  * for every {@link #getCurrentVersion()} call, exactly as a JAX-RS filter would be invoked fresh for
  * every outgoing request.
  *
- * <p>Deliberately does NOT {@code implement HttpCurrentVersionClient}: that interface carries
+ * <p>Deliberately does NOT {@code implement HttpJsonCurrentVersionClient}: that interface carries
  * {@code @Path}, and a real (build-time-indexed) class implementing it risks being swept up by
  * Quarkus's JAX-RS/CDI scanning as a resource/bean (see {@code RedirectFollowingGithubReleaseClient}
- * for the same rationale on the {@code latest} leg). {@link HttpCurrentVersionClientFactory} instead
+ * for the same rationale on the {@code latest} leg). {@link HttpJsonCurrentVersionClientFactory} instead
  * wires an instance in via a method reference, a synthetic lambda class invisible to that scanning.
  */
-class RedirectFollowingHttpCurrentVersionTransport {
+class RedirectFollowingHttpJsonCurrentVersionTransport {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final VersionResponseExceptionMapper EXCEPTION_MAPPER = new VersionResponseExceptionMapper();
@@ -50,7 +50,7 @@ class RedirectFollowingHttpCurrentVersionTransport {
     private final Optional<ClientRequestFilter> authFilter;
     private final RedirectFollowingHttpGet httpGet;
 
-    RedirectFollowingHttpCurrentVersionTransport(
+    RedirectFollowingHttpJsonCurrentVersionTransport(
             String url, Optional<ClientRequestFilter> authFilter, Optional<KeyStore> trustStore,
             boolean insecureSkipTlsVerify) {
         this.uri = URI.create(url);
@@ -78,7 +78,7 @@ class RedirectFollowingHttpCurrentVersionTransport {
             return OBJECT_MAPPER.readTree(body);
         } catch (Exception e) {
             throw new VersionFetchException(
-                    "Failed to parse the 'http' current source's JSON response: " + e.getMessage(), 200, body);
+                    "Failed to parse the 'http-json' current source's JSON response: " + e.getMessage(), 200, body);
         }
     }
 

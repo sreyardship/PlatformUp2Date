@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Integration test for the real {@code http-header} current-version kind, built end to end through
  * {@link HttpHeaderCurrentSourceFactory#create} against a standalone WireMock server on port 8089 —
- * matching the style of {@code HttpCurrentSourceIT}.
+ * matching the style of {@code HttpJsonCurrentSourceIT}.
  *
  * <p>{@code docs/adr/0030-http-header-current-source.md} is the binding specification. Unit-level
  * extraction/message behavior lives in {@code HttpHeaderCurrentSourceTests}; this class exists to

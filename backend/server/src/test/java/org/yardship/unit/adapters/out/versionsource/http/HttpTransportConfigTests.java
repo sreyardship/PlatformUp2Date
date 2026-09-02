@@ -24,22 +24,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link HttpTransportConfig} — the stateless, kind-labelled collaborator
- * shared by every current-leg HTTP factory ({@code http} today, {@code http-header} in a later
+ * shared by every current-leg HTTP factory ({@code http-json} today, {@code http-header} in a later
  * slice). It resolves the {@code auth} / {@code ca-cert} / {@code insecure-skip-tls-verify} part of
  * a config fragment into either a value-level failure message or the resolved transport inputs: an
  * optional {@link ClientRequestFilter}, an optional truststore, and the insecure-TLS flag.
  *
- * <p>These tests were extracted from {@code HttpCurrentSourceFactoryTests}, which stays as the
- * behaviour-preservation proof for the {@code http} factory itself (unmodified). This file exercises
+ * <p>These tests were extracted from {@code HttpJsonCurrentSourceFactoryTests}, which stays as the
+ * behaviour-preservation proof for the {@code http-json} factory itself (unmodified). This file exercises
  * the same rules directly through the new collaborator's own seam, plus the kind-label
- * parameterisation that {@code HttpCurrentSourceFactoryTests} — fixed to {@code "http"} — cannot
+ * parameterisation that {@code HttpJsonCurrentSourceFactoryTests} — fixed to {@code "http-json"} — cannot
  * observe.
  */
 class HttpTransportConfigTests {
 
     private static final String URL = "https://localhost:8443/current";
 
-    private final HttpTransportConfig transportConfig = new HttpTransportConfig("http");
+    private final HttpTransportConfig transportConfig = new HttpTransportConfig("http-json");
 
     // --- No auth, no ca-cert: the fully-absent fragment ---------------------------------------
 
@@ -78,7 +78,7 @@ class HttpTransportConfigTests {
         // Representative case pinning the exact wording (per basic-missing-credential branch): this is
         // the wording slice 03 must reproduce verbatim for 'http-header'.
         assertEquals(
-                "The 'http' current source's auth.type 'basic' is missing a username or password "
+                "The 'http-json' current source's auth.type 'basic' is missing a username or password "
                         + "(url: '" + URL + "').",
                 resolution.failureMessage().orElseThrow());
     }
@@ -151,7 +151,7 @@ class HttpTransportConfigTests {
         // Representative case pinning the exact wording (per bearer-neither branch): this is the
         // wording slice 03 must reproduce verbatim for 'http-header'.
         assertEquals(
-                "The 'http' current source's auth.type 'bearer' needs a token or token-file "
+                "The 'http-json' current source's auth.type 'bearer' needs a token or token-file "
                         + "(url: '" + URL + "').",
                 resolution.failureMessage().orElseThrow());
     }
@@ -168,7 +168,7 @@ class HttpTransportConfigTests {
         // Representative case pinning the exact wording (per bearer-both branch): this is the wording
         // slice 03 must reproduce verbatim for 'http-header'.
         assertEquals(
-                "The 'http' current source's auth.type 'bearer' has both a token and a token-file; "
+                "The 'http-json' current source's auth.type 'bearer' has both a token and a token-file; "
                         + "this is ambiguous and refused, no precedence rule (url: '" + URL + "').",
                 resolution.failureMessage().orElseThrow());
     }
@@ -205,7 +205,7 @@ class HttpTransportConfigTests {
         // Representative case pinning the exact wording (per unsupported-type branch): this is the
         // wording slice 03 must reproduce verbatim for 'http-header'.
         assertEquals(
-                "The 'http' current source's auth.type 'oauth2' is not supported (url: '" + URL + "').",
+                "The 'http-json' current source's auth.type 'oauth2' is not supported (url: '" + URL + "').",
                 resolution.failureMessage().orElseThrow());
     }
 
@@ -215,7 +215,7 @@ class HttpTransportConfigTests {
      * A valid self-signed X.509 certificate in PEM form (generated once via
      * {@code openssl req -x509 -newkey rsa:2048 -days 36500 -nodes}). Used as the on-disk PEM the
      * collaborator must parse into an in-memory truststore. The expiry is set far in the future so
-     * this fixture does not rot. Identical to the fixture used by {@code HttpCurrentSourceFactoryTests}.
+     * this fixture does not rot. Identical to the fixture used by {@code HttpJsonCurrentSourceFactoryTests}.
      */
     private static final String VALID_CA_PEM = """
             -----BEGIN CERTIFICATE-----
@@ -271,7 +271,7 @@ class HttpTransportConfigTests {
         // Representative case pinning the exact wording (per ca-cert-blank branch): this is the
         // wording slice 03 must reproduce verbatim for 'http-header'.
         assertEquals(
-                "The 'http' current source's 'ca-cert' is configured but blank (url: '" + URL + "').",
+                "The 'http-json' current source's 'ca-cert' is configured but blank (url: '" + URL + "').",
                 resolution.failureMessage().orElseThrow());
     }
 
@@ -306,7 +306,7 @@ class HttpTransportConfigTests {
         // wording slice 03 must reproduce verbatim for 'http-header'. The path is echoed via
         // java.nio.file.Path.of(...).toString(), matching how the collaborator renders it.
         assertEquals(
-                "The 'http' current source's 'ca-cert' at '" + Path.of(empty.toString())
+                "The 'http-json' current source's 'ca-cert' at '" + Path.of(empty.toString())
                         + "' contained no X.509 certificates (url: '" + URL + "').",
                 resolution.failureMessage().orElseThrow());
     }
@@ -383,11 +383,11 @@ class HttpTransportConfigTests {
     void resolve_namesTheConfiguredKindLabel_inAuthFailureMessages_forHttp() {
         Auth unknown = auth("oauth2", Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
 
-        HttpTransportConfig httpConfig = new HttpTransportConfig("http");
+        HttpTransportConfig httpConfig = new HttpTransportConfig("http-json");
         HttpTransportConfig.Resolution resolution =
                 httpConfig.resolve(Optional.of(unknown), Optional.empty(), false, URL);
 
-        assertTrue(resolution.failureMessage().get().contains("The 'http' current source's"),
+        assertTrue(resolution.failureMessage().get().contains("The 'http-json' current source's"),
                 "was: " + resolution.failureMessage().get());
     }
 
@@ -405,11 +405,11 @@ class HttpTransportConfigTests {
 
     @Test
     void resolve_namesTheConfiguredKindLabel_inTheCaCertAndInsecureAmbiguityMessage_forHttp() {
-        HttpTransportConfig httpConfig = new HttpTransportConfig("http");
+        HttpTransportConfig httpConfig = new HttpTransportConfig("http-json");
         HttpTransportConfig.Resolution resolution =
                 httpConfig.resolve(Optional.empty(), Optional.of("/no/such/path/ca.crt"), true, URL);
 
-        assertTrue(resolution.failureMessage().get().contains("The 'http' current source has"),
+        assertTrue(resolution.failureMessage().get().contains("The 'http-json' current source has"),
                 "was: " + resolution.failureMessage().get());
     }
 

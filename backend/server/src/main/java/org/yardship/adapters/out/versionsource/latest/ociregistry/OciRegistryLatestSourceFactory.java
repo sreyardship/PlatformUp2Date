@@ -27,7 +27,7 @@ import java.util.Optional;
  * <p>VALUE-LEVEL auth validation ({@code auth.type} other than {@code basic}, or {@code basic}
  * with missing/blank credentials) returns a {@link FailedLatestSource} instead of throwing, so the
  * offending app fails on every {@link LatestVersionSource#version()} call while every other app
- * keeps scraping normally — mirroring {@code HttpCurrentSourceFactory.validateAuthValue}.
+ * keeps scraping normally — mirroring {@code HttpJsonCurrentSourceFactory.validateAuthValue}.
  * The supported auth type is {@code basic} only; {@code bearer} and {@code token-file} send a
  * static token and do not fit the realm-mint flow (ADR-0013).
  */

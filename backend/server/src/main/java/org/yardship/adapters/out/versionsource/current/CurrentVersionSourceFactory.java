@@ -16,7 +16,7 @@ import org.yardship.core.ports.out.CurrentVersionSource;
  */
 public interface CurrentVersionSourceFactory {
 
-    /** The config {@code type} discriminator this factory builds (e.g. {@code "http"}). */
+    /** The config {@code type} discriminator this factory builds (e.g. {@code "http-json"}). */
     String type();
 
     /**
@@ -26,7 +26,7 @@ public interface CurrentVersionSourceFactory {
      * @param parser the single per-app parser shared by both legs, so current and latest are always
      *               commensurable; the source uses it instead of constructing versions directly
      * @throws RuntimeException with a clear message if the fragment is invalid for this kind
-     *                          (e.g. the {@code http} kind requires {@code url}).
+     *                          (e.g. the {@code http-json} kind requires {@code url}).
      */
     CurrentVersionSource create(ApplicationConfigLoader.VersionSource cfg, VersionParser parser);
 }

@@ -1,4 +1,4 @@
-package org.yardship.integration.adapters.out.versionsource.current.http;
+package org.yardship.integration.adapters.out.versionsource.current.httpjson;
 
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
@@ -10,9 +10,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
-import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClientFactory;
-import org.yardship.adapters.out.versionsource.current.http.HttpCurrentSource;
-import org.yardship.adapters.out.versionsource.current.http.HttpCurrentSourceFactory;
+import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentVersionClientFactory;
+import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentSource;
+import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentSourceFactory;
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
@@ -28,33 +28,33 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Integration test for the real {@link HttpCurrentSource} adapter, now a pure POJO wired to a REAL
- * {@link org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClient} built by the injected
- * {@link HttpCurrentVersionClientFactory} against a standalone WireMock server on port 8089.
+ * Integration test for the real {@link HttpJsonCurrentSource} adapter, now a pure POJO wired to a REAL
+ * {@link org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentVersionClient} built by the injected
+ * {@link HttpJsonCurrentVersionClientFactory} against a standalone WireMock server on port 8089.
  *
  * <p>This is intentionally thin: extraction, prerelease stripping, and error-message behavior are
- * covered by {@code HttpCurrentSourceTests} with a fake client and no Arc. This class verifies that
+ * covered by {@code HttpJsonCurrentSourceTests} with a fake client and no Arc. This class verifies that
  * a client built by the real collaborator and handed to the POJO source round-trips an HTTP call,
  * including non-2xx mapping. The
- * "never sends an Authorization header" guardrail moved to {@code HttpCurrentVersionClientFactoryIT},
+ * "never sends an Authorization header" guardrail moved to {@code HttpJsonCurrentVersionClientFactoryIT},
  * since that header decision is now entirely the client factory's concern.
  *
  * <p>Factory config-validation cases (blank password, blank token → FailedCurrentSource) are owned
- * exhaustively by {@code HttpCurrentSourceFactoryTests} at the unit level and are not re-asserted here.
- * Auth-on-the-wire is owned by the unit filter tests + {@code HttpCurrentVersionClientFactoryIT};
+ * exhaustively by {@code HttpJsonCurrentSourceFactoryTests} at the unit level and are not re-asserted here.
+ * Auth-on-the-wire is owned by the unit filter tests + {@code HttpJsonCurrentVersionClientFactoryIT};
  * the authenticated source path is proven by the factory end-to-end happy paths below.
  *
- * <p>{@code @QuarkusTest} is used so {@link HttpCurrentVersionClientFactory} can be injected — matching
+ * <p>{@code @QuarkusTest} is used so {@link HttpJsonCurrentVersionClientFactory} can be injected — matching
  * the existing IT style.
  */
 @QuarkusTest
-class HttpCurrentSourceIT {
+class HttpJsonCurrentSourceIT {
     private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
 
     static WireMockServer wireMockServer;
 
     @Inject
-    HttpCurrentVersionClientFactory clientFactory;
+    HttpJsonCurrentVersionClientFactory clientFactory;
 
     @BeforeAll
     static void startWireMock() {
@@ -77,7 +77,7 @@ class HttpCurrentSourceIT {
         wireMockServer.stubFor(get(urlEqualTo("/current"))
                 .willReturn(jsonResponse(200, "{\"version\":\"1.0.0\"}")));
 
-        HttpCurrentSource source = new HttpCurrentSource(
+        HttpJsonCurrentSource source = new HttpJsonCurrentSource(
                 clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty(), false), "/version", false, SEMVER_PARSER);
 
         VersionValue result = source.version();
@@ -90,7 +90,7 @@ class HttpCurrentSourceIT {
         wireMockServer.stubFor(get(urlEqualTo("/current"))
                 .willReturn(jsonResponse(403, "{\"message\":\"forbidden\"}")));
 
-        HttpCurrentSource source = new HttpCurrentSource(
+        HttpJsonCurrentSource source = new HttpJsonCurrentSource(
                 clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty(), false), "/version", false, SEMVER_PARSER);
 
         // A non-2xx is mapped to a thrown exception by the reused VersionResponseExceptionMapper,
@@ -103,7 +103,7 @@ class HttpCurrentSourceIT {
     @Test
     void factoryCreate_withValidHarborBasicAuthConfig_endToEnd_readsHarborVersion() {
         // Drives the FULL production path the dev application.yml entry exercises:
-        // HttpCurrentSourceFactory.create(cfg) -> real HttpCurrentVersionClientFactory -> BasicAuthFilter
+        // HttpJsonCurrentSourceFactory.create(cfg) -> real HttpJsonCurrentVersionClientFactory -> BasicAuthFilter
         // -> real HTTP call through WireMock. Catch-all 401 registered FIRST — see the
         // "last registered wins" note on WireMock stub ordering: the more specific withBasicAuth
         // stub (registered second) is applied to a matching authenticated request.
@@ -113,11 +113,11 @@ class HttpCurrentSourceIT {
                 .withBasicAuth("harbor-bot", "s3cr3t")
                 .willReturn(jsonResponse(200, "{\"harbor_version\":\"v2.13.0\"}")));
 
-        HttpCurrentSourceFactory httpFactory = new HttpCurrentSourceFactory(clientFactory);
+        HttpJsonCurrentSourceFactory httpFactory = new HttpJsonCurrentSourceFactory(clientFactory);
         CurrentVersionSource result = httpFactory.create(harborConfig(
                 Optional.of("harbor-bot"), Optional.of("s3cr3t")), SEMVER_PARSER);
 
-        assertInstanceOf(HttpCurrentSource.class, result);
+        assertInstanceOf(HttpJsonCurrentSource.class, result);
         // The 'v' prefix is trimmed by the Version primitive (see Version.trimInput).
         assertEquals("2.13.0", result.version().value());
     }
@@ -126,8 +126,8 @@ class HttpCurrentSourceIT {
 
     @Test
     void factoryCreate_withValidBearerAuthConfig_endToEnd_readsTheVersion() {
-        // Drives the FULL production path: HttpCurrentSourceFactory.create(cfg) -> real
-        // HttpCurrentVersionClientFactory -> BearerAuthFilter -> real HTTP call through WireMock.
+        // Drives the FULL production path: HttpJsonCurrentSourceFactory.create(cfg) -> real
+        // HttpJsonCurrentVersionClientFactory -> BearerAuthFilter -> real HTTP call through WireMock.
         // Catch-all 401 registered FIRST, specific bearer-matching 200 stub registered LAST.
         wireMockServer.stubFor(get(urlEqualTo("/current"))
                 .willReturn(aResponse().withStatus(401)));
@@ -135,10 +135,10 @@ class HttpCurrentSourceIT {
                 .withHeader("Authorization", equalTo("Bearer gh-token"))
                 .willReturn(jsonResponse(200, "{\"version\":\"v3.1.0\"}")));
 
-        HttpCurrentSourceFactory httpFactory = new HttpCurrentSourceFactory(clientFactory);
+        HttpJsonCurrentSourceFactory httpFactory = new HttpJsonCurrentSourceFactory(clientFactory);
         CurrentVersionSource result = httpFactory.create(bearerConfig(Optional.of("gh-token")), SEMVER_PARSER);
 
-        assertInstanceOf(HttpCurrentSource.class, result);
+        assertInstanceOf(HttpJsonCurrentSource.class, result);
         assertEquals("3.1.0", result.version().value());
     }
 
@@ -146,7 +146,7 @@ class HttpCurrentSourceIT {
         return new ApplicationConfigLoader.VersionSource() {
             @Override
             public String type() {
-                return "http";
+                return "http-json";
             }
 
             @Override
@@ -285,7 +285,7 @@ class HttpCurrentSourceIT {
         return new ApplicationConfigLoader.VersionSource() {
             @Override
             public String type() {
-                return "http";
+                return "http-json";
             }
 
             @Override

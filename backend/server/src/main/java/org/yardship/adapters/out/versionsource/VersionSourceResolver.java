@@ -28,8 +28,13 @@ import java.util.function.Function;
  * the configured apps into one {@link ApplicationSources} pair per app, built once at startup.
  *
  * <p>The resolver only assembles and holds sources and owns their {@link Closeable} lifecycle;
- * {@code ApplicationVersionService} owns the scrape loop. Adding a source kind is a new factory bean and nothing else; this resolver never names
- * a {@code type} string itself.
+ * {@code ApplicationVersionService} owns the scrape loop. Adding a source kind is a new factory bean
+ * and nothing else; this resolver never names a {@code type} string itself — with one bounded
+ * exception: {@link #RETIRED_KIND_REPLACEMENTS}, a small, append-only map of retired kind names to
+ * their replacement, consulted only on the no-factory-found path so a renamed kind's boot failure
+ * explains itself instead of reading like an application defect. It names only kinds that have
+ * actually been retired — a closed historical set — so *adding* a new kind still touches no central
+ * file; only *retiring* one does.
  *
  * <p>Fail-fast at construction: a duplicate factory {@code type()} or an unknown config {@code type}
  * surfaces as an {@link IllegalStateException} naming the offending type, so a misconfiguration
@@ -37,6 +42,13 @@ import java.util.function.Function;
  */
 @ApplicationScoped
 public class VersionSourceResolver implements VersionSources {
+
+    // Retired version-source kind names, mapped to their replacement. Consulted ONLY on the
+    // no-factory-found path in factoryFor: a closed, append-only historical set, not a dispatch
+    // table — the resolver still does not name a live `type` string anywhere else. Retiring a kind
+    // means adding an entry here; adding a new kind touches no central file, as before.
+    private static final Map<String, String> RETIRED_KIND_REPLACEMENTS = Map.of(
+            "http", "http-json");
 
     private final Logger logger = LoggerFactory.getLogger(VersionSourceResolver.class);
 
@@ -106,6 +118,11 @@ public class VersionSourceResolver implements VersionSources {
     private static <F> F factoryFor(Map<String, F> byType, String type) {
         F factory = byType.get(type);
         if (factory == null) {
+            String replacement = RETIRED_KIND_REPLACEMENTS.get(type);
+            if (replacement != null) {
+                throw new IllegalStateException("The '" + type + "' version source kind was renamed to '"
+                        + replacement + "'; update this app's config.");
+            }
             throw new IllegalStateException("No version source factory for config type '" + type + "'.");
         }
         return factory;

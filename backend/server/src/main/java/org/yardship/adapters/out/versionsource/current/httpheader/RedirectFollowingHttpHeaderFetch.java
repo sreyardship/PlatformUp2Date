@@ -22,11 +22,11 @@ import java.util.Optional;
  * <p>When {@code authFilter} is present, the rendered {@code Authorization} value is attached to
  * every request — including a re-issued one after a redirect, since a fresh header map is built
  * on every {@link #fetch()} call. Rendering is delegated to {@link AuthorizationHeaderRenderer},
- * shared with the {@code http} kind's transport ({@code RedirectFollowingHttpCurrentVersionTransport})
+ * shared with the {@code http-json} kind's transport ({@code RedirectFollowingHttpJsonCurrentVersionTransport})
  * so the two current-leg HTTP transports do not carry two copies of the same rendering logic. This
  * preserves {@code FileBearerAuthFilter}'s per-request file re-read semantics: a {@code
  * token-file} credential is re-read from disk on every scrape, exactly as it is for the {@code
- * http} kind.
+ * http-json} kind.
  */
 class RedirectFollowingHttpHeaderFetch implements HttpHeaderFetch {
 

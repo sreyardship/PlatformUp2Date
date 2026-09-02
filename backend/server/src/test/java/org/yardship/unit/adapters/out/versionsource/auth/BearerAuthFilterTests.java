@@ -16,10 +16,10 @@ import static org.mockito.Mockito.when;
  * emits {@code Authorization: Bearer <token>}. It generalizes the GitHub-specific
  * {@code GithubAuthFilter} into this shared filter so both the {@code latest} leg
  * ({@code GithubReleaseLatestSource}) and the {@code http} {@code current} leg
- * ({@code HttpCurrentSourceFactory}, {@code auth.type: bearer}) can register the SAME filter class.
+ * ({@code HttpJsonCurrentSourceFactory}, {@code auth.type: bearer}) can register the SAME filter class.
  * The "to whom do I send this token" boundary documentation now lives on the sources that register
  * the filter, not on the filter itself — see {@code GithubReleaseLatestSource} and
- * {@code HttpCurrentSourceFactory} Javadoc.
+ * {@code HttpJsonCurrentSourceFactory} Javadoc.
  *
  * <p>Mirrors {@code BasicAuthFilterTests}'s shape: {@code quarkus-junit5-mockito} is on the test
  * classpath, so {@link ClientRequestContext} is mocked here rather than hand-rolled.

@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <ul>
  *   <li><b>Boot-fail (throws {@link IllegalArgumentException})</b>: blank/absent {@code host};
  *       blank/absent {@code user}. These are STRUCTURAL missing required fields, mirroring
- *       how {@code HttpCurrentSourceFactory} throws on a blank {@code url}.</li>
+ *       how {@code HttpJsonCurrentSourceFactory} throws on a blank {@code url}.</li>
  *   <li><b>Value-fail (returns {@link FailedCurrentSource})</b>: both {@code private-key} and
  *       {@code private-key-file} set; neither set; both {@code host-key} and {@code known-hosts}
  *       set; neither set. These are mutual-exclusion config problems that degrade one app without

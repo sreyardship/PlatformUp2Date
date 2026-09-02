@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Unit tests for {@link HttpHeaderCurrentSource} as a pure POJO — NO Arc, NO real HTTP. It is
  * constructed directly with a fake {@link HttpHeaderFetch} (the narrow seam this slice introduces,
- * mirroring how {@code HttpCurrentSourceTests} fakes {@code HttpCurrentVersionClient}), so status
+ * mirroring how {@code HttpJsonCurrentSourceTests} fakes {@code HttpJsonCurrentVersionClient}), so status
  * code and headers can be dictated per test without a stub server.
  *
  * <p>Per {@code docs/adr/0030-http-header-current-source.md} — the binding specification for this
