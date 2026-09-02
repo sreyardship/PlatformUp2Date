@@ -5,6 +5,7 @@ import org.yardship.confcheck.outcome.SurfaceResult;
 import org.yardship.confcheck.outcome.ValidationOutcome;
 import org.yardship.confcheck.port.AppConfig;
 import org.yardship.confcheck.port.BodySource;
+import org.yardship.confcheck.port.ResponseSource;
 import org.yardship.confcheck.version.VersionSpec;
 import org.yardship.core.domain.primitives.CalverFormat;
 import org.yardship.core.domain.primitives.VersionParser;
@@ -14,8 +15,8 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * The {@code config} gate's composing use case. Runs the four per-surface validators
- * (regex, pointer, changelog-template, calver-format) against every {@link AppConfig} in a parsed
+ * The {@code config} gate's composing use case. Runs the five per-surface validators
+ * (regex, pointer, header, changelog-template, calver-format) against every {@link AppConfig} in a parsed
  * {@code platform-config.yaml}, aggregating into a single {@link ValidationOutcome.ConfigFileResult}.
  *
  * <p>Reuses the existing per-surface validators for each app, never their
@@ -28,6 +29,13 @@ import java.util.function.Function;
  *       {@code current.type == "http"}. {@code current.version-key}'s documented
  *       {@code "/version"} default (see {@link AppConfig#currentVersionKey()}'s javadoc) is applied
  *       HERE, not by the reader.</li>
+ *   <li>{@link HeaderExtractionValidation} against {@code current.url}'s live-fetched response —
+ *       headers and status, not a body — when {@code current.type == "http-header"}. A missing or
+ *       blank {@code current.url} or {@code version-header} is reported as
+ *       {@link ValidationOutcome.ConfigInvalid} rather than {@code notApplicable}, because the
+ *       backend's factory throws at boot on either (ADR-0030) and passing such a config would
+ *       defeat the point of a pre-deploy gate. That check is pure config, needing no network, so it
+ *       runs BEFORE the {@code offline} gate and is reported even in an offline run.</li>
  *   <li>{@code new org.yardship.core.domain.primitives.ChangelogTemplate(...)}'s constructor ONLY
  *       (never {@link ChangelogResolutionValidation}, which needs a live/sample version to
  *       {@code .resolve()} against that a static config file does not have) — see
@@ -37,7 +45,7 @@ import java.util.function.Function;
  *       {@link ValidationOutcome.CalverFormatValid}'s design note.</li>
  * </ul>
  *
- * <p>{@code offline} suppresses ONLY the two live-fetch surfaces (regex, pointer) — those become
+ * <p>{@code offline} suppresses ONLY the three live-fetch surfaces (regex, pointer, header) — those become
  * {@link org.yardship.confcheck.outcome.SurfaceResult#skippedOffline}. changelog/calver are pure-function
  * checks with no body source and are never skipped by {@code offline}. A surface with nothing
  * configured for it on a given app (e.g. {@code latest.type == "github-release"} for the regex
@@ -47,22 +55,30 @@ import java.util.function.Function;
 public final class ConfigFileValidation {
 
     private static final String HTTP_CURRENT_TYPE = "http";
+    private static final String HTTP_HEADER_CURRENT_TYPE = "http-header";
     private static final String HTTP_REGEX_LATEST_TYPE = "http-regex";
     private static final String DEFAULT_POINTER = "/version";
 
     private final RegexExtractionValidation regexValidation = new RegexExtractionValidation();
     private final PointerExtractionValidation pointerValidation = new PointerExtractionValidation();
+    private final HeaderExtractionValidation headerValidation = new HeaderExtractionValidation();
     private final Function<String, BodySource> bodySourceFactory;
+    private final Function<String, ResponseSource> responseSourceFactory;
 
     /**
-     * @param bodySourceFactory the body-fetch seam: given a URL, produces the {@link BodySource} to
-     *                          fetch it with. The composition root ({@link
-     *                          org.yardship.confcheck.command.ConfigCommand}) supplies the concrete adapter
-     *                          (e.g. {@code LiveHttpBodySource::new}); this class only depends on the
-     *                          {@link BodySource} port, never a concrete adapter.
+     * @param bodySourceFactory     the body-fetch seam: given a URL, produces the {@link BodySource}
+     *                              to fetch it with. The composition root ({@link
+     *                              org.yardship.confcheck.command.ConfigCommand}) supplies the concrete
+     *                              adapter (e.g. {@code LiveHttpBodySource::new}); this class only
+     *                              depends on the {@link BodySource} port, never a concrete adapter.
+     * @param responseSourceFactory the response-fetch seam for the {@code header} surface: given a
+     *                              URL, produces the {@link ResponseSource} to fetch it with (e.g.
+     *                              {@code LiveHttpResponseSource::new}).
      */
-    public ConfigFileValidation(Function<String, BodySource> bodySourceFactory) {
+    public ConfigFileValidation(
+            Function<String, BodySource> bodySourceFactory, Function<String, ResponseSource> responseSourceFactory) {
         this.bodySourceFactory = bodySourceFactory;
+        this.responseSourceFactory = responseSourceFactory;
     }
 
     /**
@@ -87,7 +103,8 @@ public final class ConfigFileValidation {
         SurfaceResult pointer = pointerSurface(app, offline);
         SurfaceResult changelog = changelogSurface(app);
         SurfaceResult calver = calverSurface(app);
-        return new AppValidationResult(app.name(), List.of(regex, pointer, changelog, calver));
+        SurfaceResult header = headerSurface(app, offline);
+        return new AppValidationResult(app.name(), List.of(regex, pointer, changelog, calver, header));
     }
 
     private SurfaceResult regexSurface(AppConfig app, boolean offline) {
@@ -148,6 +165,62 @@ public final class ConfigFileValidation {
         return SurfaceResult.ran(SurfaceResult.Surface.POINTER, outcome);
     }
 
+    private SurfaceResult headerSurface(AppConfig app, boolean offline) {
+        if (!HTTP_HEADER_CURRENT_TYPE.equals(app.currentType())) {
+            return SurfaceResult.notApplicable(SurfaceResult.Surface.HEADER);
+        }
+        // Both 'url' and 'version-header' are REQUIRED for this kind -- the backend's factory
+        // throws at boot on an absent or blank either (ADR-0030). Reporting 'not applicable' would
+        // pass a config the backend then refuses to start on, the opposite of what a pre-deploy
+        // gate is for, so a missing one is a config error rather than nothing to check. Blank is
+        // checked as well as absent, matching the factory's own isBlank() rule. This runs BEFORE
+        // the offline gate below: it is a pure config check needing no network, so it is worth
+        // reporting even in an offline run.
+        Optional<String> requiredField = missingRequiredHeaderField(app);
+        if (requiredField.isPresent()) {
+            return SurfaceResult.ran(SurfaceResult.Surface.HEADER, new ValidationOutcome.ConfigInvalid(
+                    "The 'http-header' current source requires a non-blank '" + requiredField.get()
+                            + "'; none is configured."));
+        }
+        if (offline) {
+            return SurfaceResult.skippedOffline(SurfaceResult.Surface.HEADER);
+        }
+
+        Optional<VersionParser> parser;
+        try {
+            parser = Optional.of(buildParser(app));
+        } catch (VersionSpec.VersionSpecException e) {
+            return SurfaceResult.ran(SurfaceResult.Surface.HEADER, new ValidationOutcome.ConfigInvalid(e.getMessage()));
+        }
+
+        ResponseSource.Response response;
+        try {
+            response = fetchResponse(app.currentUrl().orElseThrow());
+        } catch (BodySource.BodyFetchException e) {
+            return SurfaceResult.ran(SurfaceResult.Surface.HEADER, new ValidationOutcome.FetchFailed(e.getMessage()));
+        }
+
+        ValidationOutcome outcome = headerValidation.validate(
+                response, app.currentHeaderName().orElseThrow(), app.currentHeaderRegex(),
+                app.currentStripPrerelease(), parser);
+        return SurfaceResult.ran(SurfaceResult.Surface.HEADER, outcome);
+    }
+
+    /**
+     * Names the first required {@code http-header} field that is absent or blank, mirroring
+     * {@code HttpHeaderCurrentSourceFactory}'s own non-blank rule so this gate refuses exactly the
+     * configs the backend refuses to boot on.
+     */
+    private static Optional<String> missingRequiredHeaderField(AppConfig app) {
+        if (app.currentUrl().filter(v -> !v.isBlank()).isEmpty()) {
+            return Optional.of("url");
+        }
+        if (app.currentHeaderName().filter(v -> !v.isBlank()).isEmpty()) {
+            return Optional.of("version-header");
+        }
+        return Optional.empty();
+    }
+
     private SurfaceResult changelogSurface(AppConfig app) {
         if (app.changelogUrl().isEmpty()) {
             return SurfaceResult.notApplicable(SurfaceResult.Surface.CHANGELOG);
@@ -186,5 +259,9 @@ public final class ConfigFileValidation {
 
     private String fetch(String url) {
         return bodySourceFactory.apply(url).body();
+    }
+
+    private ResponseSource.Response fetchResponse(String url) {
+        return responseSourceFactory.apply(url).fetch();
     }
 }

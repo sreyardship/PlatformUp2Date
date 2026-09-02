@@ -1,0 +1,24 @@
+# Fixture exercising the http-header current source's config surface (ADR-0030 / slice 04).
+#
+# A single app whose current source is http-header, with both version-header and an optional
+# current.regex configured, so:
+#   - YamlAppConfigReaderHeaderSurfaceIT asserts both fields survive the real YAML-to-AppConfig
+#     round trip (the exact path ConfigFileValidationHeaderSurfaceTests cannot reach, since it
+#     builds AppConfig by hand);
+#   - ConfigCommandWiringHeaderSurfaceTests asserts the config gate's header surface actually RUNS
+#     against a real parsed app (rather than reporting "not applicable").
+#
+# latest.type is deliberately github-release (no CLI-transparent latest validator, see
+# mixed-apps.yaml's gitea-oci entry) so the regex surface stays not-applicable and no unwanted live
+# fetch happens when this fixture is driven through ConfigCommand without --offline.
+platform-config:
+  apps:
+    - name: jenkins
+      current:
+        type: http-header
+        url: http://localhost:8097/
+        version-header: X-Jenkins
+        regex: '(\d+\.\d+\.\d+)'
+      latest:
+        type: github-release
+        repo: jenkinsci/jenkins

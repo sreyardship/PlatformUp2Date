@@ -160,6 +160,11 @@ class HttpCurrentSourceIT {
             }
 
             @Override
+            public Optional<String> versionHeader() {
+                return Optional.empty();
+            }
+
+            @Override
             public Optional<String> host() { return Optional.empty(); }
 
             @Override
@@ -290,6 +295,11 @@ class HttpCurrentSourceIT {
 
             @Override
             public Optional<String> regex() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> versionHeader() {
                 return Optional.empty();
             }
 

@@ -99,6 +99,8 @@ public final class YamlAppConfigReader implements AppConfigReader {
                 Optional.ofNullable(current.url),
                 Optional.ofNullable(current.versionKey),
                 Boolean.TRUE.equals(current.stripPrerelease),
+                Optional.ofNullable(current.versionHeader),
+                Optional.ofNullable(current.regex),
                 latest.type,
                 Optional.ofNullable(latest.url),
                 Optional.ofNullable(latest.regex));
@@ -149,6 +151,11 @@ public final class YamlAppConfigReader implements AppConfigReader {
 
         @JsonProperty("strip-prerelease")
         public Boolean stripPrerelease;
+
+        @JsonProperty("version-header")
+        public String versionHeader;
+
+        public String regex;
     }
 
     private static final class LatestDto {
