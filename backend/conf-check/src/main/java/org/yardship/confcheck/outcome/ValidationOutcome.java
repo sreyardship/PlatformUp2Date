@@ -246,6 +246,43 @@ public sealed interface ValidationOutcome {
     }
 
     /**
+     * {@code header} validation succeeded: the named response header resolved (and, if a scheme
+     * was given, its value parsed).
+     *
+     * <p>{@link HeaderResult#statusCode()} is always present, per
+     * {@code docs/adr/0030-http-header-current-source.md}: an {@code http-header} source reads its
+     * header off the final response regardless of status, so a report — including a passing one —
+     * must make visible which status code the header was actually read from.
+     */
+    record HeaderOk(HeaderResult result) implements ValidationOutcome {
+        public static final int EXIT_CODE = 0;
+
+        @Override
+        public int exitCode() {
+            return EXIT_CODE;
+        }
+    }
+
+    /**
+     * {@code header} validation found nothing usable: the header was absent, present but empty
+     * after trimming, or (with a scheme/regex given) its value failed to parse or match.
+     *
+     * @param message a human-readable explanation, naming the observed status code for the
+     *                absent/present-but-empty cases (the two facts an operator cannot tell apart
+     *                from the value alone).
+     * @param result  the result reached so far — always carries at least {@code statusCode()};
+     *                {@link HeaderResult#rawText()} is present once the header itself was found.
+     */
+    record HeaderValidButEmpty(String message, HeaderResult result) implements ValidationOutcome {
+        public static final int EXIT_CODE = 4;
+
+        @Override
+        public int exitCode() {
+            return EXIT_CODE;
+        }
+    }
+
+    /**
      * The aggregate result of the {@code config} gate: one {@link AppValidationResult}
      * per app in the file, in file order.
      *

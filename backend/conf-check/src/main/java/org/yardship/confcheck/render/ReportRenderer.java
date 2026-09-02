@@ -2,6 +2,7 @@ package org.yardship.confcheck.render;
 
 import org.yardship.confcheck.outcome.AppValidationResult;
 import org.yardship.confcheck.outcome.CalverMapping;
+import org.yardship.confcheck.outcome.HeaderResult;
 import org.yardship.confcheck.outcome.PointerResult;
 import org.yardship.confcheck.outcome.RegexCandidate;
 import org.yardship.confcheck.outcome.SurfaceResult;
@@ -31,6 +32,8 @@ public final class ReportRenderer {
             case ValidationOutcome.ValidButEmpty empty -> renderValidButEmpty(empty, out);
             case ValidationOutcome.PointerOk ok -> renderPointerOk(ok, out);
             case ValidationOutcome.PointerValidButEmpty empty -> renderPointerValidButEmpty(empty, out);
+            case ValidationOutcome.HeaderOk ok -> renderHeaderOk(ok, out);
+            case ValidationOutcome.HeaderValidButEmpty empty -> renderHeaderValidButEmpty(empty, out);
             case ValidationOutcome.ChangelogOk ok -> renderChangelogOk(ok, out);
             case ValidationOutcome.CalverOk ok -> renderCalverOk(ok, out);
             case ValidationOutcome.ChangelogTemplateValid ok -> renderChangelogTemplateValid(ok, out);
@@ -73,6 +76,21 @@ public final class ReportRenderer {
         empty.attempted().ifPresent(result ->
                 out.println("  - raw text: '" + result.rawText() + "'"
                         + (result.strippedPreRelease() ? " (pre-release stripped)" : "")));
+    }
+
+    private void renderHeaderOk(ValidationOutcome.HeaderOk ok, PrintStream out) {
+        HeaderResult result = ok.result();
+        out.println("OK: header resolved to '" + result.rawText().orElse("") + "'"
+                + (result.strippedPreRelease() ? " (pre-release stripped)" : "") + " (status "
+                + result.statusCode() + ").");
+        if (result.parsed().isPresent()) {
+            out.println("Parsed: " + result.parsed().get().value());
+        }
+    }
+
+    private void renderHeaderValidButEmpty(ValidationOutcome.HeaderValidButEmpty empty, PrintStream out) {
+        out.println("VALID BUT EMPTY: " + empty.message());
+        empty.result().rawText().ifPresent(rawText -> out.println("  - raw text: '" + rawText + "'"));
     }
 
     private void renderChangelogOk(ValidationOutcome.ChangelogOk ok, PrintStream out) {

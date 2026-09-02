@@ -29,9 +29,9 @@ public record SurfaceResult(Surface surface, Status status, Optional<ValidationO
         }
     }
 
-    /** Which of the four per-surface validators this result is for. */
+    /** Which of the per-surface validators this result is for. */
     public enum Surface {
-        REGEX, POINTER, CHANGELOG, CALVER
+        REGEX, POINTER, CHANGELOG, CALVER, HEADER
     }
 
     public enum Status {
