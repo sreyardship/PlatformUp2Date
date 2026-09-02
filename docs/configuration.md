@@ -112,6 +112,53 @@ Blank/absent `host` or `user` fails boot; the mutually-exclusive-pair
 violations (both or neither of a pair set) show up as failed scrapes, not
 boot crashes.
 
+### `type: http-header` (current) — Tier A, network-reachable, no credentials required
+
+Reads the current version from a named HTTP **response header** rather than a response body — for
+apps (Jenkins is the motivating case) that volunteer their version in a header and never in a
+body. See [ADR-0030](adr/0030-http-header-current-source.md) for the full rationale; the three
+behaviors below are the deliberate, surprising parts.
+
+| Key | Type | Required | Default |
+|---|---|---|---|
+| `url` | string | yes | — |
+| `version-header` | string | yes | — |
+| `regex` | regex with ≥1 capture group | no | absent → the raw trimmed header value is parsed directly |
+| `strip-prerelease` | boolean | no | `false` |
+| `ca-cert` | path to PEM file | no | absent → JVM default trust |
+| `insecure-skip-tls-verify` | boolean | no | `false` |
+| `auth.type` | `basic` \| `bearer` | required if `auth` present | — |
+| `auth.username` / `auth.password` | string | required for `auth.type: basic` | — |
+| `auth.token` | string | exactly one of `token`/`token-file` required for `auth.type: bearer` | — |
+| `auth.token-file` | path | exactly one of `token`/`token-file` required for `auth.type: bearer`; re-read on every request (never cached) | — |
+
+Missing/blank `url` or `version-header` fails boot; a `regex` that fails to compile or has no
+capture group also fails boot. `auth`/`ca-cert` value problems (an unsupported `auth.type`, a
+`ca-cert` file that cannot be read, or configuring both `ca-cert` and
+`insecure-skip-tls-verify`) degrade the single app to a failed scrape, matching the `http` kind.
+
+Three behaviors are deliberate design decisions, not bugs, and each differs from a sibling HTTP
+source kind:
+
+- **The status code is ignored.** The header is read off the final response *whatever its status
+  code was*; the status is consulted only when composing a failure message, never to gate the
+  read. Every real Jenkins is a secured Jenkins — it refuses the anonymous top page with a 403 and
+  still carries `X-Jenkins` on that same response. Requiring a 2xx, as the `http` and `http-regex`
+  kinds do, would fail every scrape of the motivating app while the answer sits in a response
+  already held in memory.
+- **The optional `regex` takes group 1 of the *first* match**, not the largest. `http-regex`'s
+  largest-wins rule is correct on the `latest` leg, where "newest release upstream" genuinely
+  means a maximum over candidates; on this `current` leg a version is a single *observation*, and
+  largest-wins against a loosely-written pattern can silently report the wrong number (e.g. an
+  `Ubuntu/22.04` fragment in a `Server` header outscoring the real version).
+- **The header name matches case-insensitively**, unlike `version-key`'s case-sensitive JSON
+  Pointer. JSON object keys are case-sensitive by specification; HTTP field names are
+  case-insensitive by specification (RFC 9110 §5.1) — the rule is "follow the substrate's own
+  spec," and it gives opposite answers for the two. A repeated header takes the first value.
+
+Test a `version-header`/`regex` pair against a real or fixture response before deploying with the
+`conf-check header` subcommand — see [conf-check.md](conf-check.md#subcommands).
+
 ### `type: github-release` (latest) — no credentials required for public repos
 
 Selects the largest semver release; configured by `owner/repo` slug, not a
