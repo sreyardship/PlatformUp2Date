@@ -1,4 +1,4 @@
-package org.yardship.adapters.out.versionsource.current.http;
+package org.yardship.adapters.out.versionsource.http;
 
 import jakarta.ws.rs.client.ClientRequestFilter;
 import org.slf4j.Logger;
@@ -29,16 +29,16 @@ import java.util.Optional;
  * current source's ..."} for {@code http-header}, etc. This collaborator introduces no new lifecycle —
  * every current-leg HTTP factory constructs or injects it directly.
  */
-public class HttpCurrentTransportConfig {
+public class HttpTransportConfig {
 
     private static final String BASIC_AUTH_TYPE = "basic";
     private static final String BEARER_AUTH_TYPE = "bearer";
 
-    private final Logger logger = LoggerFactory.getLogger(HttpCurrentTransportConfig.class);
+    private final Logger logger = LoggerFactory.getLogger(HttpTransportConfig.class);
 
     private final String kindLabel;
 
-    public HttpCurrentTransportConfig(String kindLabel) {
+    public HttpTransportConfig(String kindLabel) {
         this.kindLabel = kindLabel;
     }
 

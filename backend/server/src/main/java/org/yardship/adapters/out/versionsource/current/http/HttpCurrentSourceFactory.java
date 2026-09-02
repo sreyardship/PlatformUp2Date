@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClient;
 import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClientFactory;
+import org.yardship.adapters.out.versionsource.http.HttpTransportConfig;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
@@ -17,7 +18,7 @@ import org.yardship.core.ports.out.CurrentVersionSource;
  * Factory for the {@code http} current-version kind. Discovered as a CDI bean; validates its own
  * config fragment ({@code http} requires a non-blank {@code url}, {@code version-key} — if
  * present — must be a syntactically valid JSON Pointer), delegates the {@code auth} / {@code ca-cert}
- * / {@code insecure-skip-tls-verify} part of the fragment to the shared {@link HttpCurrentTransportConfig}
+ * / {@code insecure-skip-tls-verify} part of the fragment to the shared {@link HttpTransportConfig}
  * collaborator, then EAGERLY builds the {@link HttpCurrentVersionClient} via the injected
  * {@link HttpCurrentVersionClientFactory} and constructs a per-app {@link HttpCurrentSource} wrapping
  * it.
@@ -41,7 +42,7 @@ public class HttpCurrentSourceFactory implements CurrentVersionSourceFactory {
     private final Logger logger = LoggerFactory.getLogger(HttpCurrentSourceFactory.class);
 
     private final HttpCurrentVersionClientFactory clientFactory;
-    private final HttpCurrentTransportConfig transportConfig = new HttpCurrentTransportConfig(KIND_LABEL);
+    private final HttpTransportConfig transportConfig = new HttpTransportConfig(KIND_LABEL);
 
     @Inject
     public HttpCurrentSourceFactory(HttpCurrentVersionClientFactory clientFactory) {
@@ -64,7 +65,7 @@ public class HttpCurrentSourceFactory implements CurrentVersionSourceFactory {
         boolean stripPrerelease = cfg.stripPrerelease().orElse(false);
         boolean insecureSkipTlsVerify = cfg.insecureSkipTlsVerify().orElse(false);
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(cfg.auth(), cfg.caCert(), insecureSkipTlsVerify, url);
         if (resolution.failureMessage().isPresent()) {
             logger.warn(resolution.failureMessage().get());

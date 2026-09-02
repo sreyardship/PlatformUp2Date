@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.current.CurrentVersionSourceFactory;
 import org.yardship.adapters.out.versionsource.current.FailedCurrentSource;
-import org.yardship.adapters.out.versionsource.current.http.HttpCurrentTransportConfig;
+import org.yardship.adapters.out.versionsource.http.HttpTransportConfig;
 import org.yardship.adapters.out.versionsource.http.RedirectFollowingHttpGet;
 import org.yardship.adapters.out.versionsource.regex.RegexVersionExtractor;
 import org.yardship.core.domain.primitives.VersionParser;
@@ -29,10 +29,10 @@ import java.util.Optional;
  * optional token, and {@code OciRegistryLatestSourceFactory} all filter a blank value to absent.
  * Only {@code url} and {@code version-header} are required and reject a blank value. Note this is
  * NOT how a blank {@code ca-cert} behaves: that is a VALUE error yielding a
- * {@link FailedCurrentSource}, resolved by {@link HttpCurrentTransportConfig} below.
+ * {@link FailedCurrentSource}, resolved by {@link HttpTransportConfig} below.
  *
  * <p>The {@code auth} / {@code ca-cert} / {@code insecure-skip-tls-verify} part of the fragment is
- * delegated to the shared, kind-labelled {@link HttpCurrentTransportConfig} collaborator — the
+ * delegated to the shared, kind-labelled {@link HttpTransportConfig} collaborator — the
  * same one the {@code http} kind uses, constructed here with the {@code "http-header"} label so
  * its messages name this kind. A VALUE-level problem there (e.g. an unsupported {@code auth.type},
  * or a {@code ca-cert} file that cannot be read) is mapped to a {@link FailedCurrentSource} with a
@@ -49,7 +49,7 @@ public class HttpHeaderCurrentSourceFactory implements CurrentVersionSourceFacto
     private static final String EXTRACTOR_LABEL = "'http-header' current source";
 
     private final Logger logger = LoggerFactory.getLogger(HttpHeaderCurrentSourceFactory.class);
-    private final HttpCurrentTransportConfig transportConfig = new HttpCurrentTransportConfig(KIND_LABEL);
+    private final HttpTransportConfig transportConfig = new HttpTransportConfig(KIND_LABEL);
 
     @Override
     public String type() {
@@ -68,7 +68,7 @@ public class HttpHeaderCurrentSourceFactory implements CurrentVersionSourceFacto
         boolean stripPrerelease = cfg.stripPrerelease().orElse(false);
         boolean insecureSkipTlsVerify = cfg.insecureSkipTlsVerify().orElse(false);
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(cfg.auth(), cfg.caCert(), insecureSkipTlsVerify, url);
         if (resolution.failureMessage().isPresent()) {
             logger.warn(resolution.failureMessage().get());

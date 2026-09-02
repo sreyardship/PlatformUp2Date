@@ -15,7 +15,7 @@ import java.util.Optional;
 /**
  * Production {@link HttpHeaderFetch}: GETs {@code uri} through {@link RedirectFollowingHttpGet} —
  * ADR-0029's redirect rules and the per-caller TLS configuration built by
- * {@code HttpCurrentTransportConfig} apply unchanged, and {@link RedirectFollowingHttpGet} itself
+ * {@code HttpTransportConfig} apply unchanged, and {@link RedirectFollowingHttpGet} itself
  * is untouched. The body is never read; only the final response's status code and headers are
  * surfaced, per ADR-0030.
  *
