@@ -7,15 +7,17 @@ import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.ports.out.LatestVersionSource;
 
 import java.util.Optional;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 
 /**
  * Factory for the {@code http-regex} latest-version kind. Discovered as a CDI bean; holds no external
  * dependencies. Validates its own config fragment fail-fast in {@link #create}: a non-blank
- * {@code url} and a {@code regex} that is present, compiles, and has at least one capture group (the
- * source extracts group 1). These are STRUCTURAL config errors, so they fail boot — consistent with
- * {@code github-release}'s treatment of a missing/malformed {@code repo}.
+ * {@code url} and a non-blank {@code regex}. Whether that {@code regex} compiles and has at least
+ * one capture group (the source extracts group 1) is validated by
+ * {@link org.yardship.adapters.out.versionsource.regex.RegexVersionExtractor}, the leg-neutral
+ * shared machinery constructed inside {@link HttpRegexLatestSource}'s constructor when this factory
+ * builds the source below — that constructor call is what actually fails boot on a bad pattern.
+ * These are STRUCTURAL config errors, so they fail boot — consistent with {@code github-release}'s
+ * treatment of a missing/malformed {@code repo}.
  */
 @ApplicationScoped
 public class HttpRegexLatestSourceFactory implements LatestVersionSourceFactory {
@@ -33,19 +35,6 @@ public class HttpRegexLatestSourceFactory implements LatestVersionSourceFactory 
         String regex = nonBlank(cfg.regex())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "The 'http-regex' latest source requires a non-blank 'regex'."));
-
-        Pattern pattern;
-        try {
-            pattern = Pattern.compile(regex);
-        } catch (PatternSyntaxException ex) {
-            throw new IllegalArgumentException(
-                    "The 'http-regex' latest source's 'regex' does not compile: " + ex.getMessage(), ex);
-        }
-        if (pattern.matcher("").groupCount() < 1) {
-            throw new IllegalArgumentException(
-                    "The 'http-regex' latest source's 'regex' must have at least one capture group "
-                            + "(the source reads group 1); was: '" + regex + "'.");
-        }
 
         return new HttpRegexLatestSource(url, regex, parser);
     }

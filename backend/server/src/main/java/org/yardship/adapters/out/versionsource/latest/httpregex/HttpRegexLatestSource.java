@@ -4,7 +4,7 @@ import org.yardship.adapters.out.versionsource.VersionFetchException;
 import org.yardship.adapters.out.versionsource.http.InsecureRedirectException;
 import org.yardship.adapters.out.versionsource.http.RedirectFollowingHttpGet;
 import org.yardship.adapters.out.versionsource.http.TooManyRedirectsException;
-import org.yardship.core.domain.exceptions.InvalidVersionException;
+import org.yardship.adapters.out.versionsource.regex.RegexVersionExtractor;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.LatestVersionSource;
@@ -12,8 +12,6 @@ import org.yardship.core.ports.out.LatestVersionSource;
 import java.net.URI;
 import java.net.http.HttpResponse;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * The {@code http-regex} {@link LatestVersionSource}: a generic latest source for upstreams without a
@@ -28,44 +26,30 @@ import java.util.regex.Pattern;
  * 307/308) are followed to their final response before the regex is applied, per ADR-0029. A non-2xx
  * response on the final response throws a {@link VersionFetchException}; a body with no match, or
  * only unparseable matches, throws — both isolated by the scrape loop as a single app's failure.
+ *
+ * <p>The extraction machinery itself (pattern compilation/validation, group-1 extraction, tolerance
+ * of unparseable candidates, and the largest-wins selection rule) lives in the leg-neutral
+ * {@link RegexVersionExtractor}, which is leg-neutral so the current leg can share it.
  */
 public class HttpRegexLatestSource implements LatestVersionSource {
 
     private final URI uri;
-    private final Pattern pattern;
-    private final VersionParser parser;
+    private final RegexVersionExtractor extractor;
     private final RedirectFollowingHttpGet http;
+    private final String regex;
 
     public HttpRegexLatestSource(String url, String regex, VersionParser parser) {
         this.uri = URI.create(url);
-        this.pattern = Pattern.compile(regex);
-        this.parser = parser;
+        this.regex = regex;
+        this.extractor = new RegexVersionExtractor("'http-regex' latest source", regex, parser);
         this.http = new RedirectFollowingHttpGet();
     }
 
     @Override
     public VersionValue version() {
-        Matcher matcher = pattern.matcher(fetchBody());
-        VersionValue largest = null;
-        while (matcher.find()) {
-            VersionValue candidate = tryParse(matcher.group(1));
-            if (candidate != null && (largest == null || largest.isOlderThan(candidate))) {
-                largest = candidate;
-            }
-        }
-        if (largest == null) {
-            throw new IllegalStateException(
-                    "No parseable version matched regex '" + pattern + "' in the body fetched from " + uri);
-        }
-        return largest;
-    }
-
-    private VersionValue tryParse(String token) {
-        try {
-            return parser.parse(token);
-        } catch (InvalidVersionException ex) {
-            return null;
-        }
+        return extractor.largestIn(fetchBody())
+                .orElseThrow(() -> new IllegalStateException(
+                        "No parseable version matched regex '" + regex + "' in the body fetched from " + uri));
     }
 
     private String fetchBody() {

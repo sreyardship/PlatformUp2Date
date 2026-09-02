@@ -119,8 +119,9 @@ public interface ApplicationConfigLoader {
          * Optional regular expression read only by the {@code http-regex} latest source. The source
          * fetches {@link #url()} as text and applies this pattern, taking <b>capture group 1</b> of
          * every match as a candidate version string (parsed via the app's scheme; the largest wins).
-         * The {@code HttpRegexLatestSourceFactory} validates at boot that it is present, compiles, and
-         * has at least one capture group. Absent for non-{@code http-regex} kinds.
+         * The {@code HttpRegexLatestSourceFactory} validates at boot that it is present;
+         * {@code RegexVersionExtractor}, built inside the source, validates that it compiles and has
+         * at least one capture group. Absent for non-{@code http-regex} kinds.
          */
         Optional<String> regex();
 

@@ -40,13 +40,16 @@ its own without sinking the rest of the call.
 _Avoid_: Scrape request, scrape item
 
 **Version source**:
-Where a scrape reads a version from. An Application's *current* version comes
-from one of two kinds of source — an HTTP version endpoint exposed by the
-running app, or the deployed container image tag read from the Kubernetes API
-(a *k8s-image* source). The *latest* version comes from an upstream source —
-GitHub Releases (a *github-release* source), or the published image tags of an
+Where a scrape reads a version from. An Application's *current* version is read
+from the running deployment — a version endpoint it serves (an *http* source, or
+an *http-header* source where the version is carried in a response header rather
+than the body), the deployed container image tag read from the Kubernetes API (a
+*k8s-image* source), or the OS release of the host it runs on, read over SSH (an
+*ssh-os-release* source). The *latest* version comes from an upstream source —
+GitHub Releases (a *github-release* source), the published image tags of an
 OCI-spec container registry (an *oci-registry* source, named for the substrate
-it scans, like *github-release*). A registry has no native "release" concept, so
+it scans, like *github-release*), or version tokens pattern-matched out of a
+plain upstream page (an *http-regex* source). A registry has no native "release" concept, so
 the *oci-registry* source treats the largest semver tag in the repository's tag
 list as the latest release — the same largest-semver selection *github-release*
 applies (see `docs/adr/0010`). Exactly one current source per Application.
