@@ -1,4 +1,4 @@
-package org.yardship.integration.adapters.out.versionsource.current.http;
+package org.yardship.integration.adapters.out.versionsource.current.httpjson;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
 import io.quarkus.test.junit.QuarkusTest;
@@ -10,8 +10,8 @@ import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.VersionFetchException;
 import org.yardship.adapters.out.versionsource.auth.BasicAuthFilter;
 import org.yardship.adapters.out.versionsource.auth.BearerAuthFilter;
-import org.yardship.adapters.out.versionsource.current.http.HttpCurrentSource;
-import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClientFactory;
+import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentSource;
+import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentVersionClientFactory;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.domain.primitives.VersionValue;
@@ -35,16 +35,16 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Pins ADR-0029 for the {@code http} current-version source: a configured current URL
+ * Pins ADR-0029 for the {@code http-json} current-version source: a configured current URL
  * that responds with a supported redirect must reach the final JSON body, resolve the existing JSON
- * Pointer, parse the version, and return it through {@link HttpCurrentSource} exactly as a direct
+ * Pointer, parse the version, and return it through {@link HttpJsonCurrentSource} exactly as a direct
  * 2xx response does — while the {@code Authorization} header rendered by an
- * {@code HttpCurrentVersionClientFactory}-registered auth filter is retained only same-origin and
+ * {@code HttpJsonCurrentVersionClientFactory}-registered auth filter is retained only same-origin and
  * stripped cross-origin, and an HTTPS-to-HTTP downgrade is refused.
  *
  * <p>Drives the real adapter surface end to end: a client built by the injected
- * {@link HttpCurrentVersionClientFactory} handed to a real {@link HttpCurrentSource}, matching the
- * style of {@code HttpCurrentSourceIT} / {@code HttpCurrentSourceTlsIT}. Existing Basic/Bearer/
+ * {@link HttpJsonCurrentVersionClientFactory} handed to a real {@link HttpJsonCurrentSource}, matching the
+ * style of {@code HttpJsonCurrentSourceIT} / {@code HttpJsonCurrentSourceTlsIT}. Existing Basic/Bearer/
  * file-bearer/custom-CA/insecure-skip-tls-verify behavior is covered by those classes; this class
  * focuses on ADR-0029 redirect behavior.
  *
@@ -52,7 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * TLS policy while enforcing ADR-0029's credential and downgrade rules.
  */
 @QuarkusTest
-class HttpCurrentSourceRedirectIT {
+class HttpJsonCurrentSourceRedirectIT {
 
     private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
     private static final String TLS_KEYSTORE_RESOURCE = "tls/wiremock-localhost.p12";
@@ -67,7 +67,7 @@ class HttpCurrentSourceRedirectIT {
     // per ADR-0029 the Authorization header must NOT be forwarded to it.
     static WireMockServer crossOriginWireMockServer;
 
-    // An HTTPS-only server (self-signed CN=localhost cert, same fixture as HttpCurrentSourceTlsIT)
+    // An HTTPS-only server (self-signed CN=localhost cert, same fixture as HttpJsonCurrentSourceTlsIT)
     // used by the HTTPS-to-HTTP downgrade-refusal test and the within-custom-CA-origin redirect
     // tests below.
     static WireMockServer httpsWireMockServer;
@@ -75,7 +75,7 @@ class HttpCurrentSourceRedirectIT {
     static String httpsBaseUrl;
 
     @Inject
-    HttpCurrentVersionClientFactory clientFactory;
+    HttpJsonCurrentVersionClientFactory clientFactory;
 
     @BeforeAll
     static void startWireMock() throws Exception {
@@ -85,7 +85,7 @@ class HttpCurrentSourceRedirectIT {
         crossOriginWireMockServer = new WireMockServer(options().port(8092));
         crossOriginWireMockServer.start();
 
-        String keystorePath = Path.of(HttpCurrentSourceRedirectIT.class.getClassLoader()
+        String keystorePath = Path.of(HttpJsonCurrentSourceRedirectIT.class.getClassLoader()
                 .getResource(TLS_KEYSTORE_RESOURCE).toURI()).toString();
         httpsWireMockServer = new WireMockServer(options()
                 .httpDisabled(true)
@@ -112,7 +112,7 @@ class HttpCurrentSourceRedirectIT {
         httpsWireMockServer.resetAll();
     }
 
-    // --- A 301 to a final JSON endpoint resolves through the real client and HttpCurrentSource,
+    // --- A 301 to a final JSON endpoint resolves through the real client and HttpJsonCurrentSource,
     // with the final path asserted explicitly so the test cannot pass by deserializing the
     // intermediate response. ------------------------------------------------------------------
 
@@ -129,7 +129,7 @@ class HttpCurrentSourceRedirectIT {
         wireMockServer.stubFor(get(urlEqualTo("/current-final"))
                 .willReturn(jsonResponse(200, "{\"version\":\"2.5.0\"}")));
 
-        HttpCurrentSource source = new HttpCurrentSource(
+        HttpJsonCurrentSource source = new HttpJsonCurrentSource(
                 clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty(), false),
                 "/version", false, SEMVER_PARSER);
 
@@ -156,7 +156,7 @@ class HttpCurrentSourceRedirectIT {
                 .withBasicAuth("bob", "s3cr3t")
                 .willReturn(jsonResponse(200, "{\"version\":\"3.0.0\"}")));
 
-        HttpCurrentSource source = new HttpCurrentSource(
+        HttpJsonCurrentSource source = new HttpJsonCurrentSource(
                 clientFactory.build("http://localhost:8089/current",
                         Optional.of(new BasicAuthFilter("bob", "s3cr3t")), Optional.empty(), false),
                 "/version", false, SEMVER_PARSER);
@@ -180,7 +180,7 @@ class HttpCurrentSourceRedirectIT {
                 .withHeader("Authorization", equalTo("Bearer tok-123"))
                 .willReturn(jsonResponse(200, "{\"version\":\"3.1.0\"}")));
 
-        HttpCurrentSource source = new HttpCurrentSource(
+        HttpJsonCurrentSource source = new HttpJsonCurrentSource(
                 clientFactory.build("http://localhost:8089/current",
                         Optional.of(new BearerAuthFilter("tok-123")), Optional.empty(), false),
                 "/version", false, SEMVER_PARSER);
@@ -206,7 +206,7 @@ class HttpCurrentSourceRedirectIT {
         crossOriginWireMockServer.stubFor(get(urlEqualTo("/current"))
                 .willReturn(jsonResponse(200, "{\"version\":\"4.0.0\"}")));
 
-        HttpCurrentSource source = new HttpCurrentSource(
+        HttpJsonCurrentSource source = new HttpJsonCurrentSource(
                 clientFactory.build("http://localhost:8089/current",
                         Optional.of(new BearerAuthFilter("secret-token")), Optional.empty(), false),
                 "/version", false, SEMVER_PARSER);
@@ -234,7 +234,7 @@ class HttpCurrentSourceRedirectIT {
                         .withStatus(301)
                         .withHeader("Location", "http://localhost:8089/downgraded")));
 
-        HttpCurrentSource source = new HttpCurrentSource(
+        HttpJsonCurrentSource source = new HttpJsonCurrentSource(
                 clientFactory.build(httpsBaseUrl + "/current", Optional.empty(), Optional.of(trustStore), false),
                 "/version", false, SEMVER_PARSER);
 
@@ -257,7 +257,7 @@ class HttpCurrentSourceRedirectIT {
         httpsWireMockServer.stubFor(get(urlEqualTo("/current-final"))
                 .willReturn(jsonResponse(200, "{\"version\":\"5.5.5\"}")));
 
-        HttpCurrentSource source = new HttpCurrentSource(
+        HttpJsonCurrentSource source = new HttpJsonCurrentSource(
                 clientFactory.build(httpsBaseUrl + "/current", Optional.empty(), Optional.of(trustStore), false),
                 "/version", false, SEMVER_PARSER);
 
@@ -277,7 +277,7 @@ class HttpCurrentSourceRedirectIT {
         httpsWireMockServer.stubFor(get(urlEqualTo("/current-final"))
                 .willReturn(jsonResponse(200, "{\"version\":\"6.6.6\"}")));
 
-        HttpCurrentSource source = new HttpCurrentSource(
+        HttpJsonCurrentSource source = new HttpJsonCurrentSource(
                 clientFactory.build(httpsBaseUrl + "/current", Optional.empty(), Optional.empty(), true),
                 "/version", false, SEMVER_PARSER);
 
@@ -300,7 +300,7 @@ class HttpCurrentSourceRedirectIT {
         wireMockServer.stubFor(get(urlEqualTo("/current-final"))
                 .willReturn(aResponse().withStatus(500).withBody("boom")));
 
-        HttpCurrentSource source = new HttpCurrentSource(
+        HttpJsonCurrentSource source = new HttpJsonCurrentSource(
                 clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty(), false),
                 "/version", false, SEMVER_PARSER);
 
@@ -312,7 +312,7 @@ class HttpCurrentSourceRedirectIT {
 
     private static KeyStore trustStoreHoldingWireMockCa() throws Exception {
         KeyStore wireMockKeystore = KeyStore.getInstance("PKCS12");
-        try (InputStream in = HttpCurrentSourceRedirectIT.class.getClassLoader()
+        try (InputStream in = HttpJsonCurrentSourceRedirectIT.class.getClassLoader()
                 .getResourceAsStream(TLS_KEYSTORE_RESOURCE)) {
             wireMockKeystore.load(in, TLS_KEYSTORE_PASSWORD.toCharArray());
         }

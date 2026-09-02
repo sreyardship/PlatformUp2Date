@@ -169,7 +169,7 @@ quarkus:
         # github-release gets no automatic default — the 'v' tag prefix is a static literal here.
         changelog-url: https://github.com/argoproj/argo-cd/releases/tag/v{version}
         current:
-          type: http
+          type: http-json
           url: https://deployments.sreyardship.com/api/version
         latest:
           type: github-release
@@ -177,7 +177,7 @@ quarkus:
       - name: git-tea
         changelog-url: https://github.com/go-gitea/gitea/releases/tag/v{version}
         current:
-          type: http
+          type: http-json
           url: https://git.sreyardship.com/api/v1/version
         latest:
           type: github-release
@@ -185,7 +185,7 @@ quarkus:
       - name: sharry
         changelog-url: https://github.com/eikek/sharry/releases/tag/v{version}
         current:
-          type: http
+          type: http-json
           url: https://fileshare.sreyardship.com/api/v2/open/info/version
         latest:
           type: github-release
@@ -193,13 +193,13 @@ quarkus:
       - name: harbor
         changelog-url: https://github.com/goharbor/harbor/releases/tag/v{version}
         current:
-          type: http
+          type: http-json
           url: https://container-registry.sreyardship.com/api/v2.0/systeminfo
           version-key: /harbor_version
           strip-prerelease: true
           # Harbor 2.13+ only returns 'harbor_version' from /systeminfo to an authenticated
           # caller — see docs/adr/0008. Resolved from the environment via SmallRye expansion;
-          # an unset HARBOR_USER/HARBOR_PASS resolves to "" (not absent), which the http
+          # an unset HARBOR_USER/HARBOR_PASS resolves to "" (not absent), which the http-json
           # current source's factory treats as a value problem (FailedCurrentSource), not a
           # boot failure.
           auth:
@@ -238,7 +238,7 @@ quarkus:
       #
       # - name: kubernetes
       #   current:
-      #     type: http
+      #     type: http-json
       #     url: https://kubernetes.default.svc/version
       #     version-key: /gitVersion
       #     ca-cert: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt

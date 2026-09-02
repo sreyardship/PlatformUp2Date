@@ -8,7 +8,7 @@ import java.util.Optional;
  * The subset of one app's {@code platform-config.yaml} needed by the config validators.
  * This CLI-owned value record remains independent of Quarkus configuration binding.
  * Mirrors the shape of the backend's {@code ApplicationConfigLoader.AppConfig}/{@code VersionSource}
- * (see {@code backend/src/main/java/org/yardship/adapters/out/versionsource/ApplicationConfigLoader.java})
+ * (see {@code backend/server/src/main/java/org/yardship/adapters/out/versionsource/ApplicationConfigLoader.java})
  * but is NOT bound by that Quarkus/SmallRye-specific {@code @ConfigMapping} interface — {@code :cli}
  * must not depend on {@code :backend}.
  *
@@ -19,9 +19,9 @@ import java.util.Optional;
  * with only those kinds simply has "nothing applicable to check" for the corresponding surface
  * (see {@code ConfigFileValidation}), not a parse failure.
  *
- * <p><b>Design note — {@code currentVersionKey}'s default:</b> the backend's {@code http} current
+ * <p><b>Design note — {@code currentVersionKey}'s default:</b> the backend's {@code http-json} current
  * source defaults an absent {@code version-key} to {@code "/version"} at CONSUMPTION time (see
- * {@code HttpCurrentSource}), not at config-binding time (SmallRye's {@code Optional<String>}
+ * {@code HttpJsonCurrentSource}), not at config-binding time (SmallRye's {@code Optional<String>}
  * leaves it genuinely absent when unset). This record mirrors that consumption-time default
  * boundary: {@link #currentVersionKey()} reports exactly what the YAML said (possibly absent).
  * {@code YamlAppConfigReader} does not fabricate a default value into this field; the default is
@@ -41,9 +41,9 @@ import java.util.Optional;
  *                               by convention, when {@code versionScheme} is {@link VersionScheme#CALVER},
  *                               but this record does not itself enforce that — validators do).
  * @param changelogUrl          the app's {@code changelog-url} template, when configured.
- * @param currentType           {@code current.type} (e.g. {@code "http"}, {@code "ssh-os-release"},
+ * @param currentType           {@code current.type} (e.g. {@code "http-json"}, {@code "ssh-os-release"},
  *                               {@code "k8s-image"}); never null — required by the real schema.
- * @param currentUrl            {@code current.url}, when configured (present for {@code http}).
+ * @param currentUrl            {@code current.url}, when configured (present for {@code http-json}).
  * @param currentVersionKey     {@code current.version-key}, EXACTLY as configured — absent means
  *                               "not configured in YAML", not "defaults to /version"; see the
  *                               design note above for where that default is actually applied.

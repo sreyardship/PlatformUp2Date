@@ -31,16 +31,16 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * HTTPS integration test proving that {@code ca-cert} pinning and {@code insecure-skip-tls-verify}
- * work for the {@code http-header} current source EXACTLY as they do for {@code http} — the
- * evidence that the slice-01 {@code HttpCurrentTransportConfig} extraction is genuinely SHARED
+ * work for the {@code http-header} current source EXACTLY as they do for {@code http-json} — the
+ * evidence that the slice-01 {@code HttpTransportConfig} extraction is genuinely SHARED
  * transport wiring, not re-implemented per kind. Modelled directly on
- * {@code HttpCurrentSourceTlsIT}, driven through {@link HttpHeaderCurrentSourceFactory#create} (the
+ * {@code HttpJsonCurrentSourceTlsIT}, driven through {@link HttpHeaderCurrentSourceFactory#create} (the
  * config-to-transport path a real app config fragment exercises) rather than by constructing TLS
  * inputs by hand.
  *
  * <p>WireMock is started with TLS using the same committed self-signed {@code CN=localhost}
  * certificate fixture ({@code tls/wiremock-localhost.p12}, storepass {@code password}) the {@code
- * http} TLS tests use — it is NOT in the JVM default trust bundle, so a client with no custom trust
+ * http-json} TLS tests use — it is NOT in the JVM default trust bundle, so a client with no custom trust
  * configuration must fail the handshake, and one configured with the matching {@code ca-cert} (or
  * {@code insecure-skip-tls-verify: true}) must succeed.
  */

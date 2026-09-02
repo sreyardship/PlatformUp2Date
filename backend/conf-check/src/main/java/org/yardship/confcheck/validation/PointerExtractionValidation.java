@@ -13,7 +13,7 @@ import java.io.IOException;
 import java.util.Optional;
 
 /**
- * Validates an {@code http} current source's {@code version-key} (a JSON Pointer, RFC 6901)
+ * Validates an {@code http-json} current source's {@code version-key} (a JSON Pointer, RFC 6901)
  * against a body: parses the body as JSON, resolves the pointer via Jackson's
  * {@code JsonNode.at(...)}, optionally strips the pre-release segment
  * ({@link org.yardship.core.domain.primitives.VersionValue#withoutPreRelease()}), and — when a
@@ -21,8 +21,8 @@ import java.util.Optional;
  * parsed version.
  *
  * <p>This transparently reimplements the extraction logic from the production
- * {@code HttpCurrentSource} (backend) — see
- * {@code backend/src/main/java/org/yardship/adapters/out/versionsource/current/http/HttpCurrentSource.java}
+ * {@code HttpJsonCurrentSource} (backend) — see
+ * {@code backend/server/src/main/java/org/yardship/adapters/out/versionsource/current/httpjson/HttpJsonCurrentSource.java}
  * — rather than depending on it ({@code :cli} must not depend on {@code :backend}), so it can
  * report the outcome instead of only throwing.
  *
@@ -49,7 +49,7 @@ import java.util.Optional;
  * {@code PointerCommand.call()} before this class is ever invoked (see
  * {@code PointerCommandWiringTests#stripPrerelease_withoutScheme_isConfigInvalid}). When a
  * {@code parser} is supplied, {@code --strip-prerelease} is applied to the successfully PARSED
- * {@link VersionValue} — mirroring production {@code HttpCurrentSource}'s
+ * {@link VersionValue} — mirroring production {@code HttpJsonCurrentSource}'s
  * {@code parser.parse(text); return stripPrerelease ? version.withoutPreRelease() : version;} order
  * exactly — rather than to the raw extracted text before parsing. This class still defensively
  * guards the {@code stripPreRelease=true && parser.isEmpty()} combination (see {@link #validate})

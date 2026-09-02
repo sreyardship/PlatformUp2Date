@@ -75,7 +75,7 @@ class ConfigFileValidationTests {
 
         AppConfig app = appConfig(
                 "pointer-only", VersionScheme.SEMVER, Optional.empty(), Optional.empty(),
-                "http", Optional.of(url), Optional.of("/version"), false,
+                "http-json", Optional.of(url), Optional.of("/version"), false,
                 "github-release", Optional.empty(), Optional.empty());
 
         ValidationOutcome.ConfigFileResult result = validation.validate(List.of(app), false);
@@ -84,6 +84,26 @@ class ConfigFileValidationTests {
         assertFalse(appResult.isFailure());
         assertRan(appResult, SurfaceResult.Surface.POINTER);
         assertNotApplicable(appResult, SurfaceResult.Surface.REGEX);
+    }
+
+    @Test
+    void retiredHttpCurrentType_pointerSurfaceIsNotApplicable_bodySourceFactoryNeverInvoked() {
+        // "http" was the pointer surface's current.type before the rename to "http-json"; the
+        // retired name must resolve to nothing here too, consistent with the backend refusing to
+        // boot on it (ADR-0031), rather than silently reporting "nothing to check" for what is
+        // actually a JSON current leg.
+        ConfigFileValidation validation = new ConfigFileValidation(NEVER_INVOKED, RESPONSE_SOURCE_NEVER_INVOKED);
+
+        AppConfig app = appConfig(
+                "retired-http-type", VersionScheme.SEMVER, Optional.empty(), Optional.empty(),
+                "http", Optional.of("http://example.test/current"), Optional.of("/version"), false,
+                "github-release", Optional.empty(), Optional.empty());
+
+        ValidationOutcome.ConfigFileResult result = validation.validate(List.of(app), false);
+
+        AppValidationResult appResult = result.apps().get(0);
+        assertNotApplicable(appResult, SurfaceResult.Surface.POINTER);
+        assertFalse(appResult.isFailure());
     }
 
     @Test
@@ -130,7 +150,7 @@ class ConfigFileValidationTests {
         AppConfig app = appConfig(
                 "full-app", VersionScheme.CALVER, Optional.of("YY.0M.MICRO"),
                 Optional.of("https://example.test/releases/{YY}"),
-                "http", Optional.of("http://example.test/current"), Optional.of("/version"), false,
+                "http-json", Optional.of("http://example.test/current"), Optional.of("/version"), false,
                 "http-regex", Optional.of("http://example.test/latest"), Optional.of("v(\\d+\\.\\d+)"));
 
         ValidationOutcome.ConfigFileResult result = validation.validate(List.of(app), true);

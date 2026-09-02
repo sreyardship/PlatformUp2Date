@@ -107,7 +107,7 @@ Code 2 mirrors what the backend rejects at boot, code 3 mirrors a fetch failure 
 `conf-check config <file>` reads every app out of the file and runs up to five surfaces per app:
 
 - regex, when `latest.type` is `http-regex` and both `url` and `regex` are set. Fetches `latest.url` live.
-- pointer, when `current.type` is `http`. Fetches `current.url` live and applies the `/version` default when `version-key` is absent, same as the backend.
+- pointer, when `current.type` is `http-json`. Fetches `current.url` live and applies the `/version` default when `version-key` is absent, same as the backend.
 - header, when `current.type` is `http-header`. Fetches `current.url` live and validates `version-header` (and `regex`, if set) against the response's headers, same as the backend; a missing or blank `url`/`version-header` is reported as a config error rather than "not applicable".
 - changelog, when `changelog-url` is set. Constructs the template to prove every placeholder is legal, but never resolves it: a static file has no current version to resolve against, and the backend's boot check draws the same line.
 - calver, when the app declares `version-scheme: calver` with a `calver-format`. Constructs the format to prove it is well-formed.

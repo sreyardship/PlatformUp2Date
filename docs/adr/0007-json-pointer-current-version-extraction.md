@@ -1,6 +1,11 @@
 # The HTTP current source locates the version via a JSON Pointer, case-sensitively
 
-The `http` current source ([ADR-0005](0005-version-sources-as-pluggable-factories.md))
+> **Amended by [docs/adr/0031](0031-http-current-source-renamed-http-json.md):** the
+> `http` kind named here was renamed to `http-json`. This ADR's JSON Pointer decision is
+> unchanged; read this ADR for the *why* and *how* of pointer extraction, 0031 for the
+> current kind name.
+
+The `http-json` current source ([ADR-0005](0005-version-sources-as-pluggable-factories.md))
 deserialised the response into a fixed DTO whose field carried
 `@JsonAlias({"Version","version"})` — the version's JSON key was hard-wired and
 the only flexibility was tolerating that one capitalisation quirk. Real endpoints
@@ -17,7 +22,7 @@ so existing flat-`{"version":…}` apps are unchanged; Harbor sets
 
 ```yaml
 current:
-  type: http
+  type: http-json
   url: https://container-registry.sreyardship.com/api/v2.0/systeminfo
   version-key: /harbor_version
 ```
@@ -52,6 +57,6 @@ per-app scrape failure, isolated like any other bad upstream read.
   carry an explicit `version-key: /Version` or its scrape breaks. This is the
   one quirk the old `@JsonAlias` silently absorbed; it is now visible in config.
 - `version-key` and the companion `strip-prerelease` flag join the shared
-  `VersionSource` config union as optional fields, read only by the `http`
+  `VersionSource` config union as optional fields, read only by the `http-json`
   factory — the same "union of type-specific fields" pattern by which
   `namespace`/`workload`/`container` are present-but-ignored for non-k8s sources.

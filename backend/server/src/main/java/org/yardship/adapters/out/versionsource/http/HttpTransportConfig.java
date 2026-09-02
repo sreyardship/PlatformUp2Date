@@ -1,4 +1,4 @@
-package org.yardship.adapters.out.versionsource.current.http;
+package org.yardship.adapters.out.versionsource.http;
 
 import jakarta.ws.rs.client.ClientRequestFilter;
 import org.slf4j.Logger;
@@ -18,27 +18,28 @@ import java.util.Collection;
 import java.util.Optional;
 
 /**
- * Stateless, kind-labelled collaborator shared by every current-leg HTTP factory (e.g. {@code http},
- * {@code http-header}). Resolves the {@code auth} / {@code ca-cert} / {@code insecure-skip-tls-verify}
- * part of a config fragment into either a value-level failure message (never a thrown exception) or
- * the resolved transport inputs: an optional {@link ClientRequestFilter}, an optional truststore, and
- * the insecure-TLS flag.
+ * Stateless, kind-labelled collaborator shared by every current-leg HTTP factory (e.g. {@code
+ * http-json}, {@code http-header}). Resolves the {@code auth} / {@code ca-cert} /
+ * {@code insecure-skip-tls-verify} part of a config fragment into either a value-level failure
+ * message (never a thrown exception) or the resolved transport inputs: an optional
+ * {@link ClientRequestFilter}, an optional truststore, and the insecure-TLS flag.
  *
  * <p>The {@code kindLabel} supplied at construction is substituted into every message so wording reads
- * {@code "The 'http' current source's ..."} for the {@code http} kind and {@code "The 'http-header'
- * current source's ..."} for {@code http-header}, etc. This collaborator introduces no new lifecycle —
+ * {@code "The 'http-json' current source's ..."} for the {@code http-json} kind and {@code "The
+ * 'http-header' current source's ..."} for {@code http-header}, etc. This collaborator introduces no
+ * new lifecycle —
  * every current-leg HTTP factory constructs or injects it directly.
  */
-public class HttpCurrentTransportConfig {
+public class HttpTransportConfig {
 
     private static final String BASIC_AUTH_TYPE = "basic";
     private static final String BEARER_AUTH_TYPE = "bearer";
 
-    private final Logger logger = LoggerFactory.getLogger(HttpCurrentTransportConfig.class);
+    private final Logger logger = LoggerFactory.getLogger(HttpTransportConfig.class);
 
     private final String kindLabel;
 
-    public HttpCurrentTransportConfig(String kindLabel) {
+    public HttpTransportConfig(String kindLabel) {
         this.kindLabel = kindLabel;
     }
 
@@ -50,7 +51,7 @@ public class HttpCurrentTransportConfig {
      * build its HTTP client — {@code authFilter}, {@code trustStore}, AND {@code insecureSkipTlsVerify}
      * — even though the caller already holds the raw {@code insecureSkipTlsVerify} flag it passed
      * into {@link #resolve}. This is deliberate: {@code insecureSkipTlsVerify} is echoed back
-     * unchanged so every caller (today {@code HttpCurrentSourceFactory}, later
+     * unchanged so every caller (today {@code HttpJsonCurrentSourceFactory}, later
      * {@code HttpHeaderCurrentSourceFactory}) can hand this one record straight to its client
      * factory instead of re-threading its own local copy of the flag alongside it. One object in,
      * one object out.
@@ -58,7 +59,7 @@ public class HttpCurrentTransportConfig {
      * <p>On {@link #failed}, {@code insecureSkipTlsVerify} is always {@code false} — a placeholder,
      * not a resolved value. It is unreachable by construction: every caller of {@link #resolve}
      * MUST check {@link #failureMessage} first and short-circuit (log + {@code FailedCurrentSource})
-     * before reading any other field, exactly as {@code HttpCurrentSourceFactory} does. Nothing in
+     * before reading any other field, exactly as {@code HttpJsonCurrentSourceFactory} does. Nothing in
      * this class ever reads {@code insecureSkipTlsVerify} off a failed {@code Resolution}.
      */
     public record Resolution(

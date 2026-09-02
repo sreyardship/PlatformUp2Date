@@ -50,11 +50,11 @@ class VersionSourceResolverTests {
 
     @Test
     void buildsOneSourcePairPerApp_byDelegatingToTheMatchingFactory() {
-        FakeCurrentFactory http = new FakeCurrentFactory("http");
+        FakeCurrentFactory http = new FakeCurrentFactory("http-json");
         FakeLatestFactory gh = new FakeLatestFactory("github-release");
         List<ApplicationConfigLoader.AppConfig> apps = List.of(
-                app("alpha", source("http"), source("github-release")),
-                app("beta", source("http"), source("github-release")));
+                app("alpha", source("http-json"), source("github-release")),
+                app("beta", source("http-json"), source("github-release")));
 
         VersionSourceResolver resolver = new VersionSourceResolver(
                 List.of(http),
@@ -73,9 +73,9 @@ class VersionSourceResolverTests {
 
     @Test
     void delegatesTheExactConfigFragment_andReturnsTheFactoryProducedSource() {
-        FakeCurrentFactory http = new FakeCurrentFactory("http");
+        FakeCurrentFactory http = new FakeCurrentFactory("http-json");
         FakeLatestFactory gh = new FakeLatestFactory("github-release");
-        ApplicationConfigLoader.VersionSource currentCfg = source("http");
+        ApplicationConfigLoader.VersionSource currentCfg = source("http-json");
         ApplicationConfigLoader.VersionSource latestCfg = source("github-release");
         List<ApplicationConfigLoader.AppConfig> apps = List.of(app("alpha", currentCfg, latestCfg));
 
@@ -95,12 +95,12 @@ class VersionSourceResolverTests {
     void failsFast_onDuplicateCurrentFactoryType() {
         IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
                 new VersionSourceResolver(
-                        List.of(new FakeCurrentFactory("http"), new FakeCurrentFactory("http")),
+                        List.of(new FakeCurrentFactory("http-json"), new FakeCurrentFactory("http-json")),
                         List.of(new FakeLatestFactory("github-release")),
                         List.of(),
                         new VersionParsers(List.of())));
 
-        assertTrue(ex.getMessage().contains("http"),
+        assertTrue(ex.getMessage().contains("http-json"),
                 "the duplicate-type error must name the offending type; was: " + ex.getMessage());
     }
 
@@ -108,7 +108,7 @@ class VersionSourceResolverTests {
     void failsFast_onDuplicateLatestFactoryType() {
         assertThrows(IllegalStateException.class, () ->
                 new VersionSourceResolver(
-                        List.of(new FakeCurrentFactory("http")),
+                        List.of(new FakeCurrentFactory("http-json")),
                         List.of(new FakeLatestFactory("github-release"), new FakeLatestFactory("github-release")),
                         List.of(),
                         new VersionParsers(List.of())));
@@ -121,7 +121,7 @@ class VersionSourceResolverTests {
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
                 new VersionSourceResolver(
-                        List.of(new FakeCurrentFactory("http")),
+                        List.of(new FakeCurrentFactory("http-json")),
                         List.of(new FakeLatestFactory("github-release")),
                         apps,
                         new VersionParsers(apps)));
@@ -133,20 +133,65 @@ class VersionSourceResolverTests {
     @Test
     void failsFast_onUnknownLatestConfigType() {
         List<ApplicationConfigLoader.AppConfig> apps =
-                List.of(app("alpha", source("http"), source("helm-index")));
+                List.of(app("alpha", source("http-json"), source("helm-index")));
 
         assertThrows(IllegalStateException.class, () ->
                 new VersionSourceResolver(
-                        List.of(new FakeCurrentFactory("http")),
+                        List.of(new FakeCurrentFactory("http-json")),
                         List.of(new FakeLatestFactory("github-release")),
                         apps,
                         new VersionParsers(apps)));
     }
 
+    // --- retired kind names (resolver-level, no-factory-found path) --------------------------
+
+    @Test
+    void failsFast_onRetiredCurrentConfigType_withAMessageNamingItsReplacement() {
+        // 'http' was renamed to 'http-json'. No factory is registered for the retired name (only
+        // 'http-json' is), so this must hit the no-factory-found path and be recognized as retired
+        // rather than surfacing the generic unknown-type message.
+        List<ApplicationConfigLoader.AppConfig> apps =
+                List.of(app("alpha", source("http"), source("github-release")));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
+                new VersionSourceResolver(
+                        List.of(new FakeCurrentFactory("http-json")),
+                        List.of(new FakeLatestFactory("github-release")),
+                        apps,
+                        new VersionParsers(apps)));
+
+        assertTrue(ex.getMessage().contains("'http'"),
+                "the retired-kind message must name the retired type 'http'; was: " + ex.getMessage());
+        assertTrue(ex.getMessage().contains("http-json"),
+                "the retired-kind message must name the replacement type 'http-json'; was: "
+                        + ex.getMessage());
+    }
+
+    @Test
+    void failsFast_onUnknownNonRetiredCurrentConfigType_withTheExistingGenericMessage_notMentioningARename() {
+        // 'does-not-exist' is neither a registered factory type nor a retired name: the resolver
+        // must keep surfacing the existing generic no-factory message, not the retired-name wording.
+        List<ApplicationConfigLoader.AppConfig> apps =
+                List.of(app("alpha", source("does-not-exist"), source("github-release")));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
+                new VersionSourceResolver(
+                        List.of(new FakeCurrentFactory("http-json")),
+                        List.of(new FakeLatestFactory("github-release")),
+                        apps,
+                        new VersionParsers(apps)));
+
+        assertTrue(ex.getMessage().contains("No version source factory for config type 'does-not-exist'"),
+                "an unknown, non-retired type must keep the existing generic message; was: "
+                        + ex.getMessage());
+        assertTrue(!ex.getMessage().toLowerCase().contains("renam"),
+                "an unknown, non-retired type must not be reported as a rename; was: " + ex.getMessage());
+    }
+
     @Test
     void emptyAppList_yieldsNoSources() {
         VersionSourceResolver resolver = new VersionSourceResolver(
-                List.of(new FakeCurrentFactory("http")),
+                List.of(new FakeCurrentFactory("http-json")),
                 List.of(new FakeLatestFactory("github-release")),
                 List.of(),
                 new VersionParsers(List.of()));

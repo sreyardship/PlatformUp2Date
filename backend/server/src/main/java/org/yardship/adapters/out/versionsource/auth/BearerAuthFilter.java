@@ -10,7 +10,7 @@ import jakarta.ws.rs.core.HttpHeaders;
  * <p>Scheme-generic: this filter knows nothing about which source registers it or which host the
  * request is bound for. The source that registers it owns to whom credentials are sent — see
  * {@link org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleaseLatestSource} (the {@code latest}
- * leg) and {@code HttpCurrentSourceFactory} (the {@code current} leg, {@code auth.type: bearer}).
+ * leg) and {@code HttpJsonCurrentSourceFactory} (the {@code current} leg, {@code auth.type: bearer}).
  */
 public class BearerAuthFilter implements ClientRequestFilter {
 

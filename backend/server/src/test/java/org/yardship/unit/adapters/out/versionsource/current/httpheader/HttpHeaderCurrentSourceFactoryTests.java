@@ -26,11 +26,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * from {@code create()} and fail boot, matching {@code url}'s precedent and
  * {@code HttpRegexLatestSourceFactory}'s {@code regex} handling — and that VALUE-level {@code auth}
  * / {@code ca-cert} problems are routed through the shared, kind-labelled
- * {@code HttpCurrentTransportConfig} collaborator into a {@link FailedCurrentSource} whose message
+ * {@code HttpTransportConfig} collaborator into a {@link FailedCurrentSource} whose message
  * names {@code http-header} (never {@code http}), never a thrown exception.
  *
  * <p>The exhaustive matrix of every individual {@code auth}/{@code ca-cert} value-error case is
- * already owned by {@code HttpCurrentTransportConfigTests} against the shared collaborator directly;
+ * already owned by {@code HttpTransportConfigTests} against the shared collaborator directly;
  * this class only proves the WIRING — that this factory constructs the collaborator with the
  * {@code "http-header"} kind label and correctly maps its outcome — not every underlying rule again.
  */

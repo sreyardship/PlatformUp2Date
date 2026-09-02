@@ -97,7 +97,7 @@ public class ScrapePerfWireMockResource implements QuarkusTestResourceLifecycleM
             String name = "app-" + i;
             String prefix = "platform-config.apps[" + i + "]";
             overrides.put(prefix + ".name", name);
-            overrides.put(prefix + ".current.type", "http");
+            overrides.put(prefix + ".current.type", "http-json");
             overrides.put(prefix + ".current.url", base + "/" + name + "/current");
             overrides.put(prefix + ".latest.type", "github-release");
             overrides.put(prefix + ".latest.repo", "org/" + name);

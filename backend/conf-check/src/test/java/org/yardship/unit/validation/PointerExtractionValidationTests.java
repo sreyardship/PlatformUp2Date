@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * no HTTP, no filesystem, no CLI wiring. See {@code PointerCommandWiringTests} (system level) for
  * the end-to-end picocli path.
  *
- * <p>Mirrors the extraction rules of production {@code HttpCurrentSource} (backend): a pointer
+ * <p>Mirrors the extraction rules of production {@code HttpJsonCurrentSource} (backend): a pointer
  * resolving to a {@code MissingNode} or a non-textual node is treated as "nothing usable" —
  * {@link ValidationOutcome.PointerValidButEmpty} — not a crash, and neither is an unparseable
  * extracted value when {@code --scheme} was given.

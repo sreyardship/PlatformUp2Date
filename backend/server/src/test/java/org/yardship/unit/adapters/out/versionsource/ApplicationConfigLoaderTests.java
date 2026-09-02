@@ -39,7 +39,7 @@ class ApplicationConfigLoaderTests {
         AppConfig app = configLoader.apps().getFirst();
 
         assertEquals("test-app", app.name());
-        assertEquals("http", app.current().type());
+        assertEquals("http-json", app.current().type());
         assertTrue(app.current().url().isPresent(), "current.url must be read");
         assertEquals("https://example.test/version", app.current().url().get());
     }
@@ -97,13 +97,13 @@ class ApplicationConfigLoaderTests {
     // behaviour would require io.quarkus.test.QuarkusUnitTest (a separate classloader/test-engine
     // harness), which is not on this module's test classpath (only quarkus-junit5 is); pulling it in
     // for this binding assertion would add a separate test engine. Auth.type() remains a bare
-    // non-Optional String, matching VersionSource.type() — see HttpCurrentSourceFactoryTests
+    // non-Optional String, matching VersionSource.type() — see HttpJsonCurrentSourceFactoryTests
     // and this class's own currentLeg_isTaggedHttpSourceWithUrl for the established required-leaf
     // pattern this relies on.
     @Test
     void auth_exposesTypeUsernamePasswordAndToken_whenPresent() {
         // Pins the nested Auth interface shape through a hand-rolled fake, the same way
-        // HttpCurrentSourceFactoryTests fakes VersionSource — this is the interface CONTRACT, not a
+        // HttpJsonCurrentSourceFactoryTests fakes VersionSource — this is the interface CONTRACT, not a
         // config-binding test (the binding-from-yaml path is covered by
         // auth_isAbsent_forAnAppConfiguredWithoutAnAuthBlock plus the dev application.yml entry).
         Auth auth = fakeAuth("basic", Optional.of("harbor-bot"), Optional.of("s3cr3t"), Optional.empty());
@@ -184,7 +184,7 @@ class ApplicationConfigLoaderTests {
         // binding contract is pinned without perturbing every other test that reads 'test-app'.
         Map<String, String> props = baseProps();
         props.put("platform-config.apps[0].name", "argo-cd");
-        props.put("platform-config.apps[0].current.type", "http");
+        props.put("platform-config.apps[0].current.type", "http-json");
         props.put("platform-config.apps[0].current.url", "https://example.test/version");
         props.put("platform-config.apps[0].latest.type", "github-release");
         props.put("platform-config.apps[0].latest.repo", "argoproj/argo-cd");

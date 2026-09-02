@@ -40,7 +40,7 @@ public class RegexVersionExtractor {
      *                    {@code "'http-regex' latest source"} or {@code "'http-header' current
      *                    source"}, so a boot failure reads {@code "The 'http-regex' latest
      *                    source's 'regex' ..."} — mirroring the kind-label precedent in
-     *                    {@code HttpCurrentTransportConfig}.
+     *                    {@code HttpTransportConfig}.
      */
     public RegexVersionExtractor(String sourceLabel, String regex, VersionParser parser) {
         this.pattern = compile(sourceLabel, regex);

@@ -1,4 +1,4 @@
-package org.yardship.unit.adapters.out.versionsource.current.http;
+package org.yardship.unit.adapters.out.versionsource.http;
 
 import jakarta.ws.rs.client.ClientRequestFilter;
 import org.junit.jupiter.api.Test;
@@ -7,7 +7,7 @@ import org.yardship.adapters.out.versionsource.ApplicationConfigLoader.VersionSo
 import org.yardship.adapters.out.versionsource.auth.BasicAuthFilter;
 import org.yardship.adapters.out.versionsource.auth.BearerAuthFilter;
 import org.yardship.adapters.out.versionsource.auth.FileBearerAuthFilter;
-import org.yardship.adapters.out.versionsource.current.http.HttpCurrentTransportConfig;
+import org.yardship.adapters.out.versionsource.http.HttpTransportConfig;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -23,29 +23,29 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link HttpCurrentTransportConfig} — the stateless, kind-labelled collaborator
- * shared by every current-leg HTTP factory ({@code http} today, {@code http-header} in a later
+ * Unit tests for {@link HttpTransportConfig} — the stateless, kind-labelled collaborator
+ * shared by every current-leg HTTP factory ({@code http-json} today, {@code http-header} in a later
  * slice). It resolves the {@code auth} / {@code ca-cert} / {@code insecure-skip-tls-verify} part of
  * a config fragment into either a value-level failure message or the resolved transport inputs: an
  * optional {@link ClientRequestFilter}, an optional truststore, and the insecure-TLS flag.
  *
- * <p>These tests were extracted from {@code HttpCurrentSourceFactoryTests}, which stays as the
- * behaviour-preservation proof for the {@code http} factory itself (unmodified). This file exercises
+ * <p>These tests were extracted from {@code HttpJsonCurrentSourceFactoryTests}, which stays as the
+ * behaviour-preservation proof for the {@code http-json} factory itself (unmodified). This file exercises
  * the same rules directly through the new collaborator's own seam, plus the kind-label
- * parameterisation that {@code HttpCurrentSourceFactoryTests} — fixed to {@code "http"} — cannot
+ * parameterisation that {@code HttpJsonCurrentSourceFactoryTests} — fixed to {@code "http-json"} — cannot
  * observe.
  */
-class HttpCurrentTransportConfigTests {
+class HttpTransportConfigTests {
 
     private static final String URL = "https://localhost:8443/current";
 
-    private final HttpCurrentTransportConfig transportConfig = new HttpCurrentTransportConfig("http");
+    private final HttpTransportConfig transportConfig = new HttpTransportConfig("http-json");
 
     // --- No auth, no ca-cert: the fully-absent fragment ---------------------------------------
 
     @Test
     void resolve_withNoAuthAndNoCaCert_succeeds_withEmptyAuthFilter_emptyTrustStore_andInsecureFalse() {
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.empty(), Optional.empty(), false, URL);
 
         assertTrue(resolution.failureMessage().isEmpty());
@@ -60,7 +60,7 @@ class HttpCurrentTransportConfigTests {
     void resolve_withValidBasicAuth_succeeds_withABasicAuthFilter() {
         Auth basic = auth("basic", Optional.of("harbor-bot"), Optional.of("s3cr3t"), Optional.empty(), Optional.empty());
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.of(basic), Optional.empty(), false, URL);
 
         assertTrue(resolution.failureMessage().isEmpty());
@@ -72,13 +72,13 @@ class HttpCurrentTransportConfigTests {
     void resolve_withBasicAuthMissingUsername_returnsAFailureMessage() {
         Auth missingUsername = auth("basic", Optional.empty(), Optional.of("s3cr3t"), Optional.empty(), Optional.empty());
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.of(missingUsername), Optional.empty(), false, URL);
 
         // Representative case pinning the exact wording (per basic-missing-credential branch): this is
         // the wording slice 03 must reproduce verbatim for 'http-header'.
         assertEquals(
-                "The 'http' current source's auth.type 'basic' is missing a username or password "
+                "The 'http-json' current source's auth.type 'basic' is missing a username or password "
                         + "(url: '" + URL + "').",
                 resolution.failureMessage().orElseThrow());
     }
@@ -87,7 +87,7 @@ class HttpCurrentTransportConfigTests {
     void resolve_withBasicAuthMissingPassword_returnsAFailureMessage() {
         Auth missingPassword = auth("basic", Optional.of("harbor-bot"), Optional.empty(), Optional.empty(), Optional.empty());
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.of(missingPassword), Optional.empty(), false, URL);
 
         assertTrue(resolution.failureMessage().isPresent());
@@ -98,7 +98,7 @@ class HttpCurrentTransportConfigTests {
         // Blank must be treated the same as missing (SmallRye expansion of an unset env var yields "").
         Auth blankUsername = auth("basic", Optional.of("   "), Optional.of("s3cr3t"), Optional.empty(), Optional.empty());
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.of(blankUsername), Optional.empty(), false, URL);
 
         assertTrue(resolution.failureMessage().isPresent());
@@ -108,7 +108,7 @@ class HttpCurrentTransportConfigTests {
     void resolve_withBasicAuthBlankPassword_returnsAFailureMessage() {
         Auth blankPassword = auth("basic", Optional.of("harbor-bot"), Optional.of(""), Optional.empty(), Optional.empty());
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.of(blankPassword), Optional.empty(), false, URL);
 
         assertTrue(resolution.failureMessage().isPresent());
@@ -120,7 +120,7 @@ class HttpCurrentTransportConfigTests {
     void resolve_withValidBearerToken_succeeds_withABearerAuthFilter() {
         Auth token = auth("bearer", Optional.empty(), Optional.empty(), Optional.of("gh-token"), Optional.empty());
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.of(token), Optional.empty(), false, URL);
 
         assertTrue(resolution.failureMessage().isEmpty());
@@ -133,7 +133,7 @@ class HttpCurrentTransportConfigTests {
         Auth tokenFile = auth("bearer", Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.of("/var/run/secrets/token"));
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.of(tokenFile), Optional.empty(), false, URL);
 
         assertTrue(resolution.failureMessage().isEmpty());
@@ -145,13 +145,13 @@ class HttpCurrentTransportConfigTests {
     void resolve_withBearerAuthNeitherTokenNorTokenFile_returnsAFailureMessage() {
         Auth neither = auth("bearer", Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.of(neither), Optional.empty(), false, URL);
 
         // Representative case pinning the exact wording (per bearer-neither branch): this is the
         // wording slice 03 must reproduce verbatim for 'http-header'.
         assertEquals(
-                "The 'http' current source's auth.type 'bearer' needs a token or token-file "
+                "The 'http-json' current source's auth.type 'bearer' needs a token or token-file "
                         + "(url: '" + URL + "').",
                 resolution.failureMessage().orElseThrow());
     }
@@ -162,13 +162,13 @@ class HttpCurrentTransportConfigTests {
         Auth both = auth("bearer", Optional.empty(), Optional.empty(), Optional.of("gh-token"),
                 Optional.of("/var/run/secrets/token"));
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.of(both), Optional.empty(), false, URL);
 
         // Representative case pinning the exact wording (per bearer-both branch): this is the wording
         // slice 03 must reproduce verbatim for 'http-header'.
         assertEquals(
-                "The 'http' current source's auth.type 'bearer' has both a token and a token-file; "
+                "The 'http-json' current source's auth.type 'bearer' has both a token and a token-file; "
                         + "this is ambiguous and refused, no precedence rule (url: '" + URL + "').",
                 resolution.failureMessage().orElseThrow());
     }
@@ -177,7 +177,7 @@ class HttpCurrentTransportConfigTests {
     void resolve_withBearerAuthBlankToken_returnsAFailureMessage() {
         Auth blankToken = auth("bearer", Optional.empty(), Optional.empty(), Optional.of(""), Optional.empty());
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.of(blankToken), Optional.empty(), false, URL);
 
         assertTrue(resolution.failureMessage().isPresent());
@@ -187,7 +187,7 @@ class HttpCurrentTransportConfigTests {
     void resolve_withBearerAuthBlankTokenFile_returnsAFailureMessage() {
         Auth blankTokenFile = auth("bearer", Optional.empty(), Optional.empty(), Optional.empty(), Optional.of("   "));
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.of(blankTokenFile), Optional.empty(), false, URL);
 
         assertTrue(resolution.failureMessage().isPresent());
@@ -199,13 +199,13 @@ class HttpCurrentTransportConfigTests {
     void resolve_withUnsupportedAuthType_returnsAFailureMessage() {
         Auth unknown = auth("oauth2", Optional.of("user"), Optional.of("pass"), Optional.empty(), Optional.empty());
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.of(unknown), Optional.empty(), false, URL);
 
         // Representative case pinning the exact wording (per unsupported-type branch): this is the
         // wording slice 03 must reproduce verbatim for 'http-header'.
         assertEquals(
-                "The 'http' current source's auth.type 'oauth2' is not supported (url: '" + URL + "').",
+                "The 'http-json' current source's auth.type 'oauth2' is not supported (url: '" + URL + "').",
                 resolution.failureMessage().orElseThrow());
     }
 
@@ -215,7 +215,7 @@ class HttpCurrentTransportConfigTests {
      * A valid self-signed X.509 certificate in PEM form (generated once via
      * {@code openssl req -x509 -newkey rsa:2048 -days 36500 -nodes}). Used as the on-disk PEM the
      * collaborator must parse into an in-memory truststore. The expiry is set far in the future so
-     * this fixture does not rot. Identical to the fixture used by {@code HttpCurrentSourceFactoryTests}.
+     * this fixture does not rot. Identical to the fixture used by {@code HttpJsonCurrentSourceFactoryTests}.
      */
     private static final String VALID_CA_PEM = """
             -----BEGIN CERTIFICATE-----
@@ -241,7 +241,7 @@ class HttpCurrentTransportConfigTests {
 
     @Test
     void resolve_withNoCaCert_succeeds_withAnEmptyTrustStore() {
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.empty(), Optional.empty(), false, URL);
 
         assertTrue(resolution.failureMessage().isEmpty());
@@ -254,7 +254,7 @@ class HttpCurrentTransportConfigTests {
         Path pem = dir.resolve("ca.crt");
         Files.writeString(pem, VALID_CA_PEM);
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.empty(), Optional.of(pem.toString()), false, URL);
 
         assertTrue(resolution.failureMessage().isEmpty());
@@ -265,19 +265,19 @@ class HttpCurrentTransportConfigTests {
 
     @Test
     void resolve_withBlankCaCert_returnsAFailureMessage() {
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.empty(), Optional.of("   "), false, URL);
 
         // Representative case pinning the exact wording (per ca-cert-blank branch): this is the
         // wording slice 03 must reproduce verbatim for 'http-header'.
         assertEquals(
-                "The 'http' current source's 'ca-cert' is configured but blank (url: '" + URL + "').",
+                "The 'http-json' current source's 'ca-cert' is configured but blank (url: '" + URL + "').",
                 resolution.failureMessage().orElseThrow());
     }
 
     @Test
     void resolve_withMissingCaCertFile_returnsAFailureMessage_notAnException() {
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.empty(), Optional.of("/no/such/path/ca.crt"), false, URL);
 
         assertTrue(resolution.failureMessage().isPresent());
@@ -288,7 +288,7 @@ class HttpCurrentTransportConfigTests {
         Path notPem = dir.resolve("ca.crt");
         Files.writeString(notPem, "this is definitely not a PEM certificate");
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.empty(), Optional.of(notPem.toString()), false, URL);
 
         assertTrue(resolution.failureMessage().isPresent());
@@ -299,14 +299,14 @@ class HttpCurrentTransportConfigTests {
         Path empty = dir.resolve("ca.crt");
         Files.writeString(empty, "");
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.empty(), Optional.of(empty.toString()), false, URL);
 
         // Representative case pinning the exact wording (per ca-cert-zero-certs branch): this is the
         // wording slice 03 must reproduce verbatim for 'http-header'. The path is echoed via
         // java.nio.file.Path.of(...).toString(), matching how the collaborator renders it.
         assertEquals(
-                "The 'http' current source's 'ca-cert' at '" + Path.of(empty.toString())
+                "The 'http-json' current source's 'ca-cert' at '" + Path.of(empty.toString())
                         + "' contained no X.509 certificates (url: '" + URL + "').",
                 resolution.failureMessage().orElseThrow());
     }
@@ -319,7 +319,7 @@ class HttpCurrentTransportConfigTests {
         Path pem = dir.resolve("ca.crt");
         Files.writeString(pem, VALID_CA_PEM);
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.empty(), Optional.of(pem.toString()), true, URL);
 
         assertTrue(resolution.failureMessage().isPresent());
@@ -334,7 +334,7 @@ class HttpCurrentTransportConfigTests {
     void resolve_withCaCertAndInsecureSkipTlsVerifyTrue_usingAnUnvalidatedPath_isRefused_beforeAnyFileResolution() {
         // Refusal happens BEFORE ca-cert file resolution: even a nonexistent/garbage path must be
         // refused with the both-set message, not surfaced as a file-read failure.
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.empty(), Optional.of("/no/such/path/ca.crt"), true, URL);
 
         assertTrue(resolution.failureMessage().isPresent());
@@ -349,7 +349,7 @@ class HttpCurrentTransportConfigTests {
         Path pem = dir.resolve("ca.crt");
         Files.writeString(pem, VALID_CA_PEM);
 
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.empty(), Optional.of(pem.toString()), false, URL);
 
         assertTrue(resolution.failureMessage().isEmpty());
@@ -361,7 +361,7 @@ class HttpCurrentTransportConfigTests {
 
     @Test
     void resolve_withInsecureSkipTlsVerifyTrue_succeeds_withInsecureTrue() {
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.empty(), Optional.empty(), true, URL);
 
         assertTrue(resolution.failureMessage().isEmpty());
@@ -370,7 +370,7 @@ class HttpCurrentTransportConfigTests {
 
     @Test
     void resolve_withInsecureSkipTlsVerifyFalse_succeeds_withInsecureFalse() {
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(Optional.empty(), Optional.empty(), false, URL);
 
         assertTrue(resolution.failureMessage().isEmpty());
@@ -383,11 +383,11 @@ class HttpCurrentTransportConfigTests {
     void resolve_namesTheConfiguredKindLabel_inAuthFailureMessages_forHttp() {
         Auth unknown = auth("oauth2", Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
 
-        HttpCurrentTransportConfig httpConfig = new HttpCurrentTransportConfig("http");
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig httpConfig = new HttpTransportConfig("http-json");
+        HttpTransportConfig.Resolution resolution =
                 httpConfig.resolve(Optional.of(unknown), Optional.empty(), false, URL);
 
-        assertTrue(resolution.failureMessage().get().contains("The 'http' current source's"),
+        assertTrue(resolution.failureMessage().get().contains("The 'http-json' current source's"),
                 "was: " + resolution.failureMessage().get());
     }
 
@@ -395,8 +395,8 @@ class HttpCurrentTransportConfigTests {
     void resolve_namesTheConfiguredKindLabel_inAuthFailureMessages_forHttpHeader() {
         Auth unknown = auth("oauth2", Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
 
-        HttpCurrentTransportConfig httpHeaderConfig = new HttpCurrentTransportConfig("http-header");
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig httpHeaderConfig = new HttpTransportConfig("http-header");
+        HttpTransportConfig.Resolution resolution =
                 httpHeaderConfig.resolve(Optional.of(unknown), Optional.empty(), false, URL);
 
         assertTrue(resolution.failureMessage().get().contains("The 'http-header' current source's"),
@@ -405,18 +405,18 @@ class HttpCurrentTransportConfigTests {
 
     @Test
     void resolve_namesTheConfiguredKindLabel_inTheCaCertAndInsecureAmbiguityMessage_forHttp() {
-        HttpCurrentTransportConfig httpConfig = new HttpCurrentTransportConfig("http");
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig httpConfig = new HttpTransportConfig("http-json");
+        HttpTransportConfig.Resolution resolution =
                 httpConfig.resolve(Optional.empty(), Optional.of("/no/such/path/ca.crt"), true, URL);
 
-        assertTrue(resolution.failureMessage().get().contains("The 'http' current source has"),
+        assertTrue(resolution.failureMessage().get().contains("The 'http-json' current source has"),
                 "was: " + resolution.failureMessage().get());
     }
 
     @Test
     void resolve_namesTheConfiguredKindLabel_inTheCaCertAndInsecureAmbiguityMessage_forHttpHeader() {
-        HttpCurrentTransportConfig httpHeaderConfig = new HttpCurrentTransportConfig("http-header");
-        HttpCurrentTransportConfig.Resolution resolution =
+        HttpTransportConfig httpHeaderConfig = new HttpTransportConfig("http-header");
+        HttpTransportConfig.Resolution resolution =
                 httpHeaderConfig.resolve(Optional.empty(), Optional.of("/no/such/path/ca.crt"), true, URL);
 
         assertTrue(resolution.failureMessage().get().contains("The 'http-header' current source has"),

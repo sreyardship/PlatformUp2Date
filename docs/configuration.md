@@ -49,7 +49,7 @@ The Tier A/B labels in the headings describe how much access a source needs;
 the tier model is defined in
 [`ARCHITECTURE.md`](../ARCHITECTURE.md#tiers-of-current-probes-ordered-by-required-access).
 
-### `type: http` (current) — Tier A, network-reachable, no credentials required
+### `type: http-json` (current) — Tier A, network-reachable, no credentials required
 
 | Key | Type | Required | Default |
 |---|---|---|---|
@@ -72,6 +72,11 @@ certificate chain validation and hostname verification for that app's REST
 client only, never JVM-global TLS state. Enabling it logs a WARN naming the
 app's url. It is mutually exclusive with `ca-cert`: configuring both is
 refused (a value-level failure, not a boot crash).
+
+> **Renamed from `http`** ([ADR-0031](adr/0031-http-current-source-renamed-http-json.md)). This
+> is a breaking, pre-1.0.0 config change with no alias: a `platform-config` still saying
+> `type: http` fails the boot with `The 'http' version source kind was renamed to
+> 'http-json'; update this app's config.` — update the app's `type` to `http-json`.
 
 ### `type: k8s-image` (current) — Tier B, requires cluster access
 
@@ -135,7 +140,7 @@ behaviors below are the deliberate, surprising parts.
 Missing/blank `url` or `version-header` fails boot; a `regex` that fails to compile or has no
 capture group also fails boot. `auth`/`ca-cert` value problems (an unsupported `auth.type`, a
 `ca-cert` file that cannot be read, or configuring both `ca-cert` and
-`insecure-skip-tls-verify`) degrade the single app to a failed scrape, matching the `http` kind.
+`insecure-skip-tls-verify`) degrade the single app to a failed scrape, matching the `http-json` kind.
 
 Three behaviors are deliberate design decisions, not bugs, and each differs from a sibling HTTP
 source kind:
@@ -143,7 +148,7 @@ source kind:
 - **The status code is ignored.** The header is read off the final response *whatever its status
   code was*; the status is consulted only when composing a failure message, never to gate the
   read. Every real Jenkins is a secured Jenkins — it refuses the anonymous top page with a 403 and
-  still carries `X-Jenkins` on that same response. Requiring a 2xx, as the `http` and `http-regex`
+  still carries `X-Jenkins` on that same response. Requiring a 2xx, as the `http-json` and `http-regex`
   kinds do, would fail every scrape of the motivating app while the answer sits in a response
   already held in memory.
 - **The optional `regex` takes group 1 of the *first* match**, not the largest. `http-regex`'s

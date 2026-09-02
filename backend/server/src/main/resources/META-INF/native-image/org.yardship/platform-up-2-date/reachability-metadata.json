@@ -3390,7 +3390,7 @@
       "type": "org.yardship.adapters.out.versionsource.current.CurrentVersionSourceFactory"
     },
     {
-      "type": "org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClientFactory"
+      "type": "org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentVersionClientFactory"
     },
     {
       "type": "org.yardship.adapters.out.versionsource.latest.LatestVersionSourceFactory"
@@ -4098,16 +4098,13 @@
       "glob": "org/yardship/integration/adapters/out/scrapestate/valkey/ValkeyScrapeStateStoreIT.class"
     },
     {
-      "glob": "org/yardship/integration/adapters/out/versionsource/current/http/HttpCurrentSourceIT.class"
+      "glob": "org/yardship/integration/adapters/out/versionsource/current/httpjson/HttpJsonCurrentSourceIT.class"
     },
     {
-      "glob": "org/yardship/integration/adapters/out/versionsource/current/http/HttpCurrentSourceK8sShapeIT.class"
+      "glob": "org/yardship/integration/adapters/out/versionsource/current/httpjson/HttpJsonCurrentSourceTlsIT.class"
     },
     {
-      "glob": "org/yardship/integration/adapters/out/versionsource/current/http/HttpCurrentSourceTlsIT.class"
-    },
-    {
-      "glob": "org/yardship/integration/adapters/out/versionsource/current/http/HttpCurrentVersionClientFactoryIT.class"
+      "glob": "org/yardship/integration/adapters/out/versionsource/current/httpjson/HttpJsonCurrentVersionClientFactoryIT.class"
     },
     {
       "glob": "org/yardship/integration/adapters/out/versionsource/current/k8simage/K8sImageCurrentSourceIT.class"

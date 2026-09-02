@@ -76,10 +76,10 @@ public interface ApplicationConfigLoader {
 
         /**
          * Optional path to a PEM file holding a custom certificate authority used to verify the TLS
-         * server certificate of the {@code http} current source's {@code url}. A transport concern
+         * server certificate of the {@code http-json} current source's {@code url}. A transport concern
          * (sibling of {@link #url()}), deliberately NOT under {@link #auth()}. Absent leaves the JVM
          * default trust bundle in place for this app, preserving the default behavior for existing
-         * app. When present, the {@code HttpCurrentSourceFactory} reads the PEM once at boot, loads
+         * app. When present, the {@code HttpJsonCurrentSourceFactory} reads the PEM once at boot, loads
          * its X.509 certificate(s) into an in-memory truststore and pins it onto THIS app's REST
          * client only ({@code curl --cacert} semantics: replace, not augment) — never a JVM-global
          * truststore. A present-but-blank value, or a path that is missing/unreadable/not parseable as
@@ -89,13 +89,13 @@ public interface ApplicationConfigLoader {
         Optional<String> caCert();
 
         /**
-         * Optional flag read only by the {@code http} current source: when {@code true}, the built
+         * Optional flag read only by the {@code http-json} current source: when {@code true}, the built
          * REST client trusts ANY TLS server certificate and does not verify the server hostname
          * against it — full {@code curl -k} semantics, scoped to THIS app's client only (never a
          * JVM-global TLS setting). A transport concern (sibling of {@link #url()} and
          * {@link #caCert()}). Absent defaults to {@code false}, preserving standard TLS behavior for
          * every existing app. Mutually exclusive with {@link #caCert()}: configuring both is refused
-         * by the {@code HttpCurrentSourceFactory} as a value-level misconfiguration (mapped to a
+         * by the {@code HttpJsonCurrentSourceFactory} as a value-level misconfiguration (mapped to a
          * {@code FailedCurrentSource}, never a boot crash) rather than silently picking one.
          */
         Optional<Boolean> insecureSkipTlsVerify();
@@ -147,14 +147,14 @@ public interface ApplicationConfigLoader {
         Optional<String> container();
 
         /**
-         * Optional JSON Pointer (RFC 6901) naming the key the {@code http} current source reads
-         * the version string from. Absent for non-{@code http} kinds and defaults to {@code /version}
-         * when absent for {@code http}, preserving the legacy {@code {"version":"…"}} contract.
+         * Optional JSON Pointer (RFC 6901) naming the key the {@code http-json} current source reads
+         * the version string from. Absent for non-{@code http-json} kinds and defaults to {@code /version}
+         * when absent for {@code http-json}, preserving the legacy {@code {"version":"…"}} contract.
          */
         Optional<String> versionKey();
 
         /**
-         * Optional flag read by the {@code http} current source, the {@code k8s-image} current
+         * Optional flag read by the {@code http-json} current source, the {@code k8s-image} current
          * source, and the {@code oci-registry} latest source: when {@code true}, the prerelease
          * segment of the resolved version is cleared before it is reported (e.g.
          * {@code 2.11.1-6b7ecba1} becomes {@code 2.11.1}, {@code 1.23.0-alpine} becomes
@@ -171,7 +171,7 @@ public interface ApplicationConfigLoader {
         Optional<Boolean> stripPrerelease();
 
         /**
-         * Optional per-app authentication fragment for the {@code http} current source (ADR-0008).
+         * Optional per-app authentication fragment for the {@code http-json} current source (ADR-0008).
          * Absent leaves the request unauthenticated. Username, password, and token values are
          * env-expandable (e.g. {@code ${HARBOR_USER:}}), so an unset variable resolves to a blank
          * value rather than failing to bind at boot. The consuming factory treats missing or blank

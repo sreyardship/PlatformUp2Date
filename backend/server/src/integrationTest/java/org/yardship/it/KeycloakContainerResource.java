@@ -116,7 +116,7 @@ public class KeycloakContainerResource implements QuarkusTestResourceLifecycleMa
                 "MCP_OIDC_ROLE", MCP_ROLE,
                 "platform-config.scrape-interval", "1h",
                 "platform-config.apps[0].name", "auth-smoke-app",
-                "platform-config.apps[0].current.type", "http",
+                "platform-config.apps[0].current.type", "http-json",
                 "platform-config.apps[0].current.url", "http://" + callbackHost + ":" + httpPort + "/current",
                 "platform-config.apps[0].latest.type", "http-regex",
                 "platform-config.apps[0].latest.url", "http://" + callbackHost + ":" + httpPort + "/current",

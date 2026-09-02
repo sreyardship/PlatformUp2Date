@@ -9,7 +9,7 @@ import java.util.Base64;
 
 /**
  * Adds {@code Authorization: Basic <base64(username:password)>} to outbound requests so the
- * {@code http} current source can authenticate against an upstream that requires HTTP Basic auth
+ * {@code http-json} current source can authenticate against an upstream that requires HTTP Basic auth
  * (see ADR-0008).
  *
  * <p><b>Residual assumption:</b> like {@link BearerAuthFilter}, this trusts that the credential

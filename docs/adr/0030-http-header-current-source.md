@@ -163,7 +163,9 @@ than inventing a fifth rule.
 - The `http` kind's name grows more misleading with a third HTTP sibling: it is really
   "http, parsed as JSON". Renaming it to `http-json` and collapsing all three behind one `http`
   kind with a `parse` sub-option is tracked in #51 and deliberately deferred until all three
-  parsing strategies exist.
+  parsing strategies exist. [ADR-0031](0031-http-current-source-renamed-http-json.md) answers
+  this: it takes the rename (`http` → `http-json`) but declines the `parse`-sub-option
+  collapse, so the three kinds stay separate factories rather than merging into one.
 - Jenkins' `latest` leg needs no new work: `jenkinsci/jenkins` release *tags* are
   `jenkins-2.579`, which will not parse under ADR-0010's largest-semver rule, but
   `type: http-regex` against `https://updates.jenkins.io/stable/latestCore.txt` (which redirects

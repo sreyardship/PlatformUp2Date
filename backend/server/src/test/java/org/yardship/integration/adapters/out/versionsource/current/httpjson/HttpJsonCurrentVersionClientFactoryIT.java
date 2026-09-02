@@ -1,4 +1,4 @@
-package org.yardship.integration.adapters.out.versionsource.current.http;
+package org.yardship.integration.adapters.out.versionsource.current.httpjson;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -10,8 +10,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.yardship.adapters.out.versionsource.auth.FileBearerAuthFilter;
-import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClient;
-import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClientFactory;
+import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentVersionClient;
+import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentVersionClientFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -29,23 +29,23 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Integration test for the real {@link HttpCurrentVersionClientFactory} collaborator — the only
- * Arc-bound piece left after {@code HttpCurrentSource} became a pure POJO. Verifies it builds a
- * working {@link HttpCurrentVersionClient} for a given base URL, with the existing
+ * Integration test for the real {@link HttpJsonCurrentVersionClientFactory} collaborator — the only
+ * Arc-bound piece left after {@code HttpJsonCurrentSource} became a pure POJO. Verifies it builds a
+ * working {@link HttpJsonCurrentVersionClient} for a given base URL, with the existing
  * {@link org.yardship.adapters.out.versionsource.VersionResponseExceptionMapper} registered so a
  * non-2xx upstream surfaces as a thrown exception.
  *
  * <p>{@code @QuarkusTest} is used because the factory's {@code build(...)} wraps
  * {@code QuarkusRestClientBuilder}, which needs a running Quarkus context — matching the existing IT
- * style ({@code HttpCurrentSourceIT}, {@code GithubReleaseLatestSourceIT}).
+ * style ({@code HttpJsonCurrentSourceIT}, {@code GithubReleaseLatestSourceIT}).
  */
 @QuarkusTest
-class HttpCurrentVersionClientFactoryIT {
+class HttpJsonCurrentVersionClientFactoryIT {
 
     static WireMockServer wireMockServer;
 
     @Inject
-    HttpCurrentVersionClientFactory clientFactory;
+    HttpJsonCurrentVersionClientFactory clientFactory;
 
     @BeforeAll
     static void startWireMock() {
@@ -68,7 +68,7 @@ class HttpCurrentVersionClientFactoryIT {
         wireMockServer.stubFor(get(urlEqualTo("/current"))
                 .willReturn(jsonResponse(200, "{\"version\":\"1.0.0\"}")));
 
-        HttpCurrentVersionClient client =
+        HttpJsonCurrentVersionClient client =
                 clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty(), false);
         JsonNode body = client.getCurrentVersion();
 
@@ -80,7 +80,7 @@ class HttpCurrentVersionClientFactoryIT {
         wireMockServer.stubFor(get(urlEqualTo("/current"))
                 .willReturn(jsonResponse(403, "{\"message\":\"forbidden\"}")));
 
-        HttpCurrentVersionClient client =
+        HttpJsonCurrentVersionClient client =
                 clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty(), false);
 
         assertThrows(RuntimeException.class, client::getCurrentVersion);

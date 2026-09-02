@@ -138,8 +138,8 @@ class ConfigFileValidationHeaderSurfaceTests {
                 u -> { throw new AssertionError("responseSourceFactory must not be invoked for a non-http-header app, but was invoked for: " + u); });
 
         AppConfig app = new AppConfig(
-                "regular-http-app", VersionScheme.SEMVER, Optional.empty(), Optional.empty(),
-                "http", Optional.of("http://example.test/current"), Optional.of("/version"), false,
+                "regular-http-json-app", VersionScheme.SEMVER, Optional.empty(), Optional.empty(),
+                "http-json", Optional.of("http://example.test/current"), Optional.of("/version"), false,
                 Optional.empty(), Optional.empty(),
                 "github-release", Optional.empty(), Optional.empty());
 

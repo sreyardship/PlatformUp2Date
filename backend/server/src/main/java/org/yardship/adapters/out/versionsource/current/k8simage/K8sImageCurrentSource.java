@@ -22,7 +22,7 @@ import java.util.List;
  *
  * <p>When {@code stripPrerelease} is {@code true}, the prerelease segment of the parsed version is
  * cleared before it is returned (e.g. {@code 1.23.0-alpine} → {@code 1.23.0}), mirroring the
- * behaviour of the {@code http} current source's {@code strip-prerelease} option (ADR-0014). This
+ * behaviour of the {@code http-json} current source's {@code strip-prerelease} option (ADR-0014). This
  * allows a cluster running an alpine-flavour image ({@code app:1.23.0-alpine}) to compare as
  * {@code 1.23.0} against an {@code oci-registry} latest source also configured with
  * {@code strip-prerelease: true}.
@@ -41,7 +41,7 @@ public class K8sImageCurrentSource implements CurrentVersionSource, Closeable {
     private final VersionParser parser;
 
     /**
-     * Primary constructor. {@code stripPrerelease} mirrors the {@code http} current source's flag:
+     * Primary constructor. {@code stripPrerelease} mirrors the {@code http-json} current source's flag:
      * when {@code true}, the prerelease segment of the parsed version is cleared before reporting.
      * The {@code parser} produces the {@link VersionValue} in the app's scheme.
      */

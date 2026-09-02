@@ -36,7 +36,7 @@ import java.util.concurrent.Callable;
  * was actually supplied; otherwise an empty parser is passed to
  * {@link org.yardship.confcheck.validation.PointerExtractionValidation}, running an extraction-only check.
  */
-@Command(name = "pointer", description = "Validate an http current source's version-key (JSON Pointer) against a body.")
+@Command(name = "pointer", description = "Validate an http-json current source's version-key (JSON Pointer) against a body.")
 public final class PointerCommand implements Callable<Integer> {
 
     @Option(names = "--key", required = true, description = "RFC 6901 JSON Pointer, e.g. /version.")

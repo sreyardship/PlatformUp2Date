@@ -1,4 +1,4 @@
-package org.yardship.unit.adapters.out.versionsource.current.http;
+package org.yardship.unit.adapters.out.versionsource.current.httpjson;
 
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
@@ -12,11 +12,11 @@ import org.yardship.adapters.out.versionsource.ApplicationConfigLoader.VersionSo
 import org.yardship.adapters.out.versionsource.auth.BasicAuthFilter;
 import org.yardship.adapters.out.versionsource.auth.BearerAuthFilter;
 import org.yardship.adapters.out.versionsource.auth.FileBearerAuthFilter;
-import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClient;
-import org.yardship.adapters.out.versionsource.current.http.HttpCurrentVersionClientFactory;
+import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentVersionClient;
+import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentVersionClientFactory;
 import org.yardship.adapters.out.versionsource.current.FailedCurrentSource;
-import org.yardship.adapters.out.versionsource.current.http.HttpCurrentSource;
-import org.yardship.adapters.out.versionsource.current.http.HttpCurrentSourceFactory;
+import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentSource;
+import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentSourceFactory;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
 import java.io.IOException;
@@ -38,24 +38,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 /**
- * Unit tests for {@link HttpCurrentSourceFactory} — the factory for the {@code http} current-version
- * kind. Verifies its discriminator, its own config-fragment validation (the {@code http} kind
+ * Unit tests for {@link HttpJsonCurrentSourceFactory} — the factory for the {@code http-json} current-version
+ * kind. Verifies its discriminator, its own config-fragment validation (the {@code http-json} kind
  * requires a {@code url}; {@code version-key} — if present — must be a syntactically valid JSON
- * Pointer), and that it builds the {@link HttpCurrentVersionClient} eagerly during
- * {@code create(cfg)} via an injected {@link HttpCurrentVersionClientFactory} collaborator, rather than
+ * Pointer), and that it builds the {@link HttpJsonCurrentVersionClient} eagerly during
+ * {@code create(cfg)} via an injected {@link HttpJsonCurrentVersionClientFactory} collaborator, rather than
  * lazily inside the source. A FAKE collaborator is used so this stays a true POJO unit test: no Arc,
  * no {@code @QuarkusTest}. The real, REST-client-backed collaborator is exercised at the integration
- * level ({@code HttpCurrentVersionClientFactoryIT}).
+ * level ({@code HttpJsonCurrentVersionClientFactoryIT}).
  */
-class HttpCurrentSourceFactoryTests {
+class HttpJsonCurrentSourceFactoryTests {
     private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
 
-    private final FakeHttpCurrentVersionClientFactory clientFactory = new FakeHttpCurrentVersionClientFactory();
-    private final HttpCurrentSourceFactory factory = new HttpCurrentSourceFactory(clientFactory);
+    private final FakeHttpJsonCurrentVersionClientFactory clientFactory = new FakeHttpJsonCurrentVersionClientFactory();
+    private final HttpJsonCurrentSourceFactory factory = new HttpJsonCurrentSourceFactory(clientFactory);
 
     @Test
-    void type_isHttp() {
-        assertEquals("http", factory.type());
+    void type_isHttpJson() {
+        assertEquals("http-json", factory.type());
     }
 
     @Test
@@ -156,7 +156,7 @@ class HttpCurrentSourceFactoryTests {
         CurrentVersionSource result = factory.create(
                 sourceWithAuth("http://localhost:8089/current", Optional.empty()), SEMVER_PARSER);
 
-        assertInstanceOf(HttpCurrentSource.class, result);
+        assertInstanceOf(HttpJsonCurrentSource.class, result);
         assertEquals(1, clientFactory.buildCalls.size());
         assertEquals(Optional.empty(), clientFactory.lastAuthFilter);
     }
@@ -168,8 +168,8 @@ class HttpCurrentSourceFactoryTests {
         CurrentVersionSource result = factory.create(
                 sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(basic)), SEMVER_PARSER);
 
-        assertInstanceOf(HttpCurrentSource.class, result,
-                "valid basic auth must still produce a real HttpCurrentSource, not a FailedCurrentSource");
+        assertInstanceOf(HttpJsonCurrentSource.class, result,
+                "valid basic auth must still produce a real HttpJsonCurrentSource, not a FailedCurrentSource");
         assertEquals(1, clientFactory.buildCalls.size());
         assertTrue(clientFactory.lastAuthFilter.isPresent(),
                 "the collaborator must be called with a present auth filter for valid basic auth");
@@ -243,8 +243,8 @@ class HttpCurrentSourceFactoryTests {
         CurrentVersionSource result = factory.create(
                 sourceWithAuth("http://localhost:8089/current", Optional.of(bearer)), SEMVER_PARSER);
 
-        assertInstanceOf(HttpCurrentSource.class, result,
-                "valid bearer auth must produce a real HttpCurrentSource, not a FailedCurrentSource");
+        assertInstanceOf(HttpJsonCurrentSource.class, result,
+                "valid bearer auth must produce a real HttpJsonCurrentSource, not a FailedCurrentSource");
         assertEquals(1, clientFactory.buildCalls.size());
         assertTrue(clientFactory.lastAuthFilter.isPresent(),
                 "the collaborator must be called with a present auth filter for valid bearer auth");
@@ -296,8 +296,8 @@ class HttpCurrentSourceFactoryTests {
         CurrentVersionSource result = factory.create(
                 sourceWithAuth("http://localhost:8089/current", Optional.of(tokenFile)), SEMVER_PARSER);
 
-        assertInstanceOf(HttpCurrentSource.class, result,
-                "bearer with only token-file must produce a real HttpCurrentSource");
+        assertInstanceOf(HttpJsonCurrentSource.class, result,
+                "bearer with only token-file must produce a real HttpJsonCurrentSource");
         assertEquals(1, clientFactory.buildCalls.size());
         assertTrue(clientFactory.lastAuthFilter.isPresent(),
                 "the collaborator must be called with a present auth filter for a token-file bearer");
@@ -312,7 +312,7 @@ class HttpCurrentSourceFactoryTests {
         CurrentVersionSource result = factory.create(
                 sourceWithAuth("http://localhost:8089/current", Optional.of(token)), SEMVER_PARSER);
 
-        assertInstanceOf(HttpCurrentSource.class, result);
+        assertInstanceOf(HttpJsonCurrentSource.class, result);
         assertEquals(1, clientFactory.buildCalls.size());
         assertTrue(clientFactory.lastAuthFilter.isPresent());
         assertInstanceOf(BearerAuthFilter.class, clientFactory.lastAuthFilter.get());
@@ -394,7 +394,7 @@ class HttpCurrentSourceFactoryTests {
         CurrentVersionSource result = factory.create(
                 sourceWithCaCert("http://localhost:8089/current", Optional.empty()), SEMVER_PARSER);
 
-        assertInstanceOf(HttpCurrentSource.class, result);
+        assertInstanceOf(HttpJsonCurrentSource.class, result);
         assertEquals(1, clientFactory.buildCalls.size());
         assertEquals(Optional.empty(), clientFactory.lastTrustStore,
                 "absent ca-cert must keep the JVM default trust (Optional.empty() truststore)");
@@ -409,8 +409,8 @@ class HttpCurrentSourceFactoryTests {
         CurrentVersionSource result = factory.create(
                 sourceWithCaCert("https://localhost:8443/current", Optional.of(pem.toString())), SEMVER_PARSER);
 
-        assertInstanceOf(HttpCurrentSource.class, result,
-                "a valid ca-cert PEM must still produce a real HttpCurrentSource, not a FailedCurrentSource");
+        assertInstanceOf(HttpJsonCurrentSource.class, result,
+                "a valid ca-cert PEM must still produce a real HttpJsonCurrentSource, not a FailedCurrentSource");
         assertEquals(1, clientFactory.buildCalls.size());
         assertTrue(clientFactory.lastTrustStore.isPresent(),
                 "a valid ca-cert PEM must be parsed into a present in-memory truststore");
@@ -551,7 +551,7 @@ class HttpCurrentSourceFactoryTests {
                         "https://localhost:8443/current", Optional.of(pem.toString()), Optional.of(false)),
                 SEMVER_PARSER);
 
-        assertInstanceOf(HttpCurrentSource.class, result,
+        assertInstanceOf(HttpJsonCurrentSource.class, result,
                 "ca-cert with insecure-skip-tls-verify: false must build normally, not refuse");
         assertEquals(1, clientFactory.buildCalls.size());
         assertTrue(clientFactory.lastTrustStore.isPresent(),
@@ -569,7 +569,7 @@ class HttpCurrentSourceFactoryTests {
         CurrentVersionSource result = factory.create(
                 sourceWithInsecureSkipTlsVerify("http://localhost:8089/current", Optional.empty()), SEMVER_PARSER);
 
-        assertInstanceOf(HttpCurrentSource.class, result);
+        assertInstanceOf(HttpJsonCurrentSource.class, result);
         assertEquals(1, clientFactory.buildCalls.size());
         assertFalse(clientFactory.lastInsecureSkipTlsVerify,
                 "an absent insecure-skip-tls-verify must resolve to false");
@@ -580,7 +580,7 @@ class HttpCurrentSourceFactoryTests {
         CurrentVersionSource result = factory.create(
                 sourceWithInsecureSkipTlsVerify("http://localhost:8089/current", Optional.of(false)), SEMVER_PARSER);
 
-        assertInstanceOf(HttpCurrentSource.class, result);
+        assertInstanceOf(HttpJsonCurrentSource.class, result);
         assertEquals(1, clientFactory.buildCalls.size());
         assertFalse(clientFactory.lastInsecureSkipTlsVerify);
     }
@@ -590,7 +590,7 @@ class HttpCurrentSourceFactoryTests {
         CurrentVersionSource result = factory.create(
                 sourceWithInsecureSkipTlsVerify("https://localhost:8443/current", Optional.of(true)), SEMVER_PARSER);
 
-        assertInstanceOf(HttpCurrentSource.class, result);
+        assertInstanceOf(HttpJsonCurrentSource.class, result);
         assertEquals(1, clientFactory.buildCalls.size());
         assertTrue(clientFactory.lastInsecureSkipTlsVerify,
                 "insecure-skip-tls-verify: true must be resolved and passed through to the collaborator");
@@ -606,7 +606,7 @@ class HttpCurrentSourceFactoryTests {
                         "https://localhost:8443/systeminfo", Optional.of(basic), Optional.of(true)),
                 SEMVER_PARSER);
 
-        assertInstanceOf(HttpCurrentSource.class, result);
+        assertInstanceOf(HttpJsonCurrentSource.class, result);
         assertEquals(1, clientFactory.buildCalls.size());
         assertTrue(clientFactory.lastAuthFilter.isPresent(),
                 "an insecure client must still register the auth filter");
@@ -675,7 +675,7 @@ class HttpCurrentSourceFactoryTests {
         return new ApplicationConfigLoader.VersionSource() {
             @Override
             public String type() {
-                return "http";
+                return "http-json";
             }
 
             @Override
@@ -851,12 +851,12 @@ class HttpCurrentSourceFactoryTests {
     }
 
     /**
-     * Fake {@link HttpCurrentVersionClientFactory} collaborator: records every
+     * Fake {@link HttpJsonCurrentVersionClientFactory} collaborator: records every
      * {@code build(url, filter, trustStore)} invocation (so tests can assert eagerness + the resolved
      * url, the auth filter, and the custom truststore handed in) and returns a trivial
-     * {@link HttpCurrentVersionClient} stub without touching Arc or the network.
+     * {@link HttpJsonCurrentVersionClient} stub without touching Arc or the network.
      */
-    private static class FakeHttpCurrentVersionClientFactory extends HttpCurrentVersionClientFactory {
+    private static class FakeHttpJsonCurrentVersionClientFactory extends HttpJsonCurrentVersionClientFactory {
 
         private final List<String> buildCalls = new ArrayList<>();
         private Optional<ClientRequestFilter> lastAuthFilter = Optional.empty();
@@ -864,7 +864,7 @@ class HttpCurrentSourceFactoryTests {
         private boolean lastInsecureSkipTlsVerify = false;
 
         @Override
-        public HttpCurrentVersionClient build(
+        public HttpJsonCurrentVersionClient build(
                 String url, Optional<ClientRequestFilter> authFilter, Optional<KeyStore> trustStore,
                 boolean insecureSkipTlsVerify) {
             buildCalls.add(url);
@@ -874,7 +874,7 @@ class HttpCurrentSourceFactoryTests {
             return stubClient();
         }
 
-        private static HttpCurrentVersionClient stubClient() {
+        private static HttpJsonCurrentVersionClient stubClient() {
             JsonNode empty = NullNode.getInstance();
             return () -> empty;
         }

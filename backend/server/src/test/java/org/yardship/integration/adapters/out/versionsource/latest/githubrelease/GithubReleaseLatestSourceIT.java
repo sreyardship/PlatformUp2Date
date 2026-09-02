@@ -64,7 +64,7 @@ class GithubReleaseLatestSourceIT {
     // produced it, so per ADR-0029 the Authorization header must NOT be forwarded to it.
     static WireMockServer crossOriginWireMockServer;
 
-    // An HTTPS-only server (self-signed CN=localhost cert, same fixture as HttpCurrentSourceTlsIT)
+    // An HTTPS-only server (self-signed CN=localhost cert, same fixture as HttpJsonCurrentSourceTlsIT)
     // used only by the HTTPS-to-HTTP downgrade-refusal test. The JVM default trust store is
     // temporarily pointed at this cert's keystore for the duration of that one test so the initial
     // HTTPS leg completes and the downgrade decision — not a TLS trust failure — is what's being
@@ -355,7 +355,7 @@ class GithubReleaseLatestSourceIT {
     /**
      * ADR-0029: an HTTPS-to-HTTP downgrade must be refused before the HTTP target is ever
      * contacted. The JVM default trust store is temporarily pointed at the committed WireMock
-     * self-signed cert (same fixture as {@code HttpCurrentSourceTlsIT}) so the INITIAL HTTPS leg
+     * self-signed cert (same fixture as {@code HttpJsonCurrentSourceTlsIT}) so the INITIAL HTTPS leg
      * completes cleanly — proving the failure below is the downgrade refusal, not an unrelated TLS
      * trust error.
      */
