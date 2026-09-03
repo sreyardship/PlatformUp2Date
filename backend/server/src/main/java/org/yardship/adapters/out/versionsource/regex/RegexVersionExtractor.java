@@ -2,19 +2,18 @@ package org.yardship.adapters.out.versionsource.regex;
 
 import org.yardship.core.domain.exceptions.InvalidVersionException;
 import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionPattern;
 import org.yardship.core.domain.primitives.VersionValue;
 
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 /**
- * Leg-neutral, shared extraction core factored out of {@code HttpRegexLatestSource}. Compiles a
- * configured pattern once at construction (validating it compiles and has at least one capture
- * group), and exposes two selection rules over the same underlying machinery: find every match,
- * take <b>capture group 1</b> of each as a candidate, and parse each candidate through the app's
- * {@link VersionParser}, silently skipping any that fail to parse.
+ * Leg-neutral, shared extraction core factored out of {@code HttpRegexLatestSource}. Delegates
+ * pattern compilation and candidate matching to {@link VersionPattern} (validating it compiles and
+ * has at least one capture group), and exposes two selection rules over its {@link
+ * VersionPattern#rawCandidates}: parse each raw candidate through the app's {@link VersionParser},
+ * silently skipping any that fail to parse.
  *
  * <ul>
  *   <li>{@link #largestIn}: the largest parseable candidate — the {@code http-regex} latest-leg
@@ -27,12 +26,16 @@ import java.util.regex.PatternSyntaxException;
  *
  * <p>Both selection methods return {@link Optional#empty()} rather than throwing when nothing
  * matches or nothing parses; the caller words the kind-appropriate failure. Pattern-validation
- * failures (a non-compiling regex, or one with zero capture groups) THROW at construction — a
- * structural, boot-time failure.
+ * failures (a non-compiling regex, or one with zero capture groups) THROW at construction, as the
+ * {@link IllegalArgumentException} that is this codebase's declared "this config fragment is
+ * unusable" signal: the resolver catches it and degrades that one app, never the boot (ADR-0032).
+ * {@link VersionPattern}'s own validation messages are neutral (name no source kind or leg); this
+ * class reformats them with its {@code sourceLabel}, preserving the kind-labelled wording callers
+ * depend on.
  */
 public class RegexVersionExtractor {
 
-    private final Pattern pattern;
+    private final VersionPattern pattern;
     private final VersionParser parser;
 
     /**
@@ -51,12 +54,11 @@ public class RegexVersionExtractor {
      * The largest parseable candidate across every match, under the app's version scheme.
      */
     public Optional<VersionValue> largestIn(String text) {
-        Matcher matcher = pattern.matcher(text);
         VersionValue largest = null;
-        while (matcher.find()) {
-            VersionValue candidate = tryParse(matcher.group(1));
-            if (candidate != null && (largest == null || largest.isOlderThan(candidate))) {
-                largest = candidate;
+        for (String candidate : pattern.rawCandidates(text)) {
+            VersionValue parsed = tryParse(candidate);
+            if (parsed != null && (largest == null || largest.isOlderThan(parsed))) {
+                largest = parsed;
             }
         }
         return Optional.ofNullable(largest);
@@ -67,11 +69,10 @@ public class RegexVersionExtractor {
      * parses to a larger version.
      */
     public Optional<VersionValue> firstIn(String text) {
-        Matcher matcher = pattern.matcher(text);
-        while (matcher.find()) {
-            VersionValue candidate = tryParse(matcher.group(1));
-            if (candidate != null) {
-                return Optional.of(candidate);
+        for (String candidate : pattern.rawCandidates(text)) {
+            VersionValue parsed = tryParse(candidate);
+            if (parsed != null) {
+                return Optional.of(parsed);
             }
         }
         return Optional.empty();
@@ -85,19 +86,17 @@ public class RegexVersionExtractor {
         }
     }
 
-    private static Pattern compile(String sourceLabel, String regex) {
-        Pattern pattern;
+    private static VersionPattern compile(String sourceLabel, String regex) {
         try {
-            pattern = Pattern.compile(regex);
-        } catch (PatternSyntaxException ex) {
-            throw new IllegalArgumentException(
-                    "The " + sourceLabel + "'s 'regex' does not compile: " + ex.getMessage(), ex);
-        }
-        if (pattern.matcher("").groupCount() < 1) {
+            return new VersionPattern(regex);
+        } catch (IllegalArgumentException ex) {
+            if (ex.getCause() instanceof PatternSyntaxException syntaxEx) {
+                throw new IllegalArgumentException(
+                        "The " + sourceLabel + "'s 'regex' does not compile: " + syntaxEx.getMessage(), ex);
+            }
             throw new IllegalArgumentException(
                     "The " + sourceLabel + "'s 'regex' must have at least one capture group "
-                            + "(group 1 is read); was: '" + regex + "'.");
+                            + "(group 1 is read); was: '" + regex + "'.", ex);
         }
-        return pattern;
     }
 }
