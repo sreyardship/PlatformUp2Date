@@ -726,3 +726,286 @@ describe('failed-refresh marker display', () => {
     expect(icons).toHaveLength(1)
   })
 })
+
+// --- Config errors (ADR-0032 / issue 05) -------------------------------------------------
+//
+// ver.configErrors is always an array of { scope, message } — never null/absent, empty for a
+// clean app (backend contract, ApplicationStatus.java). scope is one of
+// "CURRENT" | "LATEST" | "APP" | "CHANGELOG".
+//
+// Contract under test:
+//   - CURRENT/LATEST scope: the reason renders INLINE within that side's cell (no hover
+//     needed — this is a permanent condition, not a transient one to reveal on demand). The
+//     other side renders its version + freshness completely unaffected. The affected side must
+//     NOT show the WarningAmberIcon/"refresh failed" marker — a config error is not a transient
+//     failed scrape (failureKind.js / the *Failed scrape* marker already own that vocabulary).
+//   - APP scope: the reason renders exactly ONCE for the row (an app-level marker), never
+//     duplicated into both the current and latest cells.
+//   - CHANGELOG scope: current/latest/status render completely normally (this is the one scope
+//     where nothing about the read failed). The changelog icon (DescriptionOutlinedIcon) is
+//     absent from the row, and the reason is discoverable in its place — distinct from the
+//     healthy "No changelog link" wording, which stays reserved for the no-template case.
+//   - A clean app (configErrors: []) renders with none of the above markers present at all —
+//     byte-identical to today.
+//
+// Cell indices (ApplicationTable header order): 0=name, 1=status, 2=current, 3=latest,
+// 4=changelog, 5=actions.
+
+describe('config errors (ADR-0032)', () => {
+  const CURRENT_ERROR_MESSAGE = 'unknown source type "http-jason" — check version-source.type in the ConfigMap'
+  const LATEST_ERROR_MESSAGE = 'regex has no capture group — check the ConfigMap regex'
+  const APP_ERROR_MESSAGE = 'invalid calver-format "yyyyMMdd" — check version-scheme.calver-format in the ConfigMap'
+  const CHANGELOG_ERROR_MESSAGE = 'illegal changelog-url template — check changelog-url in the ConfigMap'
+
+  describe('CURRENT scope', () => {
+    // failedAt is set deliberately: a config-broken side DOES fail every scrape, so the transient
+    // "failed refresh" marker would render here if the config error did not supersede it. Without
+    // failedAt the negative assertion below is vacuous, since FailedRefreshIcon renders nothing
+    // when failedAt is absent — and "a config error is visually distinguishable from a transient
+    // failed refresh" would be pinned by nothing.
+    const ver = baseVer({
+      current: { version: null, readAt: null, failedAt: '2026-07-01T11:00:00.000Z' },
+      latest: { version: '1.0.0', readAt: FIXED_READ_AT },
+      drift: null,
+      configErrors: [{ scope: 'CURRENT', message: CURRENT_ERROR_MESSAGE }],
+    })
+
+    test('the reason renders inline within the current cell, with no hover needed', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      const currentCell = screen.getAllByRole('cell')[2]
+      expect(within(currentCell).getByText(CURRENT_ERROR_MESSAGE)).toBeInTheDocument()
+    })
+
+    test('the latest side still renders its version and freshness tooltip, completely unaffected', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      const latestCell = screen.getAllByRole('cell')[3]
+      expect(within(latestCell).getByText('1.0.0')).toBeInTheDocument()
+
+      fireEvent.mouseEnter(within(latestCell).getByText('1.0.0'))
+      const tooltip = screen.getByRole('tooltip')
+      expect(tooltip.textContent).toMatch(/read .+ ago/)
+    })
+
+    test('the current cell does not show the transient failed-refresh warning icon', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      const currentCell = screen.getAllByRole('cell')[2]
+      expect(within(currentCell).queryByTestId('WarningAmberIcon')).not.toBeInTheDocument()
+    })
+
+    test('the current cell shows a distinct error icon — a config error must not read as a bare unstyled message', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      const currentCell = screen.getAllByRole('cell')[2]
+      expect(within(currentCell).getByTestId('ErrorOutlinedIcon')).toBeInTheDocument()
+    })
+  })
+
+  describe('CURRENT scope, degraded side with a last-known value', () => {
+    // The reviewer-caught defect: an errored side that scraped fine for weeks must keep its
+    // last-known version and readAt on screen, with the reason appearing ALONGSIDE it — not
+    // replacing it. A fixture where the affected side is null hides this defect entirely.
+    const ver = baseVer({
+      current: { version: '1.2.3', readAt: FIXED_READ_AT },
+      latest: { version: '1.0.0', readAt: FIXED_READ_AT },
+      drift: null,
+      configErrors: [{ scope: 'CURRENT', message: CURRENT_ERROR_MESSAGE }],
+    })
+
+    test('the current cell shows both the last-known version and the config-error reason', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      const currentCell = screen.getAllByRole('cell')[2]
+      expect(within(currentCell).getByText('1.2.3')).toBeInTheDocument()
+      expect(within(currentCell).getByText(CURRENT_ERROR_MESSAGE)).toBeInTheDocument()
+    })
+  })
+
+  describe('LATEST scope', () => {
+    // failedAt set deliberately — see the CURRENT scope note above.
+    const ver = baseVer({
+      current: { version: '1.0.0', readAt: FIXED_READ_AT },
+      latest: { version: null, readAt: null, failedAt: '2026-07-01T11:00:00.000Z' },
+      drift: null,
+      configErrors: [{ scope: 'LATEST', message: LATEST_ERROR_MESSAGE }],
+    })
+
+    test('the reason renders inline within the latest cell, with no hover needed', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      const latestCell = screen.getAllByRole('cell')[3]
+      expect(within(latestCell).getByText(LATEST_ERROR_MESSAGE)).toBeInTheDocument()
+    })
+
+    test('the current side still renders its version and freshness tooltip, completely unaffected', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      const currentCell = screen.getAllByRole('cell')[2]
+      expect(within(currentCell).getByText('1.0.0')).toBeInTheDocument()
+
+      fireEvent.mouseEnter(within(currentCell).getByText('1.0.0'))
+      const tooltip = screen.getByRole('tooltip')
+      expect(tooltip.textContent).toMatch(/read .+ ago/)
+    })
+
+    test('the latest cell does not show the transient failed-refresh warning icon', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      const latestCell = screen.getAllByRole('cell')[3]
+      expect(within(latestCell).queryByTestId('WarningAmberIcon')).not.toBeInTheDocument()
+    })
+
+    test('the latest cell shows a distinct error icon — a config error must not read as a bare unstyled message', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      const latestCell = screen.getAllByRole('cell')[3]
+      expect(within(latestCell).getByTestId('ErrorOutlinedIcon')).toBeInTheDocument()
+    })
+  })
+
+  describe('LATEST scope, degraded side with a last-known value', () => {
+    // Mirrors the CURRENT-scope regression fixture: the latest side scraped fine for weeks,
+    // then someone typo'd the ConfigMap. The last-known version must stay on screen alongside
+    // the reason, not be swallowed by it.
+    const ver = baseVer({
+      current: { version: '1.0.0', readAt: FIXED_READ_AT },
+      latest: { version: '1.2.3', readAt: FIXED_READ_AT },
+      drift: null,
+      configErrors: [{ scope: 'LATEST', message: LATEST_ERROR_MESSAGE }],
+    })
+
+    test('the latest cell shows both the last-known version and the config-error reason', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      const latestCell = screen.getAllByRole('cell')[3]
+      expect(within(latestCell).getByText('1.2.3')).toBeInTheDocument()
+      expect(within(latestCell).getByText(LATEST_ERROR_MESSAGE)).toBeInTheDocument()
+    })
+  })
+
+  describe('APP scope', () => {
+    const ver = baseVer({
+      current: { version: null, readAt: null },
+      latest: { version: null, readAt: null },
+      drift: null,
+      configErrors: [{ scope: 'APP', message: APP_ERROR_MESSAGE }],
+    })
+
+    test('the reason renders exactly once for the row, not duplicated per side', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      expect(screen.getAllByText(APP_ERROR_MESSAGE)).toHaveLength(1)
+    })
+
+    test('the reason renders in the app-name cell, not merely somewhere outside current/latest', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      const nameCell = screen.getAllByRole('cell')[0]
+      expect(within(nameCell).getByText(APP_ERROR_MESSAGE)).toBeInTheDocument()
+    })
+
+    test('the reason is not nested inside the current cell', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      const currentCell = screen.getAllByRole('cell')[2]
+      expect(within(currentCell).queryByText(APP_ERROR_MESSAGE)).not.toBeInTheDocument()
+    })
+
+    test('the reason is not nested inside the latest cell', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      const latestCell = screen.getAllByRole('cell')[3]
+      expect(within(latestCell).queryByText(APP_ERROR_MESSAGE)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('CHANGELOG scope', () => {
+    const ver = baseVer({
+      current: { version: '1.21.7', readAt: FIXED_READ_AT },
+      latest: { version: '1.22.1', readAt: FIXED_READ_AT },
+      outdated: true,
+      drift: 'MINOR',
+      changelogUrl: null,
+      configErrors: [{ scope: 'CHANGELOG', message: CHANGELOG_ERROR_MESSAGE }],
+    })
+
+    test('current and latest versions render completely normally', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      expect(screen.getByText('1.21.7')).toBeInTheDocument()
+      expect(screen.getByText('1.22.1')).toBeInTheDocument()
+    })
+
+    test('the drift status badge renders completely normally', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      expect(screen.getByText(/minor available/i)).toBeInTheDocument()
+    })
+
+    test('the changelog icon is absent from the row', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      expect(screen.queryByTestId('DescriptionOutlinedIcon')).not.toBeInTheDocument()
+    })
+
+    test('no changelog link is rendered', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      expect(screen.queryByRole('link', { name: /changelog/i })).not.toBeInTheDocument()
+    })
+
+    test("the absence is explained by the config-error reason, not the healthy \"No changelog link\" wording", async () => {
+      const user = userEvent.setup()
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      const changelogCell = screen.getAllByRole('cell')[4]
+      const button = within(changelogCell).getByRole('button', { name: /changelog/i })
+      expect(button).toBeDisabled()
+      await user.hover(button)
+      expect(await screen.findByText(CHANGELOG_ERROR_MESSAGE)).toBeInTheDocument()
+      expect(screen.queryByText('No changelog link')).not.toBeInTheDocument()
+    })
+
+    test('the changelog cell shows the same distinct error icon used by CURRENT/LATEST config errors', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      const changelogCell = screen.getAllByRole('cell')[4]
+      expect(within(changelogCell).getByTestId('ErrorOutlinedIcon')).toBeInTheDocument()
+    })
+  })
+
+  describe('clean app (empty configErrors)', () => {
+    const ver = baseVer({
+      current: { version: '1.0.0', readAt: FIXED_READ_AT },
+      latest: { version: '1.0.0', readAt: FIXED_READ_AT },
+      configErrors: [],
+    })
+
+    test('renders no config-error markers anywhere in the row', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      expect(screen.queryByText(CURRENT_ERROR_MESSAGE)).not.toBeInTheDocument()
+      expect(screen.queryByText(LATEST_ERROR_MESSAGE)).not.toBeInTheDocument()
+      expect(screen.queryByText(APP_ERROR_MESSAGE)).not.toBeInTheDocument()
+      expect(screen.queryByText(CHANGELOG_ERROR_MESSAGE)).not.toBeInTheDocument()
+    })
+
+    test('the changelog icon is present as usual (no template, healthy wording)', () => {
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      expect(screen.getByTestId('DescriptionOutlinedIcon')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /no changelog link/i })).toBeInTheDocument()
+    })
+
+    test('the config-error icon never appears anywhere in the row', () => {
+      // Pins the implementer's restructure (VersionString always first, then a trailing
+      // marker) to the ADR-0032 promise that a clean app adds nothing to the common case:
+      // ErrorOutlinedIcon must be wholly absent, not merely un-labelled with error text.
+      renderRow({ name: 'app', ver, onRefreshed: vi.fn() })
+
+      expect(screen.queryByTestId('ErrorOutlinedIcon')).not.toBeInTheDocument()
+    })
+  })
+})

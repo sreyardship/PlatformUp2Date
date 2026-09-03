@@ -321,6 +321,54 @@ describe('Unknown (Unresolved) sort behaviour', () => {
   })
 })
 
+// --- Config errors pass-through (ADR-0032 / issue 05) -------------------------------------
+//
+// ApplicationTable does no config-error logic of its own — it hands each entry's `ver` (which
+// always carries a `configErrors` array, per ApplicationStatus.java) straight to ApplicationRow.
+// This is a thin integration check that the table doesn't drop, transform, or duplicate that
+// field while sorting/filtering a mixed fleet — the row-level rendering contract itself is
+// covered exhaustively in ApplicationRow.test.jsx.
+
+describe('config errors pass-through', () => {
+  test('a config-error reason reaches the row unchanged when rendered via the table', () => {
+    const mixed = {
+      ...versions,
+      'broken-app': {
+        current: { version: null, readAt: null },
+        latest: { version: '1.0.0', readAt: READ_AT },
+        outdated: false,
+        drift: null,
+        configErrors: [{ scope: 'CURRENT', message: 'unknown source type "http-jason"' }],
+      },
+    }
+
+    render(<ApplicationTable versions={mixed} onRefreshed={vi.fn()} />)
+
+    expect(screen.getByText('unknown source type "http-jason"')).toBeInTheDocument()
+    // A clean sibling row in the same table carries no stray config-error text.
+    expect(screen.getByText('git-tea')).toBeInTheDocument()
+  })
+
+  test('an APP-scope reason is not duplicated when the table re-sorts', async () => {
+    const mixed = {
+      ...versions,
+      'broken-app': {
+        current: { version: null, readAt: null },
+        latest: { version: null, readAt: null },
+        outdated: false,
+        drift: null,
+        configErrors: [{ scope: 'APP', message: 'invalid calver-format "yyyyMMdd"' }],
+      },
+    }
+    const user = userEvent.setup()
+    render(<ApplicationTable versions={mixed} onRefreshed={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: /app name/i }))
+
+    expect(screen.getAllByText('invalid calver-format "yyyyMMdd"')).toHaveLength(1)
+  })
+})
+
 describe('footer', () => {
   test('shows the total application count initially', () => {
     render(<ApplicationTable versions={versions} onRefreshed={vi.fn()} />)
