@@ -2,9 +2,11 @@ package org.yardship.unit.adapters.out.versionsource;
 
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
+import org.yardship.adapters.out.versionsource.ChangelogTemplates;
 import org.yardship.adapters.out.versionsource.VersionParsers;
 import org.yardship.adapters.out.versionsource.configerror.ConfigError;
 import org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope;
+import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
 import org.yardship.adapters.out.versionsource.current.CurrentVersionSourceFactory;
 import org.yardship.adapters.out.versionsource.current.FailedCurrentSource;
 import org.yardship.adapters.out.versionsource.latest.FailedLatestSource;
@@ -18,6 +20,7 @@ import org.yardship.core.ports.out.ApplicationSources;
 import org.yardship.core.ports.out.CurrentVersionSource;
 import org.yardship.core.ports.out.LatestVersionSource;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
@@ -558,6 +561,159 @@ class VersionSourceResolverTests {
         }
     }
 
+    // --- issue 03 / ADR-0032: an APP-scope error (from VersionParsers) degrades BOTH sides, and is
+    // consumed rather than re-reported by the resolver ------------------------------------------
+    //
+    // A calver app with a missing/invalid calver-format no longer fails boot in VersionParsers
+    // (see VersionParsersTests). VersionSourceResolver.resolve() used to do
+    // versionParsers.forApp(name).orElseThrow() with a comment saying "an absent parser here is a
+    // bug" — that call is now the app-scope degrade path: BOTH the current and latest sides become
+    // Failed*Source carrying the scheme's own reason, and the resolver records NOTHING of its own
+    // for that app, so the defect appears exactly once across VersionParsers + VersionSourceResolver
+    // combined, never three times (once from VersionParsers, plus once each from a re-reporting
+    // resolver).
+
+    @Test
+    void appScopeParserError_degradesBothSides_withTheSchemesOwnReason() {
+        List<ApplicationConfigLoader.AppConfig> apps =
+                List.of(brokenCalverApp("broken-app", source("http-json"), source("github-release")));
+        VersionParsers versionParsers = new VersionParsers(apps);
+        String schemeReason = versionParsers.configErrors().get(0).reason();
+
+        VersionSourceResolver resolver = new VersionSourceResolver(
+                List.of(new FakeCurrentFactory("http-json")),
+                List.of(new FakeLatestFactory("github-release")),
+                apps,
+                versionParsers);
+
+        assertEquals(1, resolver.applicationSources().size(),
+                "the app itself must still boot and appear — only its sources degrade");
+        ApplicationSources pair = resolver.applicationSources().get(0);
+        IllegalStateException currentThrown =
+                assertThrows(IllegalStateException.class, () -> pair.current().version());
+        IllegalStateException latestThrown =
+                assertThrows(IllegalStateException.class, () -> pair.latest().version());
+        assertEquals(schemeReason, currentThrown.getMessage(),
+                "the degraded current side must carry the scheme's own reason");
+        assertEquals(schemeReason, latestThrown.getMessage(),
+                "the degraded latest side must carry the SAME scheme reason as the current side");
+    }
+
+    @Test
+    void appScopeParserError_isConsumedByTheResolver_notReReportedAtCurrentOrLatestScope() {
+        List<ApplicationConfigLoader.AppConfig> apps =
+                List.of(brokenCalverApp("broken-app", source("http-json"), source("github-release")));
+        VersionParsers versionParsers = new VersionParsers(apps);
+
+        VersionSourceResolver resolver = new VersionSourceResolver(
+                List.of(new FakeCurrentFactory("http-json")),
+                List.of(new FakeLatestFactory("github-release")),
+                apps,
+                versionParsers);
+
+        assertTrue(resolver.configErrors().isEmpty(),
+                "the resolver must report NOTHING of its own for an app whose only defect is an "
+                        + "APP-scope parser error — it only consumes that error to decide how to degrade");
+    }
+
+    @Test
+    void appScopeParserError_appearsExactlyOnce_acrossVersionParsersAndChangelogTemplatesAndTheResolverCombined() {
+        // The app also carries a changelog-url, so this exercises the exact interaction the
+        // review-fixed defect lived in: ChangelogTemplates used to build the app's CalverFormat
+        // OUTSIDE its own try, so a broken calver-format was reported a SECOND time here, at
+        // CHANGELOG scope, on top of VersionParsers' correct APP-scope report. Aggregating via the
+        // real ConfigErrors(List.of(versionParsers, changelogTemplates, resolver)) path — rather
+        // than hand-combining just two of the three sources — is what would have caught it.
+        List<ApplicationConfigLoader.AppConfig> apps = List.of(brokenCalverApp(
+                "broken-app", source("http-json"), source("github-release"),
+                Optional.of("https://example.com/changelog/v{version}")));
+        VersionParsers versionParsers = new VersionParsers(apps);
+        ChangelogTemplates changelogTemplates = new ChangelogTemplates(apps);
+
+        VersionSourceResolver resolver = new VersionSourceResolver(
+                List.of(new FakeCurrentFactory("http-json")),
+                List.of(new FakeLatestFactory("github-release")),
+                apps,
+                versionParsers);
+
+        ConfigErrors configErrors =
+                new ConfigErrors(List.of(versionParsers, changelogTemplates, resolver));
+
+        assertEquals(1, configErrors.all().size(),
+                "one bad calver-format must appear exactly once across every discovered "
+                        + "ConfigErrorSource, not three times (once per side, once at APP scope, "
+                        + "plus once at CHANGELOG scope)");
+        ConfigError only = configErrors.all().get(0);
+        assertEquals("broken-app", only.application());
+        assertEquals(ConfigErrorScope.APP, only.scope());
+        assertTrue(only.reason().contains("broken-app"),
+                "the single recorded reason must name the app it belongs to, so it still reads "
+                        + "correctly on a payload that carries only {scope, message}; was: " + only.reason());
+    }
+
+    // --- acceptance criterion 3 (issue 03): an illegal changelog-url boots, and that app scrapes
+    // normally — both versions resolve, drift is computed, and only the changelog link is absent --
+    //
+    // This is the one scope where a config error degrades NOTHING about the app's sources: the
+    // resolver must report no error of its own, and both sides must build and read normally. Only
+    // ChangelogTemplates.forApp(name) is absent. Nothing here forbids a future change from degrading
+    // a side on a CHANGELOG-scope error — pinning it is what forced the whole scope model.
+
+    @Test
+    void illegalChangelogUrl_boots_andThatAppScrapesNormally_onlyTheChangelogLinkIsAbsent() {
+        FakeCurrentFactory http = new FakeCurrentFactory("http-json");
+        FakeLatestFactory gh = new FakeLatestFactory("github-release");
+        // "{bogus}" is an unknown placeholder, illegal under either scheme.
+        List<ApplicationConfigLoader.AppConfig> apps = List.of(brokenChangelogApp(
+                "alpha", source("http-json"), source("github-release"),
+                "https://example.com/changelog/{bogus}"));
+        VersionParsers versionParsers = new VersionParsers(apps);
+        ChangelogTemplates changelogTemplates = new ChangelogTemplates(apps);
+
+        VersionSourceResolver resolver = new VersionSourceResolver(
+                List.of(http), List.of(gh), apps, versionParsers);
+
+        assertEquals(1, resolver.applicationSources().size(), "the app itself must still boot");
+        ApplicationSources pair = resolver.applicationSources().get(0);
+        assertEquals(new SemverVersion("1.0.0"), pair.current().version(),
+                "the current side must still resolve normally — a CHANGELOG-scope error degrades "
+                        + "nothing about the sources");
+        assertEquals(new SemverVersion("2.0.0"), pair.latest().version(),
+                "the latest side must still resolve normally too, so drift is still computable");
+
+        assertTrue(resolver.configErrors().isEmpty(),
+                "the resolver must record nothing for a CHANGELOG-scope defect — it never touches "
+                        + "the sources at all");
+        assertEquals(1, changelogTemplates.configErrors().size(),
+                "the illegal template is recorded exactly once, by ChangelogTemplates itself");
+        assertEquals(ConfigErrorScope.CHANGELOG, changelogTemplates.configErrors().get(0).scope());
+        assertTrue(changelogTemplates.forApp("alpha").isEmpty(),
+                "only the changelog link is absent — everything else about the app is normal");
+    }
+
+    @Test
+    void appScopeParserError_leavesASiblingAppEntirelyUnaffected() {
+        List<ApplicationConfigLoader.AppConfig> apps = List.of(
+                brokenCalverApp("broken-app", source("http-json"), source("github-release")),
+                app("healthy-app", source("http-json"), source("github-release")));
+        VersionParsers versionParsers = new VersionParsers(apps);
+
+        VersionSourceResolver resolver = new VersionSourceResolver(
+                List.of(new FakeCurrentFactory("http-json")),
+                List.of(new FakeLatestFactory("github-release")),
+                apps,
+                versionParsers);
+
+        assertEquals(2, resolver.applicationSources().size());
+        ApplicationSources healthy = resolver.applicationSources().stream()
+                .filter(a -> a.name().equals("healthy-app"))
+                .findFirst().orElseThrow();
+        assertEquals(new SemverVersion("1.0.0"), healthy.current().version(),
+                "the sibling app must be entirely unaffected by the broken app's scheme");
+        assertEquals(new SemverVersion("2.0.0"), healthy.latest().version());
+        assertTrue(resolver.configErrors().isEmpty());
+    }
+
     // --- fakes --------------------------------------------------------------------------------
 
     private static ApplicationConfigLoader.AppConfig app(
@@ -569,6 +725,98 @@ class VersionSourceResolverTests {
     private static ApplicationConfigLoader.AppConfig unnamedApp(
             ApplicationConfigLoader.VersionSource current, ApplicationConfigLoader.VersionSource latest) {
         return namedOrUnnamed(Optional.empty(), current, latest);
+    }
+
+    /**
+     * A CALVER app with no {@code calver-format} configured (issue 03 / ADR-0032) — VersionParsers
+     * records exactly one APP-scope config error for this app rather than throwing.
+     */
+    private static ApplicationConfigLoader.AppConfig brokenCalverApp(
+            String name, ApplicationConfigLoader.VersionSource current, ApplicationConfigLoader.VersionSource latest) {
+        return brokenCalverApp(name, current, latest, Optional.empty());
+    }
+
+    /**
+     * As above, but also carrying a {@code changelog-url} — exercises the exact interaction the
+     * review-fixed defect lived in: {@code ChangelogTemplates} must skip this app entirely (no
+     * template, no CHANGELOG-scope error of its own) rather than re-reporting the broken
+     * calver-format a second time.
+     */
+    private static ApplicationConfigLoader.AppConfig brokenCalverApp(
+            String name, ApplicationConfigLoader.VersionSource current,
+            ApplicationConfigLoader.VersionSource latest, Optional<String> changelogUrl) {
+        return new ApplicationConfigLoader.AppConfig() {
+            @Override
+            public Optional<String> name() {
+                return Optional.of(name);
+            }
+
+            @Override
+            public ApplicationConfigLoader.VersionSource current() {
+                return current;
+            }
+
+            @Override
+            public ApplicationConfigLoader.VersionSource latest() {
+                return latest;
+            }
+
+            @Override
+            public VersionScheme versionScheme() {
+                return VersionScheme.CALVER;
+            }
+
+            @Override
+            public Optional<String> calverFormat() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> changelogUrl() {
+                return changelogUrl;
+            }
+        };
+    }
+
+    /**
+     * A SEMVER app carrying an illegal {@code changelog-url} template (issue 03 / ADR-0032,
+     * acceptance criterion 3) — {@code ChangelogTemplates} records exactly one CHANGELOG-scope
+     * config error for it, and nothing else about the app degrades: both sides still resolve.
+     */
+    private static ApplicationConfigLoader.AppConfig brokenChangelogApp(
+            String name, ApplicationConfigLoader.VersionSource current,
+            ApplicationConfigLoader.VersionSource latest, String changelogUrl) {
+        return new ApplicationConfigLoader.AppConfig() {
+            @Override
+            public Optional<String> name() {
+                return Optional.of(name);
+            }
+
+            @Override
+            public ApplicationConfigLoader.VersionSource current() {
+                return current;
+            }
+
+            @Override
+            public ApplicationConfigLoader.VersionSource latest() {
+                return latest;
+            }
+
+            @Override
+            public VersionScheme versionScheme() {
+                return VersionScheme.SEMVER;
+            }
+
+            @Override
+            public Optional<String> calverFormat() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> changelogUrl() {
+                return Optional.of(changelogUrl);
+            }
+        };
     }
 
     private static ApplicationConfigLoader.AppConfig namedOrUnnamed(

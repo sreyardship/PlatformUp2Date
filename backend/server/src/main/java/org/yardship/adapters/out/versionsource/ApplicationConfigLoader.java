@@ -58,9 +58,10 @@ public interface ApplicationConfigLoader {
         /**
          * The calendar-version format (calver.org grammar, e.g. {@code YY.0M.MICRO}) this app's
          * versions are parsed against. Required when {@link #versionScheme()} is {@code calver};
-         * absent (and ignored) for {@code semver}. Optional at the SmallRye binding level — the
-         * requiredness for calver apps is enforced fail-fast when the per-app {@link VersionParser}
-         * is built in the resolver, not by config binding (a semver app simply has no calver-format).
+         * absent (and ignored) for {@code semver}. Optional at the SmallRye binding level — for a
+         * calver app a missing or invalid format is recorded by {@code VersionParsers} as an
+         * {@code APP}-scope config error (ADR-0032), degrading both of that app's legs rather than
+         * failing the boot (a semver app simply has no calver-format).
          */
         Optional<String> calverFormat();
 
@@ -69,9 +70,11 @@ public interface ApplicationConfigLoader {
          * — NOT a {@link VersionSource} field, since the changelog link is a property of the app,
          * not of either version-source leg. Absent leaves {@code changelogUrl} {@code null} on the
          * REST payload; no source kind gets a default template. Placeholder legality (e.g.
-         * {@code {version}}, {@code {major}}, or a calver-format-symbol token) is validated
-         * fail-fast at startup by the {@code ChangelogTemplates} wiring bean via {@link
-         * org.yardship.core.domain.primitives.ChangelogTemplate}'s constructor.
+         * {@code {version}}, {@code {major}}, or a calver-format-symbol token) is checked at
+         * startup by the {@code ChangelogTemplates} wiring bean via {@link
+         * org.yardship.core.domain.primitives.ChangelogTemplate}'s constructor; an illegal template
+         * is recorded as a {@code CHANGELOG}-scope config error (ADR-0032), which degrades nothing
+         * but the link itself.
          */
         Optional<String> changelogUrl();
     }

@@ -111,12 +111,15 @@ public class ValkeyScrapeStateStore implements ScrapeStateStore {
         return new ScrapeSnapshot(applications, Instant.ofEpochMilli(dto.lastAttemptAtEpochMillis()));
     }
 
-    // A config change can remove an app that still has a persisted entry from a prior scrape:
-    // that entry is stale, not corrupt, so it is skipped (not thrown) and logged as expected.
+    // An app can have a persisted entry from a prior scrape but no parser now: either a config
+    // change removed it, or its version-scheme is misconfigured and VersionParsers recorded an
+    // APP-scope config error instead of building one (ADR-0032). Either way the entry is stale,
+    // not corrupt, so it is skipped (not thrown) and logged as expected.
     private Stream<VersionApplication> toVersionApplicationOrSkip(AppDTO app) {
         Optional<VersionParser> parser = versionParsers.forApp(app.name());
         if (parser.isEmpty()) {
-            logger.info("Skipping unconfigured app '{}' from scrape snapshot (removed from config)", app.name());
+            logger.info("Skipping app '{}' from scrape snapshot: no version parser "
+                    + "(removed from config, or its version-scheme is misconfigured)", app.name());
             return Stream.empty();
         }
         return Stream.of(new VersionApplication(

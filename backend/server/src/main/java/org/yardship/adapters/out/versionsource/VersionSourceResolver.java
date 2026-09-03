@@ -49,10 +49,14 @@ import java.util.function.Function;
  * all record exactly one {@link ConfigError} for the affected side, which is then represented by a
  * {@code Failed*Source} that fails every scrape. The first two build that source via
  * {@code degradeCurrent}/{@code degradeLatest}; the third records against, and returns, the
- * factory's own instance. Either way the rest of the app — and every other app — keeps working. The sole remaining construction-time
- * throw is a duplicate factory {@code type()}, which surfaces as an {@link IllegalStateException}
- * naming the offending type: that is a defect in our own wiring, not an operator's config, so it
- * still fails the application at startup.
+ * factory's own instance. Either way the rest of the app — and every other app — keeps working.
+ *
+ * <p>Two construction-time throws remain, and both are defects in our own wiring rather than an
+ * operator's config, so both still fail the application at startup: a duplicate factory
+ * {@code type()}, surfaced as an {@link IllegalStateException} naming the offending type; and
+ * {@link #resolve} finding neither a parser nor a recorded config error for a named app, also an
+ * {@link IllegalStateException}, which is unreachable from any config input because
+ * {@link VersionParsers} guarantees one or the other for every named app it is given.
  */
 @ApplicationScoped
 public class VersionSourceResolver implements VersionSources, ConfigErrorSource {
@@ -160,13 +164,24 @@ public class VersionSourceResolver implements VersionSources, ConfigErrorSource 
             Map<String, CurrentVersionSourceFactory> currentByType,
             Map<String, LatestVersionSourceFactory> latestByType) {
         // One parser per app, shared by both legs, so current and latest are always commensurable by
-        // construction — a cross-scheme comparison cannot occur. Built once, fail-fast at startup, by
-        // VersionParsers; every NAMED configured app has an entry there, so an absent parser here is
-        // a bug (an unnamed app never reaches this method — it is dropped by the constructor loop
-        // above before resolve() is ever called for it).
-        VersionParser parser = versionParsers.forApp(appName).orElseThrow();
-        CurrentVersionSource current = resolveCurrent(appName, app, currentByType, parser);
-        LatestVersionSource latest = resolveLatest(appName, app, latestByType, parser);
+        // construction — a cross-scheme comparison cannot occur. Built once by VersionParsers. An
+        // absent parser is now a legitimate, expected state (issue 03 / ADR-0032): the app's version
+        // scheme itself failed to build, VersionParsers already recorded exactly one APP-scope
+        // ConfigError for it, and this becomes the app-scope degrade path — BOTH sides fail with the
+        // scheme's own reason, and nothing is recorded here, so the defect is not reported a second
+        // (or third) time. An unnamed app never reaches this method — it is dropped by the
+        // constructor loop above before resolve() is ever called for it.
+        Optional<VersionParser> parser = versionParsers.forApp(appName);
+        if (parser.isEmpty()) {
+            String reason = versionParsers.failureReasonForApp(appName).orElseThrow(() ->
+                    new IllegalStateException(
+                            "VersionParsers has no parser and no recorded config error for app '"
+                                    + appName + "': this is a defect in VersionParsers itself."));
+            return new ApplicationSources(
+                    appName, new FailedCurrentSource(reason), new FailedLatestSource(reason));
+        }
+        CurrentVersionSource current = resolveCurrent(appName, app, currentByType, parser.get());
+        LatestVersionSource latest = resolveLatest(appName, app, latestByType, parser.get());
         return new ApplicationSources(appName, current, latest);
     }
 
