@@ -5,6 +5,9 @@ import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.scrapestate.ScrapeStateUnavailableException;
 import org.yardship.adapters.out.versionsource.ChangelogTemplates;
+import org.yardship.adapters.out.versionsource.configerror.ConfigError;
+import org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope;
+import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
 import org.yardship.core.domain.primitives.ChangelogTemplate;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.SideObservation;
@@ -18,6 +21,7 @@ import java.util.Optional;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -45,6 +49,14 @@ class VersionControllerIT {
     // carry a template, independent of the (untemplated) shared test 'platform-config'.
     @InjectMock
     ChangelogTemplates changelogTemplates;
+
+    // Per-app config errors (ADR-0032, issue 04) are threaded into ApplicationStatus.from(...) the
+    // same way changelog templates are: mocked here so each test controls which apps carry which
+    // errors, independent of the (clean) shared test 'platform-config'. Unstubbed
+    // configErrors.forApp(...) returns Mockito's default empty list — exactly the "clean app"
+    // shape.
+    @InjectMock
+    ConfigErrors configErrors;
 
     @Test
     void getVersion_returnsPerSideObjects_withVersionAndReadAt() {
@@ -327,6 +339,114 @@ class VersionControllerIT {
                 .then()
                 .statusCode(200)
                 .body("'cold-templated-app'.changelogUrl", nullValue());
+    }
+
+    // --- Per-app configErrors array (ADR-0032, issue 04) ----------------------------------------
+    //
+    // configErrors is projected on read from ConfigErrors.forApp(...) — never persisted in
+    // Valkey, never carried through a scrape. It is a top-level array sibling of drift and
+    // changelogUrl. Mapping logic (list of ConfigError -> {scope, message}) is covered cheaply by
+    // ApplicationStatusTests (unit); these IT tests prove only what real JSON wiring can reveal:
+    // the field is [] (not null/absent) for a clean app, and the wired controller actually reads
+    // ConfigErrors rather than ignoring it.
+
+    @Test
+    void getVersion_cleanApp_emitsEmptyConfigErrorsArray_notNullNotAbsent() {
+        Instant readAt = Instant.parse("2026-07-01T10:00:00Z");
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(
+                new VersionApplication("clean-app",
+                        SideObservation.resolved(new SemverVersion("1.0.0"), readAt),
+                        SideObservation.resolved(new SemverVersion("1.0.0"), readAt))));
+        // configErrors.forApp(...) unstubbed -> Mockito default empty list.
+
+        given()
+                .when()
+                .get("/api/v1/version")
+                .then()
+                .statusCode(200)
+                .body("'clean-app'.configErrors", notNullValue())
+                .body("'clean-app'.configErrors", hasSize(0));
+    }
+
+    @Test
+    void getVersion_sideScopeConfigError_appearsOnPayload_alongsideThatSidesFailedAt() {
+        Instant successAt = Instant.parse("2026-07-01T10:00:00Z");
+        Instant failureAt = Instant.parse("2026-07-01T10:05:00Z");
+        SideObservation failedCurrent = new SideObservation(
+                Optional.of(new SemverVersion("1.0.0")), Optional.of(successAt), Optional.of(failureAt));
+        SideObservation healthyLatest = SideObservation.resolved(new SemverVersion("1.1.0"), successAt);
+
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(
+                new VersionApplication("half-broken-app", failedCurrent, healthyLatest)));
+        when(configErrors.forApp("half-broken-app")).thenReturn(List.of(
+                new ConfigError("half-broken-app", ConfigErrorScope.CURRENT, "unknown current source type 'bogus'")));
+
+        given()
+                .when()
+                .get("/api/v1/version")
+                .then()
+                .statusCode(200)
+                .body("'half-broken-app'.configErrors", hasSize(1))
+                .body("'half-broken-app'.configErrors[0].scope", equalTo("CURRENT"))
+                .body("'half-broken-app'.configErrors[0].message", equalTo("unknown current source type 'bogus'"))
+                .body("'half-broken-app'.current.failedAt", equalTo("2026-07-01T10:05:00Z"));
+    }
+
+    @Test
+    void getVersion_appScopeConfigError_appearsOncePerApp_whileBothSidesAreUnresolved() {
+        SideObservation pending = new SideObservation(Optional.empty(), Optional.empty(), Optional.empty());
+
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(
+                new VersionApplication("calver-broken-app", pending, pending)));
+        when(configErrors.forApp("calver-broken-app")).thenReturn(List.of(
+                new ConfigError("calver-broken-app", ConfigErrorScope.APP, "invalid calver-format 'bogus'")));
+
+        given()
+                .when()
+                .get("/api/v1/version")
+                .then()
+                .statusCode(200)
+                // Exactly one entry: the resolver consumes the APP-scope error once and does not
+                // re-report it per side.
+                .body("'calver-broken-app'.configErrors", hasSize(1))
+                .body("'calver-broken-app'.configErrors[0].scope", equalTo("APP"))
+                .body("'calver-broken-app'.resolution", equalTo("Unresolved"))
+                .body("'calver-broken-app'.current.version", nullValue())
+                .body("'calver-broken-app'.latest.version", nullValue());
+    }
+
+    @Test
+    void getVersion_changelogScopeConfigError_coexistsWithFullyResolvedAppAndNullChangelogUrl() {
+        // The case that forces the scope model: a CHANGELOG-scope error degrades nothing about
+        // the scrape. current, latest and drift are all populated normally; changelogUrl is null.
+        Instant readAt = Instant.parse("2026-07-01T10:00:00Z");
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(
+                new VersionApplication("bad-changelog-app",
+                        SideObservation.resolved(new SemverVersion("1.0.0"), readAt),
+                        SideObservation.resolved(new SemverVersion("2.0.0"), readAt))));
+        // changelogTemplates.forApp(...) unstubbed -> Optional.empty(): the illegal template was
+        // recorded as a config error, not resolved into a usable ChangelogTemplate.
+        when(configErrors.forApp("bad-changelog-app")).thenReturn(List.of(
+                new ConfigError("bad-changelog-app", ConfigErrorScope.CHANGELOG, "illegal changelog-url template")));
+
+        given()
+                .when()
+                .get("/api/v1/version")
+                .then()
+                .statusCode(200)
+                .body("'bad-changelog-app'.resolution", equalTo("Resolved"))
+                .body("'bad-changelog-app'.current.version", equalTo("1.0.0"))
+                .body("'bad-changelog-app'.latest.version", equalTo("2.0.0"))
+                .body("'bad-changelog-app'.drift", equalTo("MAJOR"))
+                .body("'bad-changelog-app'.changelogUrl", nullValue())
+                // The snapshot for this app carries no failure state at all, yet configErrors is
+                // populated — proof it is projected from ConfigErrors on read, not from anything
+                // carried on the VersionApplication/snapshot (ADR-0019 stays untouched).
+                .body("'bad-changelog-app'.current.failedAt", nullValue())
+                .body("'bad-changelog-app'.latest.failedAt", nullValue())
+                .body("'bad-changelog-app'.configErrors", hasSize(1))
+                .body("'bad-changelog-app'.configErrors[0].scope", equalTo("CHANGELOG"))
+                .body("'bad-changelog-app'.configErrors[0].message", equalTo("illegal changelog-url template"));
     }
 
     @Test

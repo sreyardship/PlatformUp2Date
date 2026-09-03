@@ -35,4 +35,28 @@ class OpenApiDocumentIT {
                 .body("paths", org.hamcrest.Matchers.hasKey("/api/v1/scrape"))
                 .body("paths", org.hamcrest.Matchers.hasKey("/api/v1/scrape/applications"));
     }
+
+    /**
+     * ADR-0032 / issue 04: {@code configErrors} is a real field on {@code ApplicationStatus}, so
+     * the code-first generated spec (ADR-0020 — there is no spec file to hand-edit) must reflect
+     * it without any manual step.
+     */
+    @Test
+    void openApiDocument_applicationStatusSchema_includesConfigErrorsField() {
+        given()
+                .accept("application/json")
+                .when()
+                .get("/q/openapi")
+                .then()
+                .statusCode(200)
+                .body("components.schemas.ApplicationStatus.properties",
+                        org.hamcrest.Matchers.hasKey("configErrors"))
+                // Not just "a field called configErrors": pin the array shape and the nested entry
+                // schema, so a regression to a scalar or a flattened entry fails here.
+                .body("components.schemas.ApplicationStatus.properties.configErrors.type",
+                        org.hamcrest.Matchers.equalTo("array"))
+                .body("components.schemas.ApplicationStatus.properties.configErrors.items.$ref",
+                        org.hamcrest.Matchers.containsString("ConfigErrorEntry"))
+                .body("components.schemas", org.hamcrest.Matchers.hasKey("ConfigErrorEntry"));
+    }
 }
