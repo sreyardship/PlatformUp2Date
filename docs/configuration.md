@@ -14,6 +14,36 @@ JSON Pointer, a `calver-format`, a `changelog-url` template) can be tested
 before deploying with the [`conf-check` CLI](conf-check.md), which also
 validates a whole `platform-config.yaml` in one run for CI gating.
 
+## When configuration is wrong
+
+A defect in one Application's configuration degrades only what that defect
+touches; it never stops the backend from starting (ADR-0032). The only
+configuration failure that stops the application is one that makes the config
+document unbindable — un-tokenizable YAML.
+
+Because a typo now reaches production rather than being caught by a crash-loop,
+the board says precisely what is wrong. A `current`/`latest` defect shows its
+reason on the affected side, which keeps its last-known version; the other side
+goes on reading normally. A defect in the shared version scheme is marked once
+at app level, since it breaks both legs for one reason. And a broken
+`changelog-url` degrades nothing at all — the app scrapes normally and only its
+link is absent.
+
+![The board showing a config error at each scope, alongside a clean app and an app whose newest read merely failed](img/board-config-errors.png)
+
+A config error is permanent until someone edits the ConfigMap, so it reads
+differently from a transient failed refresh: a red glyph with an always-visible
+reason, rather than the amber hover-only warning (`vault-transient` above). The
+one exception is the changelog scope, where nothing degrades and the reason sits
+behind the icon it replaces:
+
+![The changelog-scope reason, shown on hover in place of the changelog icon](img/board-config-error-reason.png)
+
+The same information reaches the other Surfaces: `configErrors` on the REST
+payload and on the MCP `get_application` view, the `list_misconfigured_applications`
+MCP tool, and `pu2d_config_error{application, scope}` for alerting — see
+[`deployment.md`](deployment.md#metrics).
+
 ## Top-level keys
 
 | Key | Type | Required | Default | Notes |
