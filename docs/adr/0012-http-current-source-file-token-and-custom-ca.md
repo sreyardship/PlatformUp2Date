@@ -1,5 +1,7 @@
 # The HTTP current source can read its bearer token from a rotating file and pin a per-scraper CA
 
+> **Amended by [ADR-0032](0032-config-errors-degrade-per-app-never-the-boot.md):** "boot validates structure and paths; value/IO problems degrade one app" is retired along with the structural/value split it rests on. The behaviour this ADR specifies for `ca-cert` and `token-file` is unchanged — it is now simply the rule for *every* config error, not this source's exception to one.
+
 The authenticated `http` current source ([ADR-0008](0008-authenticated-http-current-source.md))
 sourced its bearer token from an env-expanded `auth.token` read once at boot, and trusted
 endpoints via the JVM default truststore. That serves Harbor but not a private endpoint behind a

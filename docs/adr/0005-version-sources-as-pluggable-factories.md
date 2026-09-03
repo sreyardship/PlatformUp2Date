@@ -1,5 +1,7 @@
 # Current and latest versions come from pluggable version sources, not a single repository
 
+> **Amended by [ADR-0032](0032-config-errors-degrade-per-app-never-the-boot.md):** a duplicate factory `type()` still fails fast at startup, but an *unknown* config `type` no longer does — it degrades that side to a `Failed*Source` with a clear reason, like every other per-app config error. A retired kind's rename hint is delivered the same way.
+
 Until now an Application's *current* version was always an HTTP `/version`
 endpoint and its *latest* always a GitHub release, both URLs hard-wired as bare
 strings in `platform-config` and both fetched by one `VersionRepository.scrape()`

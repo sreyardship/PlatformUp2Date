@@ -1,5 +1,7 @@
 # A current version carried in a response header is read by an http-header source, which ignores the status code
 
+> **Amended by [ADR-0032](0032-config-errors-degrade-per-app-never-the-boot.md):** `version-header` no longer fails the boot. This ADR followed the then-current `url`/`regex` precedent rather than relitigating it; that precedent is now reversed, so a missing or blank `version-header` degrades the `current` side with a clear reason, as `url` does.
+
 Jenkins does not publish its version in any response body. It publishes it in a response
 header — `X-Jenkins` — on its top page and on every `.../api/*` page
 ([docs](https://www.jenkins.io/doc/book/using/remote-access-api/)). None of the existing
