@@ -1,11 +1,13 @@
 package org.yardship.adapters.in.metrics;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import org.yardship.adapters.out.versionsource.configerror.ConfigError;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.domain.primitives.VersionValue;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @ApplicationScoped
@@ -16,21 +18,29 @@ public class PrometheusDriftRenderer {
     private static final String FAILURE_METRIC = "pu2d_scrape_last_failure_timestamp_seconds";
     private static final String INFO_METRIC    = "pu2d_application_info";
     private static final String UNNAMED_APPS_METRIC = "pu2d_config_unnamed_apps";
+    private static final String CONFIG_ERROR_METRIC = "pu2d_config_error";
 
     /**
+     * @param configErrors every recorded {@link ConfigError} (issue 07 / ADR-0032; see
+     *     {@code ConfigErrors#all()}) — a boot-time snapshot, not recomputed per scrape. Rendered
+     *     as {@code pu2d_config_error}, labelled by {@code application} and {@code scope}; the
+     *     {@code reason} is deliberately never rendered (free-form prose, not a label — the board
+     *     and MCP carry it).
      * @param unnamedAppCount count of configured apps dropped fleet-wide for having no {@code name}
      *     (issue 02 / ADR-0032; see {@code ConfigErrors#unnamedAppCount()}). Deliberately
      *     UNLABELLED — an unnamed app has no identity to label a series with — so this is a bare
      *     gauge, emitted only when the count is non-zero (a clean config emits neither this nor
      *     {@code pu2d_config_error}).
      */
-    public String render(List<VersionApplication> applications, int unnamedAppCount) {
+    public String render(List<VersionApplication> applications, List<ConfigError> configErrors,
+            int unnamedAppCount) {
         StringBuilder builder = new StringBuilder();
         appendDriftFamily(builder, applications);
         appendSuccessFamily(builder, applications);
         appendFailureFamily(builder, applications);
         appendInfoFamily(builder, applications);
         appendUnnamedAppsFamily(builder, unnamedAppCount);
+        appendConfigErrorFamily(builder, configErrors);
         return builder.toString();
     }
 
@@ -112,6 +122,28 @@ public class PrometheusDriftRenderer {
                 "Count of configured applications dropped because they have no 'name' (unlabelled: "
                         + "no identity to label a series with)");
         builder.append(UNNAMED_APPS_METRIC).append(" ").append(unnamedAppCount).append("\n");
+    }
+
+    // -------------------------------------------------------------------------
+    // Config error family (issue 07 / ADR-0032; one series per recorded ConfigError)
+    // -------------------------------------------------------------------------
+
+    private static void appendConfigErrorFamily(StringBuilder builder, List<ConfigError> configErrors) {
+        appendFamilyHeader(builder, CONFIG_ERROR_METRIC,
+                "Recorded configuration defect (ADR-0032), labelled by application and scope; a "
+                        + "clean fleet emits no series, so sum(pu2d_config_error) > 0 is the alert");
+        // Distinct (application, scope) pairs only. No producer emits a duplicate pair today, but
+        // ConfigErrorSource exists so new ones can be added without touching a central file, and
+        // ConfigErrors.all() simply concatenates them — two identical label sets in one exposition
+        // makes Prometheus reject the WHOLE scrape, every family, not just this one. The sum()
+        // semantics are unchanged: this metric already counts distinct defects.
+        configErrors.stream()
+                .map(error -> Map.entry(error.application(), error.scope()))
+                .distinct()
+                .forEach(pair -> builder.append(CONFIG_ERROR_METRIC)
+                        .append("{application=\"").append(escapeLabelValue(pair.getKey()))
+                        .append("\",scope=\"").append(pair.getValue().name())
+                        .append("\"} 1\n"));
     }
 
     // -------------------------------------------------------------------------

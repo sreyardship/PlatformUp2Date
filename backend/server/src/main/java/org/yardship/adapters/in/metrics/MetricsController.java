@@ -24,6 +24,7 @@ public class MetricsController {
     @GET
     @Produces("text/plain; version=0.0.4; charset=utf-8")
     public String getMetrics() {
-        return renderer.render(applicationVersionPort.getApplications(), configErrors.unnamedAppCount());
+        return renderer.render(applicationVersionPort.getApplications(), configErrors.all(),
+                configErrors.unnamedAppCount());
     }
 }

@@ -5,6 +5,8 @@ import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.in.metrics.MetricsController;
+import org.yardship.adapters.out.versionsource.configerror.ConfigError;
+import org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope;
 import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.SideObservation;
@@ -88,5 +90,20 @@ public class MetricsControllerTests {
 
         assertTrue(output.contains("pu2d_config_unnamed_apps 4"),
                 "expected the controller to pass ConfigErrors' count through to the renderer; was: " + output);
+    }
+
+    @Test
+    void getMetrics_passesTheRecordedConfigErrors_ratherThanAnEmptyList() {
+        // Slice 06's review caught exactly this class of gap: deleting an argument left the
+        // suite green. Pin the wiring so the controller cannot quietly pass List.of() instead of
+        // the real recorded errors from ConfigErrors#all().
+        when(applicationVersionPort.getApplications()).thenReturn(List.of());
+        when(configErrors.all()).thenReturn(
+                List.of(new ConfigError("argo-cd", ConfigErrorScope.CURRENT, "boom")));
+
+        String output = sut.getMetrics();
+
+        assertTrue(output.contains("pu2d_config_error{application=\"argo-cd\",scope=\"CURRENT\"} 1"),
+                "expected the controller to pass ConfigErrors#all() through to the renderer; was: " + output);
     }
 }

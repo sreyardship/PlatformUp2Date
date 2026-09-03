@@ -2,11 +2,14 @@ package org.yardship.unit.adapters.in.metrics;
 
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.in.metrics.PrometheusDriftRenderer;
+import org.yardship.adapters.out.versionsource.configerror.ConfigError;
+import org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -48,7 +51,7 @@ class PrometheusDriftRendererTests {
         VersionApplication patch = new VersionApplication("patch-app", obs("2.2.1"), obs("2.2.2"));
         VersionApplication current = new VersionApplication("current-app", obs("2.0.0"), obs("2.0.0"));
 
-        String output = sut.render(List.of(major, minor, patch, current), 0);
+        String output = sut.render(List.of(major, minor, patch, current), List.of(), 0);
 
         assertTrue(output.contains(HELP_LINE), "expected single HELP line in: " + output);
         assertTrue(output.contains(TYPE_LINE), "expected single TYPE line in: " + output);
@@ -63,7 +66,7 @@ class PrometheusDriftRendererTests {
 
     @Test
     void render_emptyList_emitsHeaderOnly_noSampleLines() {
-        String output = sut.render(List.of(), 0);
+        String output = sut.render(List.of(), List.of(), 0);
 
         assertTrue(output.contains(HELP_LINE), "expected HELP line in: " + output);
         assertTrue(output.contains(TYPE_LINE), "expected TYPE line in: " + output);
@@ -75,7 +78,7 @@ class PrometheusDriftRendererTests {
     void render_escapesLabelValue_perExpositionSpec() {
         VersionApplication weird = new VersionApplication("we\"ird\\name", obs("1.1.1"), obs("2.2.2"));
 
-        String output = sut.render(List.of(weird), 0);
+        String output = sut.render(List.of(weird), List.of(), 0);
 
         assertTrue(output.contains("pu2d_version_drift_level{app=\"we\\\"ird\\\\name\"} 3"),
                 "expected escaped label value in: " + output);
@@ -85,7 +88,7 @@ class PrometheusDriftRendererTests {
     void render_escapesNewlineInLabelValue_asLiteralBackslashN() {
         VersionApplication multiline = new VersionApplication("line1\nline2", obs("1.1.1"), obs("2.2.2"));
 
-        String output = sut.render(List.of(multiline), 0);
+        String output = sut.render(List.of(multiline), List.of(), 0);
 
         // The embedded newline must become a literal backslash-n, not a real line break,
         // otherwise the sample would split across two physical lines and break parsing.
@@ -97,7 +100,10 @@ class PrometheusDriftRendererTests {
     void render_everyLineNonEmpty_andEndsWithNewline() {
         VersionApplication app = new VersionApplication("some-app", obs("1.1.1"), obs("2.2.2"));
 
-        String output = sut.render(List.of(app), 0);
+        // Carries a config error too: this is the suite's only whole-output structural check, so
+        // every family must actually pass through it.
+        String output = sut.render(List.of(app),
+                List.of(new ConfigError("some-app", ConfigErrorScope.CURRENT, "blank url")), 0);
 
         assertTrue(output.endsWith("\n"), "output must end with newline: " + output);
         String[] lines = output.split("\n", -1);
@@ -129,7 +135,7 @@ class PrometheusDriftRendererTests {
         SideObservation latestObs  = SideObservation.resolved(new SemverVersion("2.0.0"), latestSuccess);
         VersionApplication app = new VersionApplication("my-app", currentObs, latestObs);
 
-        String output = sut.render(List.of(app), 0);
+        String output = sut.render(List.of(app), List.of(), 0);
 
         assertTrue(output.contains(
                 "pu2d_scrape_last_success_timestamp_seconds{app=\"my-app\",side=\"current\"} "
@@ -151,7 +157,7 @@ class PrometheusDriftRendererTests {
         SideObservation goodLatest = SideObservation.resolved(new SemverVersion("2.0.0"), success);
         VersionApplication app = new VersionApplication("my-app", failedCurrent, goodLatest);
 
-        String output = sut.render(List.of(app), 0);
+        String output = sut.render(List.of(app), List.of(), 0);
 
         assertTrue(output.contains(
                 "pu2d_scrape_last_failure_timestamp_seconds{app=\"my-app\",side=\"current\"} "
@@ -172,7 +178,7 @@ class PrometheusDriftRendererTests {
         // App is unresolved (current has no value)
         VersionApplication app = new VersionApplication("bad-app", neverSucceeded, goodLatest);
 
-        String output = sut.render(List.of(app), 0);
+        String output = sut.render(List.of(app), List.of(), 0);
 
         assertTrue(output.contains(
                 "pu2d_scrape_last_failure_timestamp_seconds{app=\"bad-app\",side=\"current\"} "
@@ -193,7 +199,7 @@ class PrometheusDriftRendererTests {
         SideObservation resolvedLatest = SideObservation.resolved(new SemverVersion("2.0.0"), latestSuccess);
         VersionApplication unresolved = new VersionApplication("bad-app", unresolvedCurrent, resolvedLatest);
 
-        String output = sut.render(List.of(unresolved), 0);
+        String output = sut.render(List.of(unresolved), List.of(), 0);
 
         // Drift series MUST be absent for Unresolved app — drift is undefined
         assertFalse(output.contains("pu2d_version_drift_level{app=\"bad-app\""),
@@ -219,7 +225,7 @@ class PrometheusDriftRendererTests {
         SideObservation goodLatest = SideObservation.resolved(new SemverVersion("2.0.0"), success);
         VersionApplication app = new VersionApplication("some-app", failedCurrent, goodLatest);
 
-        String output = sut.render(List.of(app), 0);
+        String output = sut.render(List.of(app), List.of(), 0);
 
         assertTrue(output.contains("# HELP pu2d_scrape_last_success_timestamp_seconds "),
                 "expected HELP line for success gauge in: " + output);
@@ -240,7 +246,7 @@ class PrometheusDriftRendererTests {
         SideObservation goodLatest = SideObservation.resolved(new SemverVersion("2.0.0"), success);
         VersionApplication app = new VersionApplication("some-app", failedCurrent, goodLatest);
 
-        String output = sut.render(List.of(app), 0);
+        String output = sut.render(List.of(app), List.of(), 0);
 
         int driftTypeIdx   = output.indexOf("# TYPE pu2d_version_drift_level gauge");
         int successHelpIdx = output.indexOf("# HELP pu2d_scrape_last_success_timestamp_seconds");
@@ -263,7 +269,7 @@ class PrometheusDriftRendererTests {
         SideObservation side = SideObservation.resolved(new SemverVersion("1.0.0"), ts);
         VersionApplication app = new VersionApplication("ts-app", side, obs("1.0.0"));
 
-        String output = sut.render(List.of(app), 0);
+        String output = sut.render(List.of(app), List.of(), 0);
 
         // epoch seconds
         String expectedSeconds = String.valueOf(ts.getEpochSecond());
@@ -293,7 +299,7 @@ class PrometheusDriftRendererTests {
     void render_infoFamily_emitsHelpAndTypeHeaderExactlyOnce() {
         VersionApplication app = new VersionApplication("grafana", obs("1.0.0"), obs("2.0.0"));
 
-        String output = sut.render(List.of(app), 0);
+        String output = sut.render(List.of(app), List.of(), 0);
 
         String expectedHelp = "# HELP pu2d_application_info ";
         String expectedType = "# TYPE pu2d_application_info gauge";
@@ -311,7 +317,7 @@ class PrometheusDriftRendererTests {
     void render_resolvedApp_emitsInfoSampleWithBothVersionLabels() {
         VersionApplication app = new VersionApplication("grafana", obs("11.0.0"), obs("11.1.0"));
 
-        String output = sut.render(List.of(app), 0);
+        String output = sut.render(List.of(app), List.of(), 0);
 
         assertTrue(output.contains(
                 "pu2d_application_info{app=\"grafana\",current=\"11.0.0\",latest=\"11.1.0\"} 1"),
@@ -325,7 +331,7 @@ class PrometheusDriftRendererTests {
         SideObservation goodLatest = obs("2.0.0");
         VersionApplication app = new VersionApplication("my-app", neverRead, goodLatest);
 
-        String output = sut.render(List.of(app), 0);
+        String output = sut.render(List.of(app), List.of(), 0);
 
         assertTrue(output.contains(
                 "pu2d_application_info{app=\"my-app\",current=\"\",latest=\"2.0.0\"} 1"),
@@ -338,7 +344,7 @@ class PrometheusDriftRendererTests {
         SideObservation neverLatest  = obsNeverAttempted();
         VersionApplication app = new VersionApplication("pending-app", neverCurrent, neverLatest);
 
-        String output = sut.render(List.of(app), 0);
+        String output = sut.render(List.of(app), List.of(), 0);
 
         assertTrue(output.contains(
                 "pu2d_application_info{app=\"pending-app\",current=\"\",latest=\"\"} 1"),
@@ -350,7 +356,7 @@ class PrometheusDriftRendererTests {
         // App name with special characters — escaping must apply to the info family too
         VersionApplication weird = new VersionApplication("we\"ird\\app", obs("1.0.0"), obs("2.0.0"));
 
-        String output = sut.render(List.of(weird), 0);
+        String output = sut.render(List.of(weird), List.of(), 0);
 
         assertTrue(output.contains(
                 "pu2d_application_info{app=\"we\\\"ird\\\\app\",current=\"1.0.0\",latest=\"2.0.0\"} 1"),
@@ -359,7 +365,7 @@ class PrometheusDriftRendererTests {
 
     @Test
     void render_emptyList_infoFamilyEmitsHeaderOnly_noSamples() {
-        String output = sut.render(List.of(), 0);
+        String output = sut.render(List.of(), List.of(), 0);
 
         assertTrue(output.contains("# HELP pu2d_application_info "),
                 "expected info HELP line in: " + output);
@@ -374,7 +380,7 @@ class PrometheusDriftRendererTests {
         // A resolved app — produces all four families
         VersionApplication app = new VersionApplication("some-app", obs("1.0.0"), obs("2.0.0"));
 
-        String output = sut.render(List.of(app), 0);
+        String output = sut.render(List.of(app), List.of(), 0);
 
         int failureTypeIdx = output.indexOf("# TYPE pu2d_scrape_last_failure_timestamp_seconds gauge");
         int infoHelpIdx    = output.indexOf("# HELP pu2d_application_info ");
@@ -395,7 +401,7 @@ class PrometheusDriftRendererTests {
         VersionApplication pending    = new VersionApplication("app-pending",
                 obsNeverAttempted(), obsNeverAttempted());
 
-        String output = sut.render(List.of(resolved, unresolved, pending), 0);
+        String output = sut.render(List.of(resolved, unresolved, pending), List.of(), 0);
 
         assertTrue(output.contains("pu2d_application_info{app=\"app-resolved\","),
                 "resolved app must appear in info family: " + output);
@@ -413,7 +419,7 @@ class PrometheusDriftRendererTests {
 
     @Test
     void render_emitsUnnamedAppsGauge_whenCountIsGreaterThanZero() {
-        String output = sut.render(List.of(), 3);
+        String output = sut.render(List.of(), List.of(), 3);
 
         assertTrue(output.contains("# HELP pu2d_config_unnamed_apps "), "expected HELP line in: " + output);
         assertTrue(output.contains("# TYPE pu2d_config_unnamed_apps gauge"), "expected TYPE line in: " + output);
@@ -425,11 +431,150 @@ class PrometheusDriftRendererTests {
     void render_omitsUnnamedAppsFamilyEntirely_whenCountIsZero() {
         VersionApplication app = new VersionApplication("some-app", obs("1.0.0"), obs("2.0.0"));
 
-        String output = sut.render(List.of(app), 0);
+        String output = sut.render(List.of(app), List.of(), 0);
 
         assertFalse(output.contains("pu2d_config_unnamed_apps"),
                 "a clean config (zero unnamed apps) must emit neither the HELP/TYPE nor the sample line: "
                         + output);
+    }
+
+    // --- pu2d_config_error (issue 07 / ADR-0032) -------------------------------------------------
+    //
+    // A gauge SET AT BOOT (config errors are static for the life of the process — not
+    // recomputed per scrape, not tied to scrape outcomes). One series per recorded
+    // (application, scope) pair; a clean fleet emits the HELP/TYPE header but no sample lines,
+    // exactly as pu2d_version_drift_level keeps its header while dropping Unresolved apps from
+    // its samples — so `sum(pu2d_config_error) > 0` is the natural alert. The reason string is
+    // deliberately NOT a label (free-form operator prose would blow up cardinality) and must not
+    // appear anywhere in the rendered output for this family.
+
+    @Test
+    void render_configErrorFamily_emitsHelpAndTypeHeader_evenForACleanFleet() {
+        String output = sut.render(List.of(), List.of(), 0);
+
+        // Exactly once, not merely present: a second header for one family is the classic way a
+        // hand-rolled exposition renderer breaks an entire scrape.
+        assertEquals(1, countOccurrences(output, "# HELP pu2d_config_error "),
+                "HELP must appear exactly once for the config-error family in: " + output);
+        assertEquals(1, countOccurrences(output, "# TYPE pu2d_config_error gauge"),
+                "TYPE must appear exactly once for the config-error family in: " + output);
+    }
+
+    @Test
+    void render_duplicateApplicationScopePair_isEmittedAsOneSeries_notTwo() {
+        // Two identical label sets in one exposition makes Prometheus reject the WHOLE scrape,
+        // every family. No producer emits a duplicate pair today, but ConfigErrors.all() simply
+        // concatenates whatever ConfigErrorSource beans exist, so the renderer must not rely on
+        // that staying true.
+        String output = sut.render(List.of(), List.of(
+                new ConfigError("argo-cd", ConfigErrorScope.CURRENT, "blank url"),
+                new ConfigError("argo-cd", ConfigErrorScope.CURRENT, "a second, differently-worded report")), 0);
+
+        assertEquals(1, countOccurrences(output,
+                        "pu2d_config_error{application=\"argo-cd\",scope=\"CURRENT\"} 1"),
+                "a repeated (application, scope) pair must collapse to one series in: " + output);
+    }
+
+    @Test
+    void render_cleanFleet_emitsNoConfigErrorSeries() {
+        VersionApplication app = new VersionApplication("some-app", obs("1.0.0"), obs("2.0.0"));
+
+        String output = sut.render(List.of(app), List.of(), 0);
+
+        assertFalse(output.contains("pu2d_config_error{"),
+                "a clean fleet (no recorded config errors) must emit no pu2d_config_error series: "
+                        + output);
+    }
+
+    @Test
+    void render_recordedError_emitsOneSeriesLabelledByApplicationAndScope() {
+        ConfigError error = new ConfigError("argo-cd", ConfigErrorScope.CURRENT, "boom: connection refused");
+
+        String output = sut.render(List.of(), List.of(error), 0);
+
+        assertTrue(output.contains("pu2d_config_error{application=\"argo-cd\",scope=\"CURRENT\"} 1"),
+                "expected one config-error series labelled by application and scope in: " + output);
+    }
+
+    @Test
+    void render_appWithMultipleErrorsAtDifferentScopes_emitsOneSeriesPerScope() {
+        ConfigError currentError = new ConfigError("argo-cd", ConfigErrorScope.CURRENT, "current side broken");
+        ConfigError latestError  = new ConfigError("argo-cd", ConfigErrorScope.LATEST, "latest side broken");
+
+        String output = sut.render(List.of(), List.of(currentError, latestError), 0);
+
+        assertTrue(output.contains("pu2d_config_error{application=\"argo-cd\",scope=\"CURRENT\"} 1"),
+                "expected a CURRENT-scope series in: " + output);
+        assertTrue(output.contains("pu2d_config_error{application=\"argo-cd\",scope=\"LATEST\"} 1"),
+                "expected a LATEST-scope series in: " + output);
+        assertEquals(1, countOccurrences(output, "scope=\"CURRENT\""),
+                "expected exactly one CURRENT series, not a merged/duplicated one");
+        assertEquals(1, countOccurrences(output, "scope=\"LATEST\""),
+                "expected exactly one LATEST series, not a merged/duplicated one");
+    }
+
+    @Test
+    void render_multipleApplicationsWithErrors_emitsOneSeriesEach() {
+        ConfigError appError      = new ConfigError("argo-cd", ConfigErrorScope.APP, "bad version scheme");
+        ConfigError changelogError = new ConfigError("grafana", ConfigErrorScope.CHANGELOG, "bad template");
+
+        String output = sut.render(List.of(), List.of(appError, changelogError), 0);
+
+        assertTrue(output.contains("pu2d_config_error{application=\"argo-cd\",scope=\"APP\"} 1"),
+                "expected argo-cd APP-scope series in: " + output);
+        assertTrue(output.contains("pu2d_config_error{application=\"grafana\",scope=\"CHANGELOG\"} 1"),
+                "expected grafana CHANGELOG-scope series in: " + output);
+    }
+
+    @Test
+    void render_configErrorReason_neverAppearsInRenderedOutput() {
+        String distinctiveReason = "TOTALLY-UNIQUE-REASON-STRING-must-not-leak-as-a-label";
+        ConfigError error = new ConfigError("argo-cd", ConfigErrorScope.CURRENT, distinctiveReason);
+
+        String output = sut.render(List.of(), List.of(error), 0);
+
+        assertFalse(output.contains(distinctiveReason),
+                "the free-form reason must never appear in the rendered exposition output: " + output);
+    }
+
+    @Test
+    void render_configErrorApplicationLabel_escapesQuoteAndBackslash_perExpositionSpec() {
+        ConfigError error = new ConfigError("we\"ird\\app", ConfigErrorScope.CURRENT, "some reason");
+
+        String output = sut.render(List.of(), List.of(error), 0);
+
+        assertTrue(output.contains("pu2d_config_error{application=\"we\\\"ird\\\\app\",scope=\"CURRENT\"} 1"),
+                "expected escaped application label value in: " + output);
+    }
+
+    @Test
+    void render_configErrorSeries_valueIsANumber_soSumWorksAsAnAlertPredicate() {
+        // sum(pu2d_config_error) > 0 must be a valid PromQL predicate against this output: the
+        // sample value must be a bare number, not e.g. a boolean-ish token.
+        ConfigError error = new ConfigError("argo-cd", ConfigErrorScope.CURRENT, "reason");
+
+        String output = sut.render(List.of(), List.of(error), 0);
+
+        String line = Arrays.stream(output.split("\n"))
+                .filter(l -> l.startsWith("pu2d_config_error{"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("expected a pu2d_config_error sample line in: " + output));
+        String value = line.substring(line.lastIndexOf(' ') + 1).trim();
+        assertEquals(1.0, Double.parseDouble(value), 0.0,
+                "expected a numeric gauge value on the sample line: " + line);
+    }
+
+    @Test
+    void render_configErrorFamily_doesNotAffectExistingFourMetrics() {
+        ConfigError error = new ConfigError("argo-cd", ConfigErrorScope.CURRENT, "reason");
+        VersionApplication app = new VersionApplication("grafana", obs("1.0.0"), obs("2.0.0"));
+
+        String output = sut.render(List.of(app), List.of(error), 0);
+
+        assertTrue(output.contains("pu2d_version_drift_level{app=\"grafana\"} 3"),
+                "drift family must still render normally alongside config errors: " + output);
+        assertTrue(output.contains("pu2d_application_info{app=\"grafana\",current=\"1.0.0\",latest=\"2.0.0\"} 1"),
+                "info family must still render normally alongside config errors: " + output);
     }
 
 }
