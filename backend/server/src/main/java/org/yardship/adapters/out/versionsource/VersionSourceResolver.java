@@ -9,6 +9,11 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
+import org.yardship.adapters.out.versionsource.configerror.ConfigError;
+import org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope;
+import org.yardship.adapters.out.versionsource.configerror.ConfigErrorSource;
+import org.yardship.adapters.out.versionsource.current.FailedCurrentSource;
+import org.yardship.adapters.out.versionsource.latest.FailedLatestSource;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.ports.out.ApplicationSources;
 import org.yardship.core.ports.out.CurrentVersionSource;
@@ -17,6 +22,7 @@ import org.yardship.core.ports.out.VersionSources;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -31,17 +37,24 @@ import java.util.function.Function;
  * {@code ApplicationVersionService} owns the scrape loop. Adding a source kind is a new factory bean
  * and nothing else; this resolver never names a {@code type} string itself — with one bounded
  * exception: {@link #RETIRED_KIND_REPLACEMENTS}, a small, append-only map of retired kind names to
- * their replacement, consulted only on the no-factory-found path so a renamed kind's boot failure
+ * their replacement, consulted only on the no-factory-found path so a renamed kind's degradation
  * explains itself instead of reading like an application defect. It names only kinds that have
  * actually been retired — a closed historical set — so *adding* a new kind still touches no central
  * file; only *retiring* one does.
  *
- * <p>Fail-fast at construction: a duplicate factory {@code type()} or an unknown config {@code type}
- * surfaces as an {@link IllegalStateException} naming the offending type, so a misconfiguration
- * fails the application at startup rather than mid-scrape.
+ * <p>Per ADR-0032, a config error degrades only the affected app; it never fails the boot. An
+ * unknown or retired config {@code type}, any {@code create(...)} that throws, and any
+ * {@code create(...)} that itself returns a {@link FailedCurrentSource}/{@link FailedLatestSource}
+ * all record exactly one {@link ConfigError} for the affected side, which is then represented by a
+ * {@code Failed*Source} that fails every scrape. The first two build that source via
+ * {@code degradeCurrent}/{@code degradeLatest}; the third records against, and returns, the
+ * factory's own instance. Either way the rest of the app — and every other app — keeps working. The sole remaining construction-time
+ * throw is a duplicate factory {@code type()}, which surfaces as an {@link IllegalStateException}
+ * naming the offending type: that is a defect in our own wiring, not an operator's config, so it
+ * still fails the application at startup.
  */
 @ApplicationScoped
-public class VersionSourceResolver implements VersionSources {
+public class VersionSourceResolver implements VersionSources, ConfigErrorSource {
 
     // Retired version-source kind names, mapped to their replacement. Consulted ONLY on the
     // no-factory-found path in factoryFor: a closed, append-only historical set, not a dispatch
@@ -55,6 +68,8 @@ public class VersionSourceResolver implements VersionSources {
     private final List<ApplicationSources> applicationSources;
 
     private final VersionParsers versionParsers;
+
+    private final List<ConfigError> configErrors = new ArrayList<>();
 
     @Inject
     public VersionSourceResolver(
@@ -88,6 +103,17 @@ public class VersionSourceResolver implements VersionSources {
         return applicationSources;
     }
 
+    /**
+     * Every {@link ConfigError} recorded while resolving the configured apps: one per side (
+     * {@link ConfigErrorScope#CURRENT} / {@link ConfigErrorScope#LATEST}) whose factory threw, whose
+     * factory itself returned a {@code Failed*Source}, or whose config {@code type} was unknown or
+     * retired. Recorded immutably at construction, in resolution order.
+     */
+    @Override
+    public List<ConfigError> configErrors() {
+        return List.copyOf(configErrors);
+    }
+
     private static <F> Map<String, F> indexByType(Collection<F> factories, Function<F, String> type) {
         Map<String, F> byType = new HashMap<>();
         for (F factory : factories) {
@@ -108,24 +134,89 @@ public class VersionSourceResolver implements VersionSources {
         // construction — a cross-scheme comparison cannot occur. Built once, fail-fast at startup, by
         // VersionParsers; every configured app has an entry there, so an absent parser here is a bug.
         VersionParser parser = versionParsers.forApp(app.name()).orElseThrow();
-        CurrentVersionSource current =
-                factoryFor(currentByType, app.current().type()).create(app.current(), parser);
-        LatestVersionSource latest =
-                factoryFor(latestByType, app.latest().type()).create(app.latest(), parser);
+        CurrentVersionSource current = resolveCurrent(app, currentByType, parser);
+        LatestVersionSource latest = resolveLatest(app, latestByType, parser);
         return new ApplicationSources(app.name(), current, latest);
     }
 
-    private static <F> F factoryFor(Map<String, F> byType, String type) {
-        F factory = byType.get(type);
+    private CurrentVersionSource resolveCurrent(
+            ApplicationConfigLoader.AppConfig app,
+            Map<String, CurrentVersionSourceFactory> currentByType,
+            VersionParser parser) {
+        String type = app.current().type();
+        CurrentVersionSourceFactory factory = currentByType.get(type);
         if (factory == null) {
-            String replacement = RETIRED_KIND_REPLACEMENTS.get(type);
-            if (replacement != null) {
-                throw new IllegalStateException("The '" + type + "' version source kind was renamed to '"
-                        + replacement + "'; update this app's config.");
-            }
-            throw new IllegalStateException("No version source factory for config type '" + type + "'.");
+            return degradeCurrent(app.name(), noFactoryMessage(type));
         }
-        return factory;
+        try {
+            CurrentVersionSource created = factory.create(app.current(), parser);
+            if (created instanceof FailedCurrentSource failed) {
+                recordCurrent(app.name(), failed.message());
+                return failed;
+            }
+            return created;
+        } catch (IllegalArgumentException declaredConfigError) {
+            return degradeCurrent(app.name(), declaredConfigError.getMessage());
+        } catch (RuntimeException undeclaredDefect) {
+            logger.error("Defect in current version source factory '{}' for app '{}': {}",
+                    type, app.name(), undeclaredDefect.getMessage(), undeclaredDefect);
+            return degradeCurrent(app.name(), undeclaredDefect.getMessage());
+        }
+    }
+
+    private LatestVersionSource resolveLatest(
+            ApplicationConfigLoader.AppConfig app,
+            Map<String, LatestVersionSourceFactory> latestByType,
+            VersionParser parser) {
+        String type = app.latest().type();
+        LatestVersionSourceFactory factory = latestByType.get(type);
+        if (factory == null) {
+            return degradeLatest(app.name(), noFactoryMessage(type));
+        }
+        try {
+            LatestVersionSource created = factory.create(app.latest(), parser);
+            if (created instanceof FailedLatestSource failed) {
+                recordLatest(app.name(), failed.message());
+                return failed;
+            }
+            return created;
+        } catch (IllegalArgumentException declaredConfigError) {
+            return degradeLatest(app.name(), declaredConfigError.getMessage());
+        } catch (RuntimeException undeclaredDefect) {
+            logger.error("Defect in latest version source factory '{}' for app '{}': {}",
+                    type, app.name(), undeclaredDefect.getMessage(), undeclaredDefect);
+            return degradeLatest(app.name(), undeclaredDefect.getMessage());
+        }
+    }
+
+    // The one place that knows how a side's config error is recorded. Both the degrade* helpers
+    // (which build the Failed*Source themselves) and the branch that adopts a factory's own
+    // Failed*Source go through here, so a side error is recorded identically on every path.
+    private void recordCurrent(String appName, String message) {
+        configErrors.add(new ConfigError(appName, ConfigErrorScope.CURRENT, message));
+    }
+
+    private void recordLatest(String appName, String message) {
+        configErrors.add(new ConfigError(appName, ConfigErrorScope.LATEST, message));
+    }
+
+    private CurrentVersionSource degradeCurrent(String appName, String message) {
+        recordCurrent(appName, message);
+        return new FailedCurrentSource(message);
+    }
+
+    private LatestVersionSource degradeLatest(String appName, String message) {
+        recordLatest(appName, message);
+        return new FailedLatestSource(message);
+    }
+
+    private static String noFactoryMessage(String type) {
+        String replacement = RETIRED_KIND_REPLACEMENTS.get(type);
+        if (replacement != null) {
+            return "The '" + type + "' version source kind was renamed to '"
+                    + replacement + "'; update this app's config.";
+        }
+        return "No version source factory for config type '" + type + "'.";
     }
 
     @PreDestroy

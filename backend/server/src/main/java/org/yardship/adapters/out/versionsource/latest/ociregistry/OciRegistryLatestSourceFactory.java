@@ -1,8 +1,6 @@
 package org.yardship.adapters.out.versionsource.latest.ociregistry;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.latest.FailedLatestSource;
 import org.yardship.adapters.out.versionsource.latest.LatestVersionSourceFactory;
@@ -36,8 +34,6 @@ public class OciRegistryLatestSourceFactory implements LatestVersionSourceFactor
 
     private static final String BASIC_AUTH_TYPE = "basic";
 
-    private final Logger logger = LoggerFactory.getLogger(OciRegistryLatestSourceFactory.class);
-
     @Override
     public String type() {
         return "oci-registry";
@@ -65,7 +61,6 @@ public class OciRegistryLatestSourceFactory implements LatestVersionSourceFactor
         ApplicationConfigLoader.VersionSource.Auth auth = cfg.auth().get();
         Optional<String> failureMessage = validateAuthValue(auth, registry);
         if (failureMessage.isPresent()) {
-            logger.warn(failureMessage.get());
             return new FailedLatestSource(failureMessage.get());
         }
 

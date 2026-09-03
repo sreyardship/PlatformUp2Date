@@ -1,8 +1,6 @@
 package org.yardship.adapters.out.versionsource.current.httpheader;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.current.CurrentVersionSourceFactory;
 import org.yardship.adapters.out.versionsource.current.FailedCurrentSource;
@@ -48,7 +46,6 @@ public class HttpHeaderCurrentSourceFactory implements CurrentVersionSourceFacto
     private static final String KIND_LABEL = "http-header";
     private static final String EXTRACTOR_LABEL = "'http-header' current source";
 
-    private final Logger logger = LoggerFactory.getLogger(HttpHeaderCurrentSourceFactory.class);
     private final HttpTransportConfig transportConfig = new HttpTransportConfig(KIND_LABEL);
 
     @Override
@@ -71,7 +68,6 @@ public class HttpHeaderCurrentSourceFactory implements CurrentVersionSourceFacto
         HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(cfg.auth(), cfg.caCert(), insecureSkipTlsVerify, url);
         if (resolution.failureMessage().isPresent()) {
-            logger.warn(resolution.failureMessage().get());
             return new FailedCurrentSource(resolution.failureMessage().get());
         }
 

@@ -26,7 +26,11 @@ public interface CurrentVersionSourceFactory {
      * @param parser the single per-app parser shared by both legs, so current and latest are always
      *               commensurable; the source uses it instead of constructing versions directly
      * @throws RuntimeException with a clear message if the fragment is invalid for this kind
-     *                          (e.g. the {@code http-json} kind requires {@code url}).
+     *                          (e.g. the {@code http-json} kind requires {@code url}). An
+     *                          {@link IllegalArgumentException} is the declared signal that this
+     *                          config fragment is unusable — the resolver records it as a per-app
+     *                          {@code ConfigError} at WARN; any other unchecked exception is treated
+     *                          as a defect in our own code and logged at ERROR.
      */
     CurrentVersionSource create(ApplicationConfigLoader.VersionSource cfg, VersionParser parser);
 }

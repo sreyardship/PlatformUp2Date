@@ -45,12 +45,12 @@ class ApplicationConfigLoaderTests {
     }
 
     @Test
-    void latestLeg_isTaggedGithubReleaseSourceWithUrl() {
+    void latestLeg_isTaggedGithubReleaseSourceWithRepo() {
         AppConfig app = configLoader.apps().getFirst();
 
         assertEquals("github-release", app.latest().type());
-        assertTrue(app.latest().url().isPresent(), "latest.url must be read");
-        assertEquals("https://example.test/latest", app.latest().url().get());
+        assertTrue(app.latest().repo().isPresent(), "latest.repo must be read");
+        assertEquals("example/test-app", app.latest().repo().get());
     }
 
     // --- Targeted-scrape budget config, separate and larger than scrape-trigger ---------------

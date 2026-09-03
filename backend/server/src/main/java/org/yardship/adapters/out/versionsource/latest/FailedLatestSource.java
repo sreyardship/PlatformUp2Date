@@ -6,9 +6,14 @@ import org.yardship.core.ports.out.LatestVersionSource;
 import java.io.Closeable;
 
 /**
- * A per-app {@link LatestVersionSource} returned by a factory's {@code create(cfg)} when the app's
- * config fragment has a VALUE-level misconfiguration (e.g. an unsupported {@code auth.type}, or
- * {@code basic} auth missing/blank credentials) that should not abort startup.
+ * A per-app {@link LatestVersionSource} representing a config error that should not abort startup
+ * (ADR-0032): a VALUE-level misconfiguration a factory's {@code create(cfg)} detected (e.g. an
+ * unsupported {@code auth.type}, or {@code basic} auth missing/blank credentials), a factory
+ * {@code create(cfg)} throwing, or an unknown/retired config {@code type} with no factory at all.
+ * Whichever path produces it, this class is the resolver's own representation of
+ * the config error (ADR-0032): every path is recorded as exactly one
+ * {@link org.yardship.adapters.out.versionsource.configerror.ConfigError} there, so a factory
+ * building this instance directly is an implementation detail, not a second source of truth.
  *
  * <p>Carries a clear message and re-throws it on every {@link #version()} call, so the offending app
  * surfaces as FAILED on every scrape via the existing per-app isolation in
@@ -22,6 +27,11 @@ public class FailedLatestSource implements LatestVersionSource, Closeable {
 
     public FailedLatestSource(String message) {
         this.message = message;
+    }
+
+    /** The config-error message this source was constructed with; also thrown by {@link #version()}. */
+    public String message() {
+        return message;
     }
 
     @Override
