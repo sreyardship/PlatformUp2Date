@@ -37,8 +37,11 @@ public class ChangelogTemplates {
     public ChangelogTemplates(List<ApplicationConfigLoader.AppConfig> apps) {
         Map<String, ChangelogTemplate> templates = new HashMap<>();
         for (ApplicationConfigLoader.AppConfig app : apps) {
-            app.changelogUrl().ifPresent(rawTemplate ->
-                    templates.put(app.name(), buildTemplate(app, rawTemplate)));
+            // An app with no name is dropped from the fleet entirely (issue 02 / ADR-0032) — it
+            // has no identity to key a template under, and VersionSourceResolver never resolves it.
+            app.name().ifPresent(name ->
+                    app.changelogUrl().ifPresent(rawTemplate ->
+                            templates.put(name, buildTemplate(app, rawTemplate))));
         }
         this.templatesByApp = Map.copyOf(templates);
     }
@@ -57,7 +60,8 @@ public class ChangelogTemplates {
             return new ChangelogTemplate(rawTemplate, app.versionScheme(), calverFormat);
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException(
-                    "Invalid 'changelog-url' template for app '" + app.name() + "': " + ex.getMessage(), ex);
+                    "Invalid 'changelog-url' template for app '" + app.name().orElseThrow()
+                            + "': " + ex.getMessage(), ex);
         }
     }
 }

@@ -209,6 +209,26 @@ class HttpTransportConfigTests {
                 resolution.failureMessage().orElseThrow());
     }
 
+    // --- auth block with no type (issue 02 / ADR-0032): a CURRENT-scope config error, not a -----
+    // --- SmallRye binding failure — the last survivor of ADR-0008's retired "malformed structure
+    // --- fails the boot" rule. ---------------------------------------------------------------
+
+    @Test
+    void resolve_withAnAuthBlockWithNoType_returnsAFailureMessage_ratherThanThrowing() {
+        Auth typeless = authWithNoType(Optional.of("user"), Optional.of("pass"), Optional.empty(), Optional.empty());
+
+        HttpTransportConfig.Resolution resolution =
+                transportConfig.resolve(Optional.of(typeless), Optional.empty(), false, URL);
+
+        assertTrue(resolution.failureMessage().isPresent(),
+                "an 'auth' block with no 'type' must be a value-level failure, never a thrown exception");
+        String message = resolution.failureMessage().get();
+        assertTrue(message.contains("no 'type' configured"),
+                "the message must say 'type' is missing, not empty-string 'not supported'; was: " + message);
+        assertFalse(message.contains("is not supported"),
+                "a missing 'type' must be distinguished from an unsupported one; was: " + message);
+    }
+
     // --- ca-cert ---------------------------------------------------------------------------------
 
     /**
@@ -447,8 +467,40 @@ class HttpTransportConfigTests {
             Optional<String> tokenFile) {
         return new Auth() {
             @Override
-            public String type() {
-                return type;
+            public Optional<String> type() {
+                return Optional.of(type);
+            }
+
+            @Override
+            public Optional<String> username() {
+                return username;
+            }
+
+            @Override
+            public Optional<String> password() {
+                return password;
+            }
+
+            @Override
+            public Optional<String> token() {
+                return token;
+            }
+
+            @Override
+            public Optional<String> tokenFile() {
+                return tokenFile;
+            }
+        };
+    }
+
+    /** An {@code auth} fragment with no {@code type} configured (issue 02 / ADR-0032). */
+    private static Auth authWithNoType(
+            Optional<String> username, Optional<String> password, Optional<String> token,
+            Optional<String> tokenFile) {
+        return new Auth() {
+            @Override
+            public Optional<String> type() {
+                return Optional.empty();
             }
 
             @Override

@@ -15,13 +15,22 @@ public class PrometheusDriftRenderer {
     private static final String SUCCESS_METRIC = "pu2d_scrape_last_success_timestamp_seconds";
     private static final String FAILURE_METRIC = "pu2d_scrape_last_failure_timestamp_seconds";
     private static final String INFO_METRIC    = "pu2d_application_info";
+    private static final String UNNAMED_APPS_METRIC = "pu2d_config_unnamed_apps";
 
-    public String render(List<VersionApplication> applications) {
+    /**
+     * @param unnamedAppCount count of configured apps dropped fleet-wide for having no {@code name}
+     *     (issue 02 / ADR-0032; see {@code ConfigErrors#unnamedAppCount()}). Deliberately
+     *     UNLABELLED — an unnamed app has no identity to label a series with — so this is a bare
+     *     gauge, emitted only when the count is non-zero (a clean config emits neither this nor
+     *     {@code pu2d_config_error}).
+     */
+    public String render(List<VersionApplication> applications, int unnamedAppCount) {
         StringBuilder builder = new StringBuilder();
         appendDriftFamily(builder, applications);
         appendSuccessFamily(builder, applications);
         appendFailureFamily(builder, applications);
         appendInfoFamily(builder, applications);
+        appendUnnamedAppsFamily(builder, unnamedAppCount);
         return builder.toString();
     }
 
@@ -89,6 +98,20 @@ public class PrometheusDriftRenderer {
                     .append("\",latest=\"").append(escapeLabelValue(latestVersion))
                     .append("\"} 1\n");
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Unnamed-app count family (unlabelled; issue 02 / ADR-0032)
+    // -------------------------------------------------------------------------
+
+    private static void appendUnnamedAppsFamily(StringBuilder builder, int unnamedAppCount) {
+        if (unnamedAppCount == 0) {
+            return;
+        }
+        appendFamilyHeader(builder, UNNAMED_APPS_METRIC,
+                "Count of configured applications dropped because they have no 'name' (unlabelled: "
+                        + "no identity to label a series with)");
+        builder.append(UNNAMED_APPS_METRIC).append(" ").append(unnamedAppCount).append("\n");
     }
 
     // -------------------------------------------------------------------------

@@ -131,14 +131,19 @@ public class HttpTransportConfig {
      */
     private Optional<String> validateAuthValue(
             ApplicationConfigLoader.VersionSource.Auth auth, String url) {
-        if (BASIC_AUTH_TYPE.equals(auth.type())) {
+        if (auth.type().isEmpty()) {
+            return Optional.of("The '" + kindLabel + "' current source has an 'auth' block with no "
+                    + "'type' configured (url: '" + url + "').");
+        }
+        String type = auth.type().get();
+        if (BASIC_AUTH_TYPE.equals(type)) {
             if (nonBlank(auth.username()).isEmpty() || nonBlank(auth.password()).isEmpty()) {
                 return Optional.of("The '" + kindLabel + "' current source's auth.type 'basic' is "
                         + "missing a username or password (url: '" + url + "').");
             }
             return Optional.empty();
         }
-        if (BEARER_AUTH_TYPE.equals(auth.type())) {
+        if (BEARER_AUTH_TYPE.equals(type)) {
             boolean hasToken = nonBlank(auth.token()).isPresent();
             boolean hasTokenFile = nonBlank(auth.tokenFile()).isPresent();
             if (hasToken && hasTokenFile) {
@@ -152,7 +157,7 @@ public class HttpTransportConfig {
             }
             return Optional.empty();
         }
-        return Optional.of("The '" + kindLabel + "' current source's auth.type '" + auth.type()
+        return Optional.of("The '" + kindLabel + "' current source's auth.type '" + type
                 + "' is not supported (url: '" + url + "').");
     }
 
@@ -221,7 +226,9 @@ public class HttpTransportConfig {
     }
 
     private static ClientRequestFilter buildAuthFilter(ApplicationConfigLoader.VersionSource.Auth auth) {
-        if (BEARER_AUTH_TYPE.equals(auth.type())) {
+        // Only reached after validateAuthValue has already confirmed auth.type() is present and
+        // one of the two supported values.
+        if (BEARER_AUTH_TYPE.equals(auth.type().orElseThrow())) {
             if (nonBlank(auth.tokenFile()).isPresent()) {
                 return new FileBearerAuthFilter(auth.tokenFile().get());
             }

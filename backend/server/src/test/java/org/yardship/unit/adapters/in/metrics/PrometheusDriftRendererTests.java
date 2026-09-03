@@ -48,7 +48,7 @@ class PrometheusDriftRendererTests {
         VersionApplication patch = new VersionApplication("patch-app", obs("2.2.1"), obs("2.2.2"));
         VersionApplication current = new VersionApplication("current-app", obs("2.0.0"), obs("2.0.0"));
 
-        String output = sut.render(List.of(major, minor, patch, current));
+        String output = sut.render(List.of(major, minor, patch, current), 0);
 
         assertTrue(output.contains(HELP_LINE), "expected single HELP line in: " + output);
         assertTrue(output.contains(TYPE_LINE), "expected single TYPE line in: " + output);
@@ -63,7 +63,7 @@ class PrometheusDriftRendererTests {
 
     @Test
     void render_emptyList_emitsHeaderOnly_noSampleLines() {
-        String output = sut.render(List.of());
+        String output = sut.render(List.of(), 0);
 
         assertTrue(output.contains(HELP_LINE), "expected HELP line in: " + output);
         assertTrue(output.contains(TYPE_LINE), "expected TYPE line in: " + output);
@@ -75,7 +75,7 @@ class PrometheusDriftRendererTests {
     void render_escapesLabelValue_perExpositionSpec() {
         VersionApplication weird = new VersionApplication("we\"ird\\name", obs("1.1.1"), obs("2.2.2"));
 
-        String output = sut.render(List.of(weird));
+        String output = sut.render(List.of(weird), 0);
 
         assertTrue(output.contains("pu2d_version_drift_level{app=\"we\\\"ird\\\\name\"} 3"),
                 "expected escaped label value in: " + output);
@@ -85,7 +85,7 @@ class PrometheusDriftRendererTests {
     void render_escapesNewlineInLabelValue_asLiteralBackslashN() {
         VersionApplication multiline = new VersionApplication("line1\nline2", obs("1.1.1"), obs("2.2.2"));
 
-        String output = sut.render(List.of(multiline));
+        String output = sut.render(List.of(multiline), 0);
 
         // The embedded newline must become a literal backslash-n, not a real line break,
         // otherwise the sample would split across two physical lines and break parsing.
@@ -97,7 +97,7 @@ class PrometheusDriftRendererTests {
     void render_everyLineNonEmpty_andEndsWithNewline() {
         VersionApplication app = new VersionApplication("some-app", obs("1.1.1"), obs("2.2.2"));
 
-        String output = sut.render(List.of(app));
+        String output = sut.render(List.of(app), 0);
 
         assertTrue(output.endsWith("\n"), "output must end with newline: " + output);
         String[] lines = output.split("\n", -1);
@@ -129,7 +129,7 @@ class PrometheusDriftRendererTests {
         SideObservation latestObs  = SideObservation.resolved(new SemverVersion("2.0.0"), latestSuccess);
         VersionApplication app = new VersionApplication("my-app", currentObs, latestObs);
 
-        String output = sut.render(List.of(app));
+        String output = sut.render(List.of(app), 0);
 
         assertTrue(output.contains(
                 "pu2d_scrape_last_success_timestamp_seconds{app=\"my-app\",side=\"current\"} "
@@ -151,7 +151,7 @@ class PrometheusDriftRendererTests {
         SideObservation goodLatest = SideObservation.resolved(new SemverVersion("2.0.0"), success);
         VersionApplication app = new VersionApplication("my-app", failedCurrent, goodLatest);
 
-        String output = sut.render(List.of(app));
+        String output = sut.render(List.of(app), 0);
 
         assertTrue(output.contains(
                 "pu2d_scrape_last_failure_timestamp_seconds{app=\"my-app\",side=\"current\"} "
@@ -172,7 +172,7 @@ class PrometheusDriftRendererTests {
         // App is unresolved (current has no value)
         VersionApplication app = new VersionApplication("bad-app", neverSucceeded, goodLatest);
 
-        String output = sut.render(List.of(app));
+        String output = sut.render(List.of(app), 0);
 
         assertTrue(output.contains(
                 "pu2d_scrape_last_failure_timestamp_seconds{app=\"bad-app\",side=\"current\"} "
@@ -193,7 +193,7 @@ class PrometheusDriftRendererTests {
         SideObservation resolvedLatest = SideObservation.resolved(new SemverVersion("2.0.0"), latestSuccess);
         VersionApplication unresolved = new VersionApplication("bad-app", unresolvedCurrent, resolvedLatest);
 
-        String output = sut.render(List.of(unresolved));
+        String output = sut.render(List.of(unresolved), 0);
 
         // Drift series MUST be absent for Unresolved app — drift is undefined
         assertFalse(output.contains("pu2d_version_drift_level{app=\"bad-app\""),
@@ -219,7 +219,7 @@ class PrometheusDriftRendererTests {
         SideObservation goodLatest = SideObservation.resolved(new SemverVersion("2.0.0"), success);
         VersionApplication app = new VersionApplication("some-app", failedCurrent, goodLatest);
 
-        String output = sut.render(List.of(app));
+        String output = sut.render(List.of(app), 0);
 
         assertTrue(output.contains("# HELP pu2d_scrape_last_success_timestamp_seconds "),
                 "expected HELP line for success gauge in: " + output);
@@ -240,7 +240,7 @@ class PrometheusDriftRendererTests {
         SideObservation goodLatest = SideObservation.resolved(new SemverVersion("2.0.0"), success);
         VersionApplication app = new VersionApplication("some-app", failedCurrent, goodLatest);
 
-        String output = sut.render(List.of(app));
+        String output = sut.render(List.of(app), 0);
 
         int driftTypeIdx   = output.indexOf("# TYPE pu2d_version_drift_level gauge");
         int successHelpIdx = output.indexOf("# HELP pu2d_scrape_last_success_timestamp_seconds");
@@ -263,7 +263,7 @@ class PrometheusDriftRendererTests {
         SideObservation side = SideObservation.resolved(new SemverVersion("1.0.0"), ts);
         VersionApplication app = new VersionApplication("ts-app", side, obs("1.0.0"));
 
-        String output = sut.render(List.of(app));
+        String output = sut.render(List.of(app), 0);
 
         // epoch seconds
         String expectedSeconds = String.valueOf(ts.getEpochSecond());
@@ -293,7 +293,7 @@ class PrometheusDriftRendererTests {
     void render_infoFamily_emitsHelpAndTypeHeaderExactlyOnce() {
         VersionApplication app = new VersionApplication("grafana", obs("1.0.0"), obs("2.0.0"));
 
-        String output = sut.render(List.of(app));
+        String output = sut.render(List.of(app), 0);
 
         String expectedHelp = "# HELP pu2d_application_info ";
         String expectedType = "# TYPE pu2d_application_info gauge";
@@ -311,7 +311,7 @@ class PrometheusDriftRendererTests {
     void render_resolvedApp_emitsInfoSampleWithBothVersionLabels() {
         VersionApplication app = new VersionApplication("grafana", obs("11.0.0"), obs("11.1.0"));
 
-        String output = sut.render(List.of(app));
+        String output = sut.render(List.of(app), 0);
 
         assertTrue(output.contains(
                 "pu2d_application_info{app=\"grafana\",current=\"11.0.0\",latest=\"11.1.0\"} 1"),
@@ -325,7 +325,7 @@ class PrometheusDriftRendererTests {
         SideObservation goodLatest = obs("2.0.0");
         VersionApplication app = new VersionApplication("my-app", neverRead, goodLatest);
 
-        String output = sut.render(List.of(app));
+        String output = sut.render(List.of(app), 0);
 
         assertTrue(output.contains(
                 "pu2d_application_info{app=\"my-app\",current=\"\",latest=\"2.0.0\"} 1"),
@@ -338,7 +338,7 @@ class PrometheusDriftRendererTests {
         SideObservation neverLatest  = obsNeverAttempted();
         VersionApplication app = new VersionApplication("pending-app", neverCurrent, neverLatest);
 
-        String output = sut.render(List.of(app));
+        String output = sut.render(List.of(app), 0);
 
         assertTrue(output.contains(
                 "pu2d_application_info{app=\"pending-app\",current=\"\",latest=\"\"} 1"),
@@ -350,7 +350,7 @@ class PrometheusDriftRendererTests {
         // App name with special characters — escaping must apply to the info family too
         VersionApplication weird = new VersionApplication("we\"ird\\app", obs("1.0.0"), obs("2.0.0"));
 
-        String output = sut.render(List.of(weird));
+        String output = sut.render(List.of(weird), 0);
 
         assertTrue(output.contains(
                 "pu2d_application_info{app=\"we\\\"ird\\\\app\",current=\"1.0.0\",latest=\"2.0.0\"} 1"),
@@ -359,7 +359,7 @@ class PrometheusDriftRendererTests {
 
     @Test
     void render_emptyList_infoFamilyEmitsHeaderOnly_noSamples() {
-        String output = sut.render(List.of());
+        String output = sut.render(List.of(), 0);
 
         assertTrue(output.contains("# HELP pu2d_application_info "),
                 "expected info HELP line in: " + output);
@@ -374,7 +374,7 @@ class PrometheusDriftRendererTests {
         // A resolved app — produces all four families
         VersionApplication app = new VersionApplication("some-app", obs("1.0.0"), obs("2.0.0"));
 
-        String output = sut.render(List.of(app));
+        String output = sut.render(List.of(app), 0);
 
         int failureTypeIdx = output.indexOf("# TYPE pu2d_scrape_last_failure_timestamp_seconds gauge");
         int infoHelpIdx    = output.indexOf("# HELP pu2d_application_info ");
@@ -395,7 +395,7 @@ class PrometheusDriftRendererTests {
         VersionApplication pending    = new VersionApplication("app-pending",
                 obsNeverAttempted(), obsNeverAttempted());
 
-        String output = sut.render(List.of(resolved, unresolved, pending));
+        String output = sut.render(List.of(resolved, unresolved, pending), 0);
 
         assertTrue(output.contains("pu2d_application_info{app=\"app-resolved\","),
                 "resolved app must appear in info family: " + output);
@@ -404,4 +404,32 @@ class PrometheusDriftRendererTests {
         assertTrue(output.contains("pu2d_application_info{app=\"app-pending\","),
                 "never-attempted app must appear in info family: " + output);
     }
+
+    // --- pu2d_config_unnamed_apps (issue 02 / ADR-0032) -----------------------------------------
+    //
+    // Deliberately UNLABELLED — an unnamed app has no identity to label a series with — so this
+    // is a bare gauge, and (like pu2d_config_error, slice 07) emitted only when the count is
+    // non-zero; a clean config emits neither.
+
+    @Test
+    void render_emitsUnnamedAppsGauge_whenCountIsGreaterThanZero() {
+        String output = sut.render(List.of(), 3);
+
+        assertTrue(output.contains("# HELP pu2d_config_unnamed_apps "), "expected HELP line in: " + output);
+        assertTrue(output.contains("# TYPE pu2d_config_unnamed_apps gauge"), "expected TYPE line in: " + output);
+        assertTrue(output.contains("pu2d_config_unnamed_apps 3"), "expected the bare, unlabelled gauge value in: "
+                + output);
+    }
+
+    @Test
+    void render_omitsUnnamedAppsFamilyEntirely_whenCountIsZero() {
+        VersionApplication app = new VersionApplication("some-app", obs("1.0.0"), obs("2.0.0"));
+
+        String output = sut.render(List.of(app), 0);
+
+        assertFalse(output.contains("pu2d_config_unnamed_apps"),
+                "a clean config (zero unnamed apps) must emit neither the HELP/TYPE nor the sample line: "
+                        + output);
+    }
+
 }

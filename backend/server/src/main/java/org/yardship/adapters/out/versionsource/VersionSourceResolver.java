@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -71,6 +72,12 @@ public class VersionSourceResolver implements VersionSources, ConfigErrorSource 
 
     private final List<ConfigError> configErrors = new ArrayList<>();
 
+    // Count of configured apps dropped for having no 'name' (issue 02 / ADR-0032). They cannot be
+    // a ConfigError entry (no identity to record one under), so they are counted separately and
+    // surfaced only via unnamedApps() -> ConfigErrors.unnamedAppCount() -> the aggregate boot
+    // report and the unlabelled pu2d_config_unnamed_apps metric.
+    private final int unnamedAppCount;
+
     @Inject
     public VersionSourceResolver(
             Instance<CurrentVersionSourceFactory> currentFactories,
@@ -93,9 +100,21 @@ public class VersionSourceResolver implements VersionSources, ConfigErrorSource 
         Map<String, LatestVersionSourceFactory> latestByType =
                 indexByType(latestFactories, LatestVersionSourceFactory::type);
 
-        this.applicationSources = apps.stream()
-                .map(app -> resolve(app, currentByType, latestByType))
-                .toList();
+        // An app that binds with no name is dropped from the fleet entirely (issue 02 / ADR-0032):
+        // it cannot be a board row, a configErrors entry, or a labelled metric series, because
+        // reporting an app requires an identity we do not have. No synthetic or positional name is
+        // ever fabricated to work around this. Named siblings in the same file are unaffected.
+        List<ApplicationSources> resolved = new ArrayList<>();
+        int unnamed = 0;
+        for (ApplicationConfigLoader.AppConfig app : apps) {
+            if (app.name().isEmpty()) {
+                unnamed++;
+                continue;
+            }
+            resolved.add(resolve(app.name().get(), app, currentByType, latestByType));
+        }
+        this.applicationSources = List.copyOf(resolved);
+        this.unnamedAppCount = unnamed;
     }
 
     @Override
@@ -106,12 +125,21 @@ public class VersionSourceResolver implements VersionSources, ConfigErrorSource 
     /**
      * Every {@link ConfigError} recorded while resolving the configured apps: one per side (
      * {@link ConfigErrorScope#CURRENT} / {@link ConfigErrorScope#LATEST}) whose factory threw, whose
-     * factory itself returned a {@code Failed*Source}, or whose config {@code type} was unknown or
-     * retired. Recorded immutably at construction, in resolution order.
+     * factory itself returned a {@code Failed*Source}, or whose config {@code type} was unknown,
+     * retired, or absent. Recorded immutably at construction, in resolution order.
      */
     @Override
     public List<ConfigError> configErrors() {
         return List.copyOf(configErrors);
+    }
+
+    /**
+     * Count of configured apps dropped for having no {@code name} (issue 02 / ADR-0032). See
+     * {@link ConfigErrorSource#unnamedApps()}.
+     */
+    @Override
+    public int unnamedApps() {
+        return unnamedAppCount;
     }
 
     private static <F> Map<String, F> indexByType(Collection<F> factories, Function<F, String> type) {
@@ -127,65 +155,78 @@ public class VersionSourceResolver implements VersionSources, ConfigErrorSource 
     }
 
     private ApplicationSources resolve(
+            String appName,
             ApplicationConfigLoader.AppConfig app,
             Map<String, CurrentVersionSourceFactory> currentByType,
             Map<String, LatestVersionSourceFactory> latestByType) {
         // One parser per app, shared by both legs, so current and latest are always commensurable by
         // construction — a cross-scheme comparison cannot occur. Built once, fail-fast at startup, by
-        // VersionParsers; every configured app has an entry there, so an absent parser here is a bug.
-        VersionParser parser = versionParsers.forApp(app.name()).orElseThrow();
-        CurrentVersionSource current = resolveCurrent(app, currentByType, parser);
-        LatestVersionSource latest = resolveLatest(app, latestByType, parser);
-        return new ApplicationSources(app.name(), current, latest);
+        // VersionParsers; every NAMED configured app has an entry there, so an absent parser here is
+        // a bug (an unnamed app never reaches this method — it is dropped by the constructor loop
+        // above before resolve() is ever called for it).
+        VersionParser parser = versionParsers.forApp(appName).orElseThrow();
+        CurrentVersionSource current = resolveCurrent(appName, app, currentByType, parser);
+        LatestVersionSource latest = resolveLatest(appName, app, latestByType, parser);
+        return new ApplicationSources(appName, current, latest);
     }
 
     private CurrentVersionSource resolveCurrent(
+            String appName,
             ApplicationConfigLoader.AppConfig app,
             Map<String, CurrentVersionSourceFactory> currentByType,
             VersionParser parser) {
-        String type = app.current().type();
+        Optional<String> configuredType = app.current().type();
+        if (configuredType.isEmpty()) {
+            return degradeCurrent(appName, missingTypeMessage("current"));
+        }
+        String type = configuredType.get();
         CurrentVersionSourceFactory factory = currentByType.get(type);
         if (factory == null) {
-            return degradeCurrent(app.name(), noFactoryMessage(type));
+            return degradeCurrent(appName, noFactoryMessage(type));
         }
         try {
             CurrentVersionSource created = factory.create(app.current(), parser);
             if (created instanceof FailedCurrentSource failed) {
-                recordCurrent(app.name(), failed.message());
+                recordCurrent(appName, failed.message());
                 return failed;
             }
             return created;
         } catch (IllegalArgumentException declaredConfigError) {
-            return degradeCurrent(app.name(), declaredConfigError.getMessage());
+            return degradeCurrent(appName, declaredConfigError.getMessage());
         } catch (RuntimeException undeclaredDefect) {
             logger.error("Defect in current version source factory '{}' for app '{}': {}",
-                    type, app.name(), undeclaredDefect.getMessage(), undeclaredDefect);
-            return degradeCurrent(app.name(), undeclaredDefect.getMessage());
+                    type, appName, undeclaredDefect.getMessage(), undeclaredDefect);
+            return degradeCurrent(appName, undeclaredDefect.getMessage());
         }
     }
 
     private LatestVersionSource resolveLatest(
+            String appName,
             ApplicationConfigLoader.AppConfig app,
             Map<String, LatestVersionSourceFactory> latestByType,
             VersionParser parser) {
-        String type = app.latest().type();
+        Optional<String> configuredType = app.latest().type();
+        if (configuredType.isEmpty()) {
+            return degradeLatest(appName, missingTypeMessage("latest"));
+        }
+        String type = configuredType.get();
         LatestVersionSourceFactory factory = latestByType.get(type);
         if (factory == null) {
-            return degradeLatest(app.name(), noFactoryMessage(type));
+            return degradeLatest(appName, noFactoryMessage(type));
         }
         try {
             LatestVersionSource created = factory.create(app.latest(), parser);
             if (created instanceof FailedLatestSource failed) {
-                recordLatest(app.name(), failed.message());
+                recordLatest(appName, failed.message());
                 return failed;
             }
             return created;
         } catch (IllegalArgumentException declaredConfigError) {
-            return degradeLatest(app.name(), declaredConfigError.getMessage());
+            return degradeLatest(appName, declaredConfigError.getMessage());
         } catch (RuntimeException undeclaredDefect) {
             logger.error("Defect in latest version source factory '{}' for app '{}': {}",
-                    type, app.name(), undeclaredDefect.getMessage(), undeclaredDefect);
-            return degradeLatest(app.name(), undeclaredDefect.getMessage());
+                    type, appName, undeclaredDefect.getMessage(), undeclaredDefect);
+            return degradeLatest(appName, undeclaredDefect.getMessage());
         }
     }
 
@@ -208,6 +249,12 @@ public class VersionSourceResolver implements VersionSources, ConfigErrorSource 
     private LatestVersionSource degradeLatest(String appName, String message) {
         recordLatest(appName, message);
         return new FailedLatestSource(message);
+    }
+
+    // A source with no 'type' configured degrades exactly like an unknown type (noFactoryMessage
+    // below) — there is no kind to dispatch to either way (issue 02 / ADR-0032).
+    private static String missingTypeMessage(String side) {
+        return "The " + side + " version source has no 'type' configured.";
     }
 
     private static String noFactoryMessage(String type) {

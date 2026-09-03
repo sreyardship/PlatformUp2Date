@@ -21,6 +21,7 @@ import java.util.List;
 public class ConfigErrors {
 
     private final List<ConfigError> all;
+    private final int unnamedAppCount;
 
     @Inject
     public ConfigErrors(Instance<ConfigErrorSource> sources) {
@@ -32,6 +33,9 @@ public class ConfigErrors {
         this.all = sources.stream()
                 .flatMap(source -> source.configErrors().stream())
                 .toList();
+        this.unnamedAppCount = sources.stream()
+                .mapToInt(ConfigErrorSource::unnamedApps)
+                .sum();
     }
 
     /** Every recorded {@link ConfigError}, across every discovered source, in discovery order. */
@@ -51,5 +55,15 @@ public class ConfigErrors {
         return all.stream()
                 .filter(error -> error.scope() == scope)
                 .toList();
+    }
+
+    /**
+     * Total count of configured apps dropped fleet-wide for having no {@code name} (issue 02 /
+     * ADR-0032), summed across every discovered {@link ConfigErrorSource}. Backs the aggregate boot
+     * report line and the unlabelled {@code pu2d_config_unnamed_apps} metric — the only two places
+     * an unnamed app is visible at all, since it cannot be a {@link ConfigError} entry.
+     */
+    public int unnamedAppCount() {
+        return unnamedAppCount;
     }
 }

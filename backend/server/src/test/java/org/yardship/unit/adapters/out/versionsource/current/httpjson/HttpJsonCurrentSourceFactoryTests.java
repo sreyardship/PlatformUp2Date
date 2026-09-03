@@ -189,6 +189,21 @@ class HttpJsonCurrentSourceFactoryTests {
     }
 
     @Test
+    void create_withAnAuthBlockWithNoType_returnsAFailedCurrentSource_ratherThanThrowing() {
+        // issue 02 / ADR-0032: Auth.type() is now Optional, so a configured 'auth:' block with no
+        // 'type' binds cleanly and must degrade here — via VersionSourceResolver this becomes a
+        // CURRENT-scope ConfigError, not a SmallRye binding failure.
+        Auth typeless = authWithNoType(Optional.of("user"), Optional.of("pass"), Optional.empty());
+
+        CurrentVersionSource result = factory.create(
+                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(typeless)), SEMVER_PARSER);
+
+        assertInstanceOf(FailedCurrentSource.class, result);
+        assertTrue(clientFactory.buildCalls.isEmpty(),
+                "an 'auth' block with no 'type' must fail before any client is built");
+    }
+
+    @Test
     void create_withBasicAuthMissingUsername_returnsAFailedCurrentSource() {
         Auth missingUsername = auth("basic", Optional.empty(), Optional.of("s3cr3t"), Optional.empty());
 
@@ -674,8 +689,8 @@ class HttpJsonCurrentSourceFactoryTests {
             Optional<Auth> auth, Optional<String> caCert, Optional<Boolean> insecureSkipTlsVerify) {
         return new ApplicationConfigLoader.VersionSource() {
             @Override
-            public String type() {
-                return "http-json";
+            public Optional<String> type() {
+                return Optional.of("http-json");
             }
 
             @Override
@@ -824,8 +839,8 @@ class HttpJsonCurrentSourceFactoryTests {
             Optional<String> tokenFile) {
         return new Auth() {
             @Override
-            public String type() {
-                return type;
+            public Optional<String> type() {
+                return Optional.of(type);
             }
 
             @Override
@@ -846,6 +861,37 @@ class HttpJsonCurrentSourceFactoryTests {
             @Override
             public Optional<String> tokenFile() {
                 return tokenFile;
+            }
+        };
+    }
+
+    /** An {@code auth} fragment with no {@code type} configured (issue 02 / ADR-0032). */
+    private static Auth authWithNoType(
+            Optional<String> username, Optional<String> password, Optional<String> token) {
+        return new Auth() {
+            @Override
+            public Optional<String> type() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> username() {
+                return username;
+            }
+
+            @Override
+            public Optional<String> password() {
+                return password;
+            }
+
+            @Override
+            public Optional<String> token() {
+                return token;
+            }
+
+            @Override
+            public Optional<String> tokenFile() {
+                return Optional.empty();
             }
         };
     }

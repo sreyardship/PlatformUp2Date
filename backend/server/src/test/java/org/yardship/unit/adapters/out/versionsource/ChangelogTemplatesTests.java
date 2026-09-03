@@ -62,13 +62,39 @@ class ChangelogTemplatesTests {
         assertTrue(templates.forApp("beta").isEmpty());
     }
 
+    // --- issue 02 / ADR-0032: an unnamed app must not break construction for its siblings -----
+
+    @Test
+    void unnamedApp_isSkipped_ratherThanBreakingConstructionOrItsNamedSibling() {
+        // The unnamed app carries a changelog-url so the skip is actually exercised, not
+        // vacuously true because there was nothing to build a template from.
+        ApplicationConfigLoader.AppConfig unnamed = namedOrUnnamed(Optional.empty(),
+                VersionScheme.SEMVER, null, Optional.of("https://example.com/changelog/v{major}"));
+        ApplicationConfigLoader.AppConfig named = app("alpha", VersionScheme.SEMVER, null,
+                Optional.of("https://example.com/changelog/v{major}.{minor}.{patch}"));
+
+        // Must not throw: Map.copyOf/put on a null key would NPE if the unnamed app were not
+        // skipped before reaching the map (the exact boot failure this slice exists to eliminate).
+        ChangelogTemplates templates = new ChangelogTemplates(List.of(unnamed, named));
+
+        assertTrue(templates.forApp("alpha").isPresent(), "the named sibling's entry must be intact");
+        assertEquals("https://example.com/changelog/v3.10.5",
+                templates.forApp("alpha").get().resolve(new SemverVersion("3.10.5")));
+    }
+
     // --- fakes --------------------------------------------------------------------------------
 
     private static ApplicationConfigLoader.AppConfig app(
             String name, VersionScheme versionScheme, String calverFormat, Optional<String> changelogUrl) {
+        return namedOrUnnamed(Optional.of(name), versionScheme, calverFormat, changelogUrl);
+    }
+
+    private static ApplicationConfigLoader.AppConfig namedOrUnnamed(
+            Optional<String> name, VersionScheme versionScheme, String calverFormat,
+            Optional<String> changelogUrl) {
         return new ApplicationConfigLoader.AppConfig() {
             @Override
-            public String name() {
+            public Optional<String> name() {
                 return name;
             }
 

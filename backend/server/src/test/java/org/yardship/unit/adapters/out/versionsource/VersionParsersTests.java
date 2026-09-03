@@ -66,6 +66,22 @@ class VersionParsersTests {
         assertTrue(parsers.forApp("unconfigured-app").isEmpty());
     }
 
+    // --- issue 02 / ADR-0032: an unnamed app must not break construction for its siblings -----
+
+    @Test
+    void unnamedApp_isSkipped_ratherThanBreakingConstructionOrItsNamedSibling() {
+        ApplicationConfigLoader.AppConfig unnamed = unnamedApp(VersionScheme.SEMVER, null);
+        ApplicationConfigLoader.AppConfig named = app("alpha", VersionScheme.SEMVER, null);
+
+        // Must not throw: Map.copyOf/put on a null key would NPE if the unnamed app were not
+        // skipped before reaching the map (the exact boot failure this slice exists to eliminate).
+        VersionParsers parsers = new VersionParsers(List.of(unnamed, named));
+
+        assertTrue(parsers.forApp("alpha").isPresent(), "the named sibling's entry must be intact");
+        VersionValue parsed = parsers.forApp("alpha").get().parse("1.2.3");
+        assertEquals("1.2.3", parsed.value());
+    }
+
     @Test
     void failsFast_onACalverAppWithoutAUsableCalverFormat() {
         ApplicationConfigLoader.AppConfig missingFormat = app("my-app", VersionScheme.CALVER, null);
@@ -90,11 +106,21 @@ class VersionParsersTests {
 
     // --- fakes --------------------------------------------------------------------------------
 
+    private static ApplicationConfigLoader.AppConfig unnamedApp(
+            VersionScheme versionScheme, String calverFormat) {
+        return namedOrUnnamed(Optional.empty(), versionScheme, calverFormat);
+    }
+
     private static ApplicationConfigLoader.AppConfig app(
             String name, VersionScheme versionScheme, String calverFormat) {
+        return namedOrUnnamed(Optional.of(name), versionScheme, calverFormat);
+    }
+
+    private static ApplicationConfigLoader.AppConfig namedOrUnnamed(
+            Optional<String> name, VersionScheme versionScheme, String calverFormat) {
         return new ApplicationConfigLoader.AppConfig() {
             @Override
-            public String name() {
+            public Optional<String> name() {
                 return name;
             }
 

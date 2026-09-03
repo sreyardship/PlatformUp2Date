@@ -106,8 +106,54 @@ class ConfigErrorsTests {
         assertTrue(configErrors.all().isEmpty());
     }
 
+    // --- unnamedAppCount() (issue 02 / ADR-0032) -----------------------------------------------
+    //
+    // An unnamed app has no identity to record a ConfigError under, so it is counted separately
+    // rather than folded into all()/forApp()/forScope() — summed across every discovered
+    // ConfigErrorSource, exactly as configErrors() itself is aggregated.
+
+    @Test
+    void unnamedAppCount_sumsAcrossEveryDiscoveredSource() {
+        ConfigErrorSource resolverLike = withUnnamedApps(2);
+        ConfigErrorSource anotherSource = withUnnamedApps(1);
+
+        ConfigErrors configErrors = new ConfigErrors(List.of(resolverLike, anotherSource));
+
+        assertEquals(3, configErrors.unnamedAppCount());
+    }
+
+    @Test
+    void unnamedAppCount_isZero_whenNoSourceDropsAnyApp() {
+        ConfigErrorSource cleanSource = fixed();
+
+        ConfigErrors configErrors = new ConfigErrors(List.of(cleanSource));
+
+        assertEquals(0, configErrors.unnamedAppCount());
+    }
+
+    @Test
+    void unnamedAppCount_isZero_whenNoSourcesAreDiscoveredAtAll() {
+        ConfigErrors configErrors = new ConfigErrors(List.of());
+
+        assertEquals(0, configErrors.unnamedAppCount());
+    }
+
     private static ConfigErrorSource fixed(ConfigError... errors) {
         List<ConfigError> list = List.of(errors);
         return () -> list;
+    }
+
+    private static ConfigErrorSource withUnnamedApps(int count) {
+        return new ConfigErrorSource() {
+            @Override
+            public List<ConfigError> configErrors() {
+                return List.of();
+            }
+
+            @Override
+            public int unnamedApps() {
+                return count;
+            }
+        };
     }
 }

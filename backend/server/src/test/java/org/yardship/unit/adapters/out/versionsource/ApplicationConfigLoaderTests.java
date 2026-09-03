@@ -11,6 +11,7 @@ import org.yardship.adapters.out.versionsource.ApplicationConfigLoader.AppConfig
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader.VersionSource.Auth;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -38,8 +39,8 @@ class ApplicationConfigLoaderTests {
     void currentLeg_isTaggedHttpSourceWithUrl() {
         AppConfig app = configLoader.apps().getFirst();
 
-        assertEquals("test-app", app.name());
-        assertEquals("http-json", app.current().type());
+        assertEquals(Optional.of("test-app"), app.name());
+        assertEquals(Optional.of("http-json"), app.current().type());
         assertTrue(app.current().url().isPresent(), "current.url must be read");
         assertEquals("https://example.test/version", app.current().url().get());
     }
@@ -48,7 +49,7 @@ class ApplicationConfigLoaderTests {
     void latestLeg_isTaggedGithubReleaseSourceWithRepo() {
         AppConfig app = configLoader.apps().getFirst();
 
-        assertEquals("github-release", app.latest().type());
+        assertEquals(Optional.of("github-release"), app.latest().type());
         assertTrue(app.latest().repo().isPresent(), "latest.repo must be read");
         assertEquals("example/test-app", app.latest().repo().get());
     }
@@ -90,16 +91,98 @@ class ApplicationConfigLoaderTests {
                 "test-app has no 'auth' block configured, so current.auth() must be empty");
     }
 
-    // An auth block without type is not tested separately here. type() is declared without
-    // @WithDefault or Optional, like every other required leaf on this @ConfigMapping (e.g. VersionSource.type() itself,
-    // AppConfig.name()) already behaves — SmallRye throws a binding/conversion failure at startup
-    // when a required leaf under a populated parent group is missing. Asserting that boot-failure
-    // behaviour would require io.quarkus.test.QuarkusUnitTest (a separate classloader/test-engine
-    // harness), which is not on this module's test classpath (only quarkus-junit5 is); pulling it in
-    // for this binding assertion would add a separate test engine. Auth.type() remains a bare
-    // non-Optional String, matching VersionSource.type() — see HttpJsonCurrentSourceFactoryTests
-    // and this class's own currentLeg_isTaggedHttpSourceWithUrl for the established required-leaf
-    // pattern this relies on.
+    // --- issue 02 / ADR-0032: every field binds; AppConfig.name(), VersionSource.type() and ------
+    // --- Auth.type() are the last non-Optional holdouts, now Optional too -----------------------
+    //
+    // Bound through a standalone SmallRyeConfig (like ApplicationConfigLoaderSshBindingTests and
+    // changelogUrl_bindsAtAppLevel... above) rather than the shared src/test/resources/
+    // application.properties, so each binding contract is pinned in isolation. Before this slice,
+    // a missing name/type/auth.type failed the WHOLE @ConfigMapping at boot; these tests pin that
+    // the document now binds cleanly regardless, leaving the per-app requiredness to
+    // VersionSourceResolver / HttpTransportConfig (see VersionSourceResolverTests and
+    // HttpTransportConfigTests for the degrade-not-throw behaviour that follows from binding).
+
+    @Test
+    void appWithNoName_bindsCleanly_asAnEmptyOptional() {
+        Map<String, String> props = baseProps();
+        props.put("platform-config.apps[0].current.type", "http-json");
+        props.put("platform-config.apps[0].current.url", "https://example.test/version");
+        props.put("platform-config.apps[0].latest.type", "github-release");
+        props.put("platform-config.apps[0].latest.repo", "example/unnamed");
+
+        AppConfig app = bind(props).apps().getFirst();
+
+        assertTrue(app.name().isEmpty(), "an app with no 'name' configured must bind with an empty name()");
+    }
+
+    @Test
+    void sourceWithNoType_bindsCleanly_asAnEmptyOptional() {
+        Map<String, String> props = baseProps();
+        props.put("platform-config.apps[0].name", "typeless-current");
+        props.put("platform-config.apps[0].current.url", "https://example.test/version");
+        props.put("platform-config.apps[0].latest.type", "github-release");
+        props.put("platform-config.apps[0].latest.repo", "example/typeless-current");
+
+        AppConfig app = bind(props).apps().getFirst();
+
+        assertTrue(app.current().type().isEmpty(),
+                "a current source with no 'type' configured must bind with an empty type()");
+    }
+
+    @Test
+    void authWithNoType_bindsCleanly_asAnEmptyOptional() {
+        Map<String, String> props = baseProps();
+        props.put("platform-config.apps[0].name", "typeless-auth");
+        props.put("platform-config.apps[0].current.type", "http-json");
+        props.put("platform-config.apps[0].current.url", "https://example.test/version");
+        props.put("platform-config.apps[0].current.auth.username", "harbor-bot");
+        props.put("platform-config.apps[0].latest.type", "github-release");
+        props.put("platform-config.apps[0].latest.repo", "example/typeless-auth");
+
+        AppConfig app = bind(props).apps().getFirst();
+
+        assertTrue(app.current().auth().isPresent(), "the 'auth' block itself must still bind");
+        assertTrue(app.current().auth().get().type().isEmpty(),
+                "an 'auth' block with no 'type' configured must bind with an empty type()");
+    }
+
+    @Test
+    void aConfigWithAnUnnamedApp_aTypelessSource_andATypelessAuthBlock_allInOneDocument_bindsCleanly() {
+        // Pins the acceptance criterion literally: a config containing all three defect classes at
+        // once, alongside an entirely healthy sibling app, still binds as a whole document.
+        Map<String, String> props = baseProps();
+        props.put("platform-config.apps[0].current.type", "http-json");
+        props.put("platform-config.apps[0].current.url", "https://example.test/unnamed");
+        props.put("platform-config.apps[0].latest.type", "github-release");
+        props.put("platform-config.apps[0].latest.repo", "example/unnamed");
+
+        props.put("platform-config.apps[1].name", "typeless-current");
+        props.put("platform-config.apps[1].current.url", "https://example.test/typeless-current");
+        props.put("platform-config.apps[1].latest.type", "github-release");
+        props.put("platform-config.apps[1].latest.repo", "example/typeless-current");
+
+        props.put("platform-config.apps[2].name", "typeless-auth");
+        props.put("platform-config.apps[2].current.type", "http-json");
+        props.put("platform-config.apps[2].current.url", "https://example.test/typeless-auth");
+        props.put("platform-config.apps[2].current.auth.username", "harbor-bot");
+        props.put("platform-config.apps[2].latest.type", "github-release");
+        props.put("platform-config.apps[2].latest.repo", "example/typeless-auth");
+
+        props.put("platform-config.apps[3].name", "healthy-sibling");
+        props.put("platform-config.apps[3].current.type", "http-json");
+        props.put("platform-config.apps[3].current.url", "https://example.test/healthy-sibling");
+        props.put("platform-config.apps[3].latest.type", "github-release");
+        props.put("platform-config.apps[3].latest.repo", "example/healthy-sibling");
+
+        List<AppConfig> apps = bind(props).apps();
+
+        assertEquals(4, apps.size(), "the document must bind with all four app entries intact");
+        assertTrue(apps.get(0).name().isEmpty());
+        assertTrue(apps.get(1).current().type().isEmpty());
+        assertTrue(apps.get(2).current().auth().orElseThrow().type().isEmpty());
+        assertEquals(Optional.of("healthy-sibling"), apps.get(3).name());
+    }
+
     @Test
     void auth_exposesTypeUsernamePasswordAndToken_whenPresent() {
         // Pins the nested Auth interface shape through a hand-rolled fake, the same way
@@ -108,7 +191,7 @@ class ApplicationConfigLoaderTests {
         // auth_isAbsent_forAnAppConfiguredWithoutAnAuthBlock plus the dev application.yml entry).
         Auth auth = fakeAuth("basic", Optional.of("harbor-bot"), Optional.of("s3cr3t"), Optional.empty());
 
-        assertEquals("basic", auth.type());
+        assertEquals(Optional.of("basic"), auth.type());
         assertEquals(Optional.of("harbor-bot"), auth.username());
         assertEquals(Optional.of("s3cr3t"), auth.password());
         assertEquals(Optional.empty(), auth.token());
@@ -125,7 +208,7 @@ class ApplicationConfigLoaderTests {
         Auth auth = fakeAuth("bearer", Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.of("/var/run/secrets/token"));
 
-        assertEquals("bearer", auth.type());
+        assertEquals(Optional.of("bearer"), auth.type());
         assertEquals(Optional.empty(), auth.token());
         assertEquals(Optional.of("/var/run/secrets/token"), auth.tokenFile());
     }
@@ -140,8 +223,8 @@ class ApplicationConfigLoaderTests {
             Optional<String> tokenFile) {
         return new Auth() {
             @Override
-            public String type() {
-                return type;
+            public Optional<String> type() {
+                return Optional.of(type);
             }
 
             @Override

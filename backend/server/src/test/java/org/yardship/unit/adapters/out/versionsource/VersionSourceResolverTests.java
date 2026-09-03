@@ -290,6 +290,146 @@ class VersionSourceResolverTests {
         assertTrue(error.reason().contains("http-json"));
     }
 
+    // --- issue 02 / ADR-0032: a source with no 'type' degrades exactly like an unknown type -----
+
+    @Test
+    void currentSourceWithNoType_degradesThatSide_withAClearReason_ratherThanFailingBoot() {
+        List<ApplicationConfigLoader.AppConfig> apps =
+                List.of(app("alpha", sourceWithNoType(), source("github-release")));
+
+        VersionSourceResolver resolver = new VersionSourceResolver(
+                List.of(new FakeCurrentFactory("http-json")),
+                List.of(new FakeLatestFactory("github-release")),
+                apps,
+                new VersionParsers(apps));
+
+        ApplicationSources pair = resolver.applicationSources().get(0);
+        assertThrows(IllegalStateException.class, () -> pair.current().version(),
+                "a current source with no 'type' configured must degrade, not build");
+        assertEquals(new SemverVersion("2.0.0"), pair.latest().version(),
+                "the OTHER side of the same app must still build and read normally");
+
+        assertEquals(1, resolver.configErrors().size());
+        ConfigError error = resolver.configErrors().get(0);
+        assertEquals("alpha", error.application());
+        assertEquals(ConfigErrorScope.CURRENT, error.scope());
+        assertTrue(error.reason().contains("'type'"),
+                "the reason must name 'type' as what's missing; was: " + error.reason());
+        assertTrue(error.reason().contains("current"),
+                "the reason must name the affected side; was: " + error.reason());
+    }
+
+    @Test
+    void latestSourceWithNoType_degradesThatSide_withAClearReason_ratherThanFailingBoot() {
+        List<ApplicationConfigLoader.AppConfig> apps =
+                List.of(app("alpha", source("http-json"), sourceWithNoType()));
+
+        VersionSourceResolver resolver = new VersionSourceResolver(
+                List.of(new FakeCurrentFactory("http-json")),
+                List.of(new FakeLatestFactory("github-release")),
+                apps,
+                new VersionParsers(apps));
+
+        ApplicationSources pair = resolver.applicationSources().get(0);
+        assertThrows(IllegalStateException.class, () -> pair.latest().version(),
+                "a latest source with no 'type' configured must degrade, not build");
+        assertEquals(new SemverVersion("1.0.0"), pair.current().version(),
+                "the OTHER side of the same app must still build and read normally");
+
+        assertEquals(1, resolver.configErrors().size());
+        ConfigError error = resolver.configErrors().get(0);
+        assertEquals("alpha", error.application());
+        assertEquals(ConfigErrorScope.LATEST, error.scope());
+        assertTrue(error.reason().contains("'type'"),
+                "the reason must name 'type' as what's missing; was: " + error.reason());
+        assertTrue(error.reason().contains("latest"),
+                "the reason must name the affected side; was: " + error.reason());
+    }
+
+    // --- issue 02 / ADR-0032: an app that binds with no name is dropped from the fleet entirely -
+
+    @Test
+    void unnamedApp_isAbsentFromApplicationSources_entirely() {
+        List<ApplicationConfigLoader.AppConfig> apps =
+                List.of(unnamedApp(source("http-json"), source("github-release")));
+
+        VersionSourceResolver resolver = new VersionSourceResolver(
+                List.of(new FakeCurrentFactory("http-json")),
+                List.of(new FakeLatestFactory("github-release")),
+                apps,
+                new VersionParsers(apps));
+
+        assertTrue(resolver.applicationSources().isEmpty(),
+                "an app with no name must not become an ApplicationSources entry at all");
+    }
+
+    @Test
+    void unnamedApp_contributesNoConfigError_becauseItHasNoIdentityToRecordOneUnder() {
+        List<ApplicationConfigLoader.AppConfig> apps =
+                List.of(unnamedApp(source("http-json"), source("github-release")));
+
+        VersionSourceResolver resolver = new VersionSourceResolver(
+                List.of(new FakeCurrentFactory("http-json")),
+                List.of(new FakeLatestFactory("github-release")),
+                apps,
+                new VersionParsers(apps));
+
+        assertTrue(resolver.configErrors().isEmpty(),
+                "an unnamed app cannot be a configErrors entry — no identity to report it under");
+    }
+
+    @Test
+    void unnamedApp_isCounted_byUnnamedApps() {
+        List<ApplicationConfigLoader.AppConfig> apps = List.of(
+                unnamedApp(source("http-json"), source("github-release")),
+                unnamedApp(source("http-json"), source("github-release")));
+
+        VersionSourceResolver resolver = new VersionSourceResolver(
+                List.of(new FakeCurrentFactory("http-json")),
+                List.of(new FakeLatestFactory("github-release")),
+                apps,
+                new VersionParsers(apps));
+
+        assertEquals(2, resolver.unnamedApps(),
+                "unnamedApps() must count every configured app with no name");
+    }
+
+    @Test
+    void unnamedApps_isZero_whenEveryConfiguredAppHasAName() {
+        List<ApplicationConfigLoader.AppConfig> apps =
+                List.of(app("alpha", source("http-json"), source("github-release")));
+
+        VersionSourceResolver resolver = new VersionSourceResolver(
+                List.of(new FakeCurrentFactory("http-json")),
+                List.of(new FakeLatestFactory("github-release")),
+                apps,
+                new VersionParsers(apps));
+
+        assertEquals(0, resolver.unnamedApps());
+    }
+
+    @Test
+    void namedApp_isEntirelyUnaffected_byAnUnnamedSiblingInTheSameConfig() {
+        List<ApplicationConfigLoader.AppConfig> apps = List.of(
+                unnamedApp(source("http-json"), source("github-release")),
+                app("healthy-app", source("http-json"), source("github-release")));
+
+        VersionSourceResolver resolver = new VersionSourceResolver(
+                List.of(new FakeCurrentFactory("http-json")),
+                List.of(new FakeLatestFactory("github-release")),
+                apps,
+                new VersionParsers(apps));
+
+        assertEquals(1, resolver.applicationSources().size(),
+                "only the named sibling must produce an ApplicationSources entry");
+        ApplicationSources healthy = resolver.applicationSources().get(0);
+        assertEquals("healthy-app", healthy.name());
+        assertEquals(new SemverVersion("1.0.0"), healthy.current().version());
+        assertEquals(new SemverVersion("2.0.0"), healthy.latest().version());
+        assertEquals(1, resolver.unnamedApps());
+        assertTrue(resolver.configErrors().isEmpty());
+    }
+
     @Test
     void duplicateFactoryType_stillThrowsAtConstruction_ratherThanDegrading() {
         // Unchanged behaviour, re-asserted here for the reader: our own beans claiming one type is a
@@ -422,9 +562,22 @@ class VersionSourceResolverTests {
 
     private static ApplicationConfigLoader.AppConfig app(
             String name, ApplicationConfigLoader.VersionSource current, ApplicationConfigLoader.VersionSource latest) {
+        return namedOrUnnamed(Optional.of(name), current, latest);
+    }
+
+    /** An app that binds with no {@code name} configured (issue 02 / ADR-0032). */
+    private static ApplicationConfigLoader.AppConfig unnamedApp(
+            ApplicationConfigLoader.VersionSource current, ApplicationConfigLoader.VersionSource latest) {
+        return namedOrUnnamed(Optional.empty(), current, latest);
+    }
+
+    private static ApplicationConfigLoader.AppConfig namedOrUnnamed(
+            Optional<String> name,
+            ApplicationConfigLoader.VersionSource current,
+            ApplicationConfigLoader.VersionSource latest) {
         return new ApplicationConfigLoader.AppConfig() {
             @Override
-            public String name() {
+            public Optional<String> name() {
                 return name;
             }
 
@@ -455,16 +608,25 @@ class VersionSourceResolverTests {
         };
     }
 
+    /** A source fragment with no {@code type} configured (issue 02 / ADR-0032). */
+    private static ApplicationConfigLoader.VersionSource sourceWithNoType() {
+        return sourceOfType(Optional.empty());
+    }
+
     private static ApplicationConfigLoader.VersionSource source(String type) {
+        return sourceOfType(Optional.of(type));
+    }
+
+    private static ApplicationConfigLoader.VersionSource sourceOfType(Optional<String> type) {
         return new ApplicationConfigLoader.VersionSource() {
             @Override
-            public String type() {
+            public Optional<String> type() {
                 return type;
             }
 
             @Override
             public Optional<String> url() {
-                return Optional.of("http://localhost/" + type);
+                return Optional.of("http://localhost/" + type.orElse("no-type"));
             }
 
             @Override

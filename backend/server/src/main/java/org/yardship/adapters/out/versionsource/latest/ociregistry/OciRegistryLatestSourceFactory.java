@@ -78,8 +78,12 @@ public class OciRegistryLatestSourceFactory implements LatestVersionSourceFactor
      */
     private static Optional<String> validateAuthValue(
             ApplicationConfigLoader.VersionSource.Auth auth, String registry) {
-        if (!BASIC_AUTH_TYPE.equals(auth.type())) {
-            return Optional.of("The 'oci-registry' latest source's auth.type '" + auth.type()
+        if (auth.type().isEmpty()) {
+            return Optional.of("The 'oci-registry' latest source has an 'auth' block with no "
+                    + "'type' configured (registry: '" + registry + "').");
+        }
+        if (!BASIC_AUTH_TYPE.equals(auth.type().get())) {
+            return Optional.of("The 'oci-registry' latest source's auth.type '" + auth.type().get()
                     + "' is not supported (registry: '" + registry + "'). "
                     + "Only 'basic' is supported; 'bearer' and 'token-file' do not fit the "
                     + "realm-mint flow (see ADR-0013).");

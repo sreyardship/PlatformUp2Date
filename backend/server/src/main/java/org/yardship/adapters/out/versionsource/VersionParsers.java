@@ -35,7 +35,9 @@ public class VersionParsers {
     public VersionParsers(List<ApplicationConfigLoader.AppConfig> apps) {
         Map<String, VersionParser> parsers = new HashMap<>();
         for (ApplicationConfigLoader.AppConfig app : apps) {
-            parsers.put(app.name(), buildParser(app));
+            // An app with no name is dropped from the fleet entirely (issue 02 / ADR-0032) — it
+            // has no identity to key a parser under, and VersionSourceResolver never resolves it.
+            app.name().ifPresent(name -> parsers.put(name, buildParser(app)));
         }
         this.parsersByApp = Map.copyOf(parsers);
     }
@@ -53,7 +55,8 @@ public class VersionParsers {
             };
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException(
-                    "Invalid version-scheme configuration for app '" + app.name() + "': " + ex.getMessage(), ex);
+                    "Invalid version-scheme configuration for app '" + app.name().orElseThrow()
+                            + "': " + ex.getMessage(), ex);
         }
     }
 }

@@ -5,6 +5,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.in.metrics.MetricsController;
+import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
@@ -23,6 +24,9 @@ public class MetricsControllerTests {
 
     @InjectMock
     private ApplicationVersionPort applicationVersionPort;
+
+    @InjectMock
+    private ConfigErrors configErrors;
 
     @Inject
     private MetricsController sut;
@@ -71,5 +75,18 @@ public class MetricsControllerTests {
         assertTrue(output.contains(
                 "pu2d_application_info{app=\"pending-app\",current=\"\",latest=\"\"} 1"),
                 "expected pending-app info sample with empty labels in: " + output);
+    }
+
+    @Test
+    void getMetrics_passesTheUnnamedAppCountFromConfigErrors_ratherThanAHardcodedZero() {
+        // The renderer's own tests pin how the family is rendered; this pins the wiring, so a
+        // controller that quietly passed a literal 0 could not pass unnoticed (issue 02).
+        when(applicationVersionPort.getApplications()).thenReturn(List.of());
+        when(configErrors.unnamedAppCount()).thenReturn(4);
+
+        String output = sut.getMetrics();
+
+        assertTrue(output.contains("pu2d_config_unnamed_apps 4"),
+                "expected the controller to pass ConfigErrors' count through to the renderer; was: " + output);
     }
 }

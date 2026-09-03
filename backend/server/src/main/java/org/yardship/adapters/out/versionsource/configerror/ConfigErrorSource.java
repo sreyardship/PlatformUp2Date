@@ -18,4 +18,17 @@ public interface ConfigErrorSource {
 
     /** Every config error this bean found while interpreting its slice of config, if any. */
     List<ConfigError> configErrors();
+
+    /**
+     * How many configured apps this bean dropped for having no {@code name} (issue 02 / ADR-0032).
+     * An unnamed app has no identity to record a {@link ConfigError} under — it cannot be a
+     * {@code configErrors} entry, so this is a separate, unlabelled count rather than a fourth
+     * {@link ConfigErrorScope}. Defaults to zero so existing/future sources that never drop apps
+     * (e.g. {@code VersionParsers}, {@code ChangelogTemplates}) need not implement it. Only
+     * {@code VersionSourceResolver} overrides this today, since it alone iterates every configured
+     * app (named or not) to build {@link org.yardship.core.ports.out.ApplicationSources}.
+     */
+    default int unnamedApps() {
+        return 0;
+    }
 }

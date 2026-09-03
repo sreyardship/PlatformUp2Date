@@ -148,8 +148,8 @@ class HttpRegexLatestSourceFactoryTests {
             Optional<String> url, Optional<String> regex) {
         return new ApplicationConfigLoader.VersionSource() {
             @Override
-            public String type() {
-                return "http-regex";
+            public Optional<String> type() {
+                return Optional.of("http-regex");
             }
 
             @Override
