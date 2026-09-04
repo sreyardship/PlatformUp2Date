@@ -51,6 +51,14 @@ class ApplicationVersionResourceIT {
             if (response.statusCode() == 200 && body.contains("good-app")) {
                 assertTrue(body.contains("1.0.0"), "expected current version in: " + body);
                 assertTrue(body.contains("2.0.0"), "expected latest version in: " + body);
+                // configErrors is a List field, and Jackson instantiates ConfigErrorEntry[]
+                // reflectively to build its serialiser — for the DECLARED type, so a clean app's
+                // empty array exercises it too. Without the array class registered for reflection
+                // this endpoint returns 500 in native while every JVM test stays green, which is
+                // exactly how it once shipped. Asserting the field explicitly keeps that pinned
+                // even if a future change stops the version assertions above from covering it.
+                assertTrue(body.contains("\"configErrors\""),
+                        "expected configErrors on the native payload (ADR-0032): " + body);
                 return;
             }
             Thread.sleep(500);

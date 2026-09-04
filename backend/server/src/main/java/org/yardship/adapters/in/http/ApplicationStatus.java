@@ -118,6 +118,10 @@ public record ApplicationStatus(
      * {@code "CURRENT"}, {@code "APP"}, {@code "CHANGELOG"}); {@code message} is {@link
      * ConfigError#reason()}.
      */
-    @RegisterForReflection
+    // The array type is registered alongside the record: this field is a List, and Jackson
+    // instantiates ConfigErrorEntry[] reflectively to build it, which native-image cannot do
+    // unless the array class is registered too. Registering only the record compiles and passes
+    // every JVM test, then fails at runtime in native with MissingReflectionRegistrationError.
+    @RegisterForReflection(targets = { ConfigErrorEntry.class, ConfigErrorEntry[].class })
     public record ConfigErrorEntry(String scope, String message) {}
 }

@@ -185,7 +185,10 @@ public class ApplicationMcpTools {
      * org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope} name; {@code message}
      * is {@link ConfigError#reason()}.
      */
-    @io.quarkus.runtime.annotations.RegisterForReflection
+    // Array registered alongside the record — list_misconfigured_applications returns a List, so
+    // native-image needs ConfigErrorView[] too (see ApplicationStatus.ConfigErrorEntry).
+    @io.quarkus.runtime.annotations.RegisterForReflection(
+            targets = { ConfigErrorView.class, ConfigErrorView[].class })
     public record ConfigErrorView(String application, String scope, String message) {
     }
 }

@@ -116,6 +116,8 @@ public record ApplicationView(
      * {@code "CURRENT"}, {@code "APP"}, {@code "CHANGELOG"}); {@code message} is {@link
      * ConfigError#reason()}.
      */
-    @RegisterForReflection
+    // Array registered alongside the record — see ApplicationStatus.ConfigErrorEntry for why a
+    // List-valued field needs both in native mode.
+    @RegisterForReflection(targets = { ConfigErrorEntry.class, ConfigErrorEntry[].class })
     public record ConfigErrorEntry(String scope, String message) {}
 }
