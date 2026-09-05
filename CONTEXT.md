@@ -42,8 +42,10 @@ _Avoid_: Scrape request, scrape item
 **Version source**:
 Where a scrape reads a version from. An Application's *current* version is read
 from the running deployment — a version endpoint it serves (an *http-json*
-source, which reads it out of the JSON response body, or an *http-header* source
-where the version is carried in a response header rather than the body), the
+source, which reads it out of the JSON response body, an *http-header* source
+where the version is carried in a response header rather than the body, or an
+*http-prometheus* source, which reads it from a label on a named metric the app
+publishes on its metrics endpoint), the
 deployed container image tag read from the Kubernetes API (a
 *k8s-image* source), or the OS release of the host it runs on, read over SSH (an
 *ssh-os-release* source). The *latest* version comes from an upstream source —
@@ -55,10 +57,11 @@ the *oci-registry* source treats the largest semver tag in the repository's tag
 list as the latest release — the same largest-semver selection *github-release*
 applies (see `docs/adr/0010`). Exactly one current source per Application.
 
-Three kinds fetch over plain HTTP and differ only in *where in the response they
+Four kinds fetch over plain HTTP and differ only in *where in the response they
 find the version* — *http-json* in the JSON body, *http-header* in a named
-response header, *http-regex* by pattern over the body as text — so each kind's
-name states its extraction, never just its transport (`docs/adr/0031`).
+response header, *http-prometheus* in a label on a named metric in a Prometheus
+exposition-format body, *http-regex* by pattern over the body as text — so each
+kind's name states its extraction, never just its transport (`docs/adr/0031`).
 _Avoid_: Upstream endpoint (a k8s-image source is the cluster's own state, not
 upstream), probe; "image" alone (a k8s-image current source reads the *deployed*
 tag, an oci-registry latest source reads *published* tags — different sides);
