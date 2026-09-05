@@ -222,6 +222,16 @@ class K8sImageCurrentSourceFactoryTests {
             }
 
             @Override
+            public Optional<String> metric() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> versionLabel() {
+                return Optional.empty();
+            }
+
+            @Override
             public Optional<String> prereleaseFilter() {
                 return Optional.empty();
             }

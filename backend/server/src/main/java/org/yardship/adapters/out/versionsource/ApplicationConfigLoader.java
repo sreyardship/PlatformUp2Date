@@ -191,6 +191,28 @@ public interface ApplicationConfigLoader {
         Optional<Boolean> stripPrerelease();
 
         /**
+         * Required (for the {@code http-prometheus} current source) name of the Prometheus metric
+         * whose label set carries the version — e.g. {@code blackbox_exporter_build_info}.
+         * Matched EXACTLY by {@code PrometheusExposition} (up to {@code {} or whitespace}: a
+         * longer metric sharing this name as a prefix is never matched. Absent for every other
+         * kind. A missing or blank value is a STRUCTURAL config error for {@code http-prometheus}
+         * — the {@code HttpPrometheusCurrentSourceFactory} degrades that app's {@code current}
+         * side rather than failing the boot (ADR-0032), matching how {@link #url()} is treated by
+         * every current-leg HTTP kind.
+         */
+        Optional<String> metric();
+
+        /**
+         * Optional label name read off the FIRST matching sample of {@link #metric()} by the
+         * {@code http-prometheus} current source. Defaults FACTORY-SIDE to {@code version} when
+         * absent — as {@code HttpJsonCurrentSourceFactory} defaults {@link #versionKey()} to
+         * {@code /version} — deliberately not via {@code @WithDefault}, so the default lives beside
+         * the kind's other factory-side defaults rather than in the SmallRye binding. Absent for
+         * every other kind.
+         */
+        Optional<String> versionLabel();
+
+        /**
          * Optional per-app authentication fragment for the {@code http-json} current source (ADR-0008).
          * Absent leaves the request unauthenticated. Username, password, and token values are
          * env-expandable (e.g. {@code ${HARBOR_USER:}}), so an unset variable resolves to a blank

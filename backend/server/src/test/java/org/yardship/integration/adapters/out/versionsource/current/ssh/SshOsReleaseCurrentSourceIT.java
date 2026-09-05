@@ -519,6 +519,12 @@ class SshOsReleaseCurrentSourceIT {
                 public Optional<String> registry() { return Optional.empty(); }
 
                 @Override
+                public Optional<String> metric() { return Optional.empty(); }
+
+                @Override
+                public Optional<String> versionLabel() { return Optional.empty(); }
+
+                @Override
                 public Optional<Integer> maxTags() { return Optional.empty(); }
 
                 @Override

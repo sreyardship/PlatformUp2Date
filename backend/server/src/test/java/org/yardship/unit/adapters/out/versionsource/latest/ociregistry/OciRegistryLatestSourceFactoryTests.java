@@ -370,6 +370,16 @@ class OciRegistryLatestSourceFactoryTests {
             }
 
             @Override
+            public Optional<String> metric() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> versionLabel() {
+                return Optional.empty();
+            }
+
+            @Override
             public Optional<String> namespace() {
                 return Optional.empty();
             }
@@ -449,6 +459,8 @@ class OciRegistryLatestSourceFactoryTests {
             @Override public Optional<String> releaseField() { return Optional.empty(); }
             @Override public Optional<String> repo() { return repo; }
             @Override public Optional<String> registry() { return registry; }
+            @Override public Optional<String> metric() { return Optional.empty(); }
+            @Override public Optional<String> versionLabel() { return Optional.empty(); }
             @Override public Optional<String> namespace() { return Optional.empty(); }
             @Override public Optional<String> workload() { return Optional.empty(); }
             @Override public Optional<String> container() { return Optional.empty(); }
