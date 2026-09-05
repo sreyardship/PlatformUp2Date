@@ -314,7 +314,7 @@ the host, or a private network.
 ## Metrics
 
 The backend exposes a Prometheus scrape endpoint at `/metrics`, hand-rendered
-in the Prometheus text exposition format (no Micrometer). Four metric
+in the Prometheus text exposition format (no Micrometer). Six metric
 families are exported:
 
 - `pu2d_application_info` — fleet membership + current/latest version strings.
@@ -326,6 +326,17 @@ families are exported:
   [`configuration.md`](configuration.md#calver-format)).
 - `pu2d_scrape_last_success_timestamp_seconds` — per-(app, side) freshness.
 - `pu2d_scrape_last_failure_timestamp_seconds` — per-(app, side) failures.
+- `pu2d_config_error` — one series per recorded configuration defect
+  (ADR-0032), labelled by `application` and `scope` (`CURRENT`, `LATEST`,
+  `APP` or `CHANGELOG`). A clean fleet emits no series, so
+  `sum(pu2d_config_error) > 0` is the alert. The reason is deliberately not a
+  label — free-form operator prose would blow up cardinality; the board and
+  the `list_misconfigured_applications` MCP tool say *why*. Note this family
+  labels `application` where the others label `app`, so joining it to
+  `pu2d_application_info` needs a `label_replace`.
+- `pu2d_config_unnamed_apps` — unlabelled count of apps that bound with no
+  `name` and were dropped from the fleet entirely. They have no identity to
+  label, so this count is the only signal that they exist at all.
 
 ```
 # HELP pu2d_version_drift_level How far the deployed version is behind latest (0=current, 1=patch, 2=minor, 3=major)
@@ -376,6 +387,13 @@ groups:
           severity: warning
         annotations:
           summary: '{{ $labels.app }} is a major version behind its latest upstream release'
+
+      - alert: AppConfigError
+        expr: sum(pu2d_config_error) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ $value }} application(s) have a configuration defect — check the board or list_misconfigured_applications for the reason'
 
       - alert: AppScrapeStale
         expr: time() - pu2d_scrape_last_success_timestamp_seconds > 6 * 3600

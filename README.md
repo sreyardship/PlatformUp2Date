@@ -110,10 +110,10 @@ it.
 
 ## Metrics & Alerting
 
-The backend exposes a Prometheus scrape endpoint at `/metrics`. Four metric families are exported:
+The backend exposes a Prometheus scrape endpoint at `/metrics`. Six metric families are exported:
 `pu2d_version_drift_level`, `pu2d_application_info`, `pu2d_scrape_last_success_timestamp_seconds`,
-and `pu2d_scrape_last_failure_timestamp_seconds` — see [`docs/deployment.md`](docs/deployment.md#metrics)
-for the full list. The core one for version monitoring is a gauge:
+`pu2d_scrape_last_failure_timestamp_seconds`, `pu2d_config_error` and `pu2d_config_unnamed_apps`
+— see [`docs/deployment.md`](docs/deployment.md#metrics) for the full list. The core one for version monitoring is a gauge:
 
 ```
 # HELP pu2d_version_drift_level How far the deployed version is behind latest (0=current, 1=patch, 2=minor, 3=major)

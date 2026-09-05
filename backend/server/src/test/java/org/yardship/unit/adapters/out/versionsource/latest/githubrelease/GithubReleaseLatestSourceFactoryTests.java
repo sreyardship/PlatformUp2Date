@@ -135,8 +135,8 @@ class GithubReleaseLatestSourceFactoryTests {
             Optional<String> repo, Optional<Integer> pageSize) {
         return new ApplicationConfigLoader.VersionSource() {
             @Override
-            public String type() {
-                return "github-release";
+            public Optional<String> type() {
+                return Optional.of("github-release");
             }
 
             @Override

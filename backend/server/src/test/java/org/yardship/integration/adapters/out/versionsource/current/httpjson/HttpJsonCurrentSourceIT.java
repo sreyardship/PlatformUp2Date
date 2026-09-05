@@ -145,8 +145,8 @@ class HttpJsonCurrentSourceIT {
     private static ApplicationConfigLoader.VersionSource bearerConfig(Optional<String> token) {
         return new ApplicationConfigLoader.VersionSource() {
             @Override
-            public String type() {
-                return "http-json";
+            public Optional<String> type() {
+                return Optional.of("http-json");
             }
 
             @Override
@@ -222,8 +222,8 @@ class HttpJsonCurrentSourceIT {
             public Optional<ApplicationConfigLoader.VersionSource.Auth> auth() {
                 return Optional.of(new ApplicationConfigLoader.VersionSource.Auth() {
                     @Override
-                    public String type() {
-                        return "bearer";
+                    public Optional<String> type() {
+                        return Optional.of("bearer");
                     }
 
                     @Override
@@ -284,8 +284,8 @@ class HttpJsonCurrentSourceIT {
             Optional<String> username, Optional<String> password) {
         return new ApplicationConfigLoader.VersionSource() {
             @Override
-            public String type() {
-                return "http-json";
+            public Optional<String> type() {
+                return Optional.of("http-json");
             }
 
             @Override
@@ -361,8 +361,8 @@ class HttpJsonCurrentSourceIT {
             public Optional<ApplicationConfigLoader.VersionSource.Auth> auth() {
                 return Optional.of(new ApplicationConfigLoader.VersionSource.Auth() {
                     @Override
-                    public String type() {
-                        return "basic";
+                    public Optional<String> type() {
+                        return Optional.of("basic");
                     }
 
                     @Override

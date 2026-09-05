@@ -169,8 +169,8 @@ class HttpHeaderCurrentSourceTlsIT {
         }
 
         @Override
-        public String type() {
-            return "http-header";
+        public Optional<String> type() {
+            return Optional.of("http-header");
         }
 
         @Override

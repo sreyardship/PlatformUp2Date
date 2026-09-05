@@ -6,6 +6,9 @@ import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.ChangelogTemplates;
+import org.yardship.adapters.out.versionsource.configerror.ConfigError;
+import org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope;
+import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
 import org.yardship.core.domain.primitives.ChangelogTemplate;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.SideObservation;
@@ -19,8 +22,10 @@ import org.yardship.core.ports.in.ApplicationVersionPort;
 import org.yardship.core.ports.in.ScrapeStatus;
 
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -59,6 +64,12 @@ public class ApplicationMcpServerIT {
     // VersionControllerIT's approach for the REST sibling.
     @InjectMock
     ChangelogTemplates changelogTemplates;
+
+    // Fleet-wide config-error read model (ADR-0032). Mocked here so each test controls which
+    // apps/scopes carry a recorded config error, mirroring VersionControllerIT's approach for the
+    // REST sibling. Unstubbed calls fall back to Mockito's default empty list.
+    @InjectMock
+    ConfigErrors configErrors;
 
     private static final Instant NOW = Instant.parse("2026-07-01T10:00:00Z");
 
@@ -226,7 +237,14 @@ public class ApplicationMcpServerIT {
                 .toolsCall("list_applications_with_failed_scrapes", response -> {
                     assertFalse(response.isError(),
                             "list_applications_with_failed_scrapes must not error for a normal call");
-                    String text = response.firstContent().asText().text();
+                    // Read every content block, not just the first: the MCP layer emits one block
+                    // per returned element, so a firstContent()-only exclusion check would pass
+                    // vacuously with 'gitea' sitting in a second block.
+                    String text = response.content().stream()
+                            .map(content -> content.asText().text())
+                            .collect(Collectors.joining("\n"));
+                    assertEquals(1, response.content().size(),
+                            "exactly one app failed its newest scrape: " + text);
                     assertTrue(text.contains("vault"),
                             "failed-refresh app 'vault' must appear in the result: " + text);
                     assertFalse(text.contains("gitea"),
@@ -371,6 +389,113 @@ public class ApplicationMcpServerIT {
                     assertTrue(text.contains("\"changelogUrl\":null"),
                             "get_application response must carry changelogUrl:null "
                                     + "for an untemplated app: " + text);
+                })
+                .thenAssertResults();
+    }
+
+    // === configErrors on get_application, and the list_misconfigured_applications tool ==========
+    // (ADR-0032, issue 06). Business-logic branching is covered by ApplicationMcpToolsTests (unit);
+    // this IT proves only what real MCP wiring can reveal: the tool is registered, reachable
+    // through a real client under the same server, and the field/tool payloads round-trip.
+
+    @Test
+    void toolsCall_getApplication_returnsConfigErrors_forMisconfiguredApp() {
+        VersionApplication app = new VersionApplication("half-broken-app",
+                SideObservation.resolved(new SemverVersion("1.0.0"), NOW),
+                SideObservation.resolved(new SemverVersion("1.1.0"), NOW));
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(app));
+        when(configErrors.forApp("half-broken-app")).thenReturn(List.of(
+                new ConfigError("half-broken-app", ConfigErrorScope.CURRENT,
+                        "unknown current source type 'bogus'")));
+
+        McpStreamableTestClient client = McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
+                .build()
+                .connect();
+        client.when()
+                .toolsCall("get_application", Map.of("name", "half-broken-app"), response -> {
+                    assertFalse(response.isError());
+                    String text = response.firstContent().asText().text();
+                    assertTrue(text.contains("\"configErrors\""),
+                            "get_application response must include the configErrors field: " + text);
+                    assertTrue(text.contains("unknown current source type 'bogus'"),
+                            "get_application response must carry the recorded config error message: " + text);
+                })
+                .thenAssertResults();
+    }
+
+    @Test
+    void toolsList_exposesListMisconfiguredApplicationsTool() {
+        McpStreamableTestClient client = McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
+                .build()
+                .connect();
+        client.when()
+                .toolsList(page -> assertNotNull(page.findByName("list_misconfigured_applications"),
+                        "list_misconfigured_applications tool must be registered"))
+                .thenAssertResults();
+    }
+
+    @Test
+    void toolsList_listMisconfiguredApplicationsDescription_distinguishesFromFailedScrapesTool() {
+        McpStreamableTestClient client = McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
+                .build()
+                .connect();
+        client.when()
+                .toolsList(page -> {
+                    String description = page.findByName("list_misconfigured_applications").description();
+                    assertTrue(description.contains("list_applications_with_failed_scrapes"),
+                            "description must name its neighbour tool explicitly: " + description);
+                })
+                .thenAssertResults();
+    }
+
+    @Test
+    void toolsCall_listMisconfiguredApplications_returnsRecordedConfigErrors() {
+        when(configErrors.all()).thenReturn(List.of(
+                new ConfigError("argo-cd", ConfigErrorScope.CURRENT, "unknown current source type 'bogus'"),
+                new ConfigError("gitea", ConfigErrorScope.CHANGELOG, "illegal changelog-url template")));
+
+        McpStreamableTestClient client = McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
+                .build()
+                .connect();
+        client.when()
+                .toolsCall("list_misconfigured_applications", response -> {
+                    assertFalse(response.isError(),
+                            "list_misconfigured_applications must not error for a normal call");
+                    // The MCP layer encodes a returned List as one content block per element, the
+                    // same shape every other list-returning tool here already produces, so read
+                    // the whole response rather than only its first block.
+                    String text = response.content().stream()
+                            .map(content -> content.asText().text())
+                            .collect(Collectors.joining("\n"));
+                    assertEquals(2, response.content().size(),
+                            "one content block per recorded config error: " + text);
+                    assertTrue(text.contains("argo-cd") && text.contains("unknown current source type 'bogus'"),
+                            "response must carry the CURRENT-scope entry: " + text);
+                    assertTrue(text.contains("gitea") && text.contains("illegal changelog-url template"),
+                            "response must carry the CHANGELOG-scope entry: " + text);
+                })
+                .thenAssertResults();
+    }
+
+    @Test
+    void toolsCall_listMisconfiguredApplications_returnsEmptyResult_forCleanConfig() {
+        // configErrors.all() is unstubbed -> Mockito's default empty list.
+
+        McpStreamableTestClient client = McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
+                .build()
+                .connect();
+        client.when()
+                .toolsCall("list_misconfigured_applications", response -> {
+                    assertFalse(response.isError());
+                    // No recorded config errors means no content blocks at all — the agent-facing
+                    // equivalent of the boot reporter staying silent on a clean config.
+                    assertTrue(response.content().isEmpty(),
+                            "a clean config must yield no config-error entries: " + response.content());
                 })
                 .thenAssertResults();
     }

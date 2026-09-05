@@ -4,12 +4,11 @@ import org.yardship.confcheck.outcome.RegexCandidate;
 import org.yardship.confcheck.outcome.ValidationOutcome;
 import org.yardship.core.domain.exceptions.InvalidVersionException;
 import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionPattern;
 import org.yardship.core.domain.primitives.VersionValue;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Validates an {@code http-regex} {@code regex} against a body: compiles the regex, finds every
@@ -36,18 +35,16 @@ public final class RegexExtractionValidation {
      * @param parser the scheme-configured parser (see {@link org.yardship.confcheck.version.VersionSpec}).
      */
     public ValidationOutcome validate(String body, String regex, VersionParser parser) {
-        Pattern pattern;
+        VersionPattern pattern;
         try {
-            pattern = RegexPatternValidation.compileWithCaptureGroup(regex);
-        } catch (RegexPatternValidation.InvalidPatternException e) {
+            pattern = new VersionPattern(regex);
+        } catch (IllegalArgumentException e) {
             return new ValidationOutcome.ConfigInvalid(e.getMessage());
         }
 
-        Matcher matcher = pattern.matcher(body);
         List<RegexCandidate> candidates = new ArrayList<>();
         RegexCandidate winner = null;
-        while (matcher.find()) {
-            String rawText = matcher.group(1);
+        for (String rawText : pattern.rawCandidates(body)) {
             RegexCandidate candidate = toCandidate(rawText, parser);
             candidates.add(candidate);
             if (candidate.isParsed()

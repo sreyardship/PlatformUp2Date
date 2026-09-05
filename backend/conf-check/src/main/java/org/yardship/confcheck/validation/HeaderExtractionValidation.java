@@ -5,11 +5,11 @@ import org.yardship.confcheck.outcome.ValidationOutcome;
 import org.yardship.confcheck.port.ResponseSource;
 import org.yardship.core.domain.exceptions.InvalidVersionException;
 import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionPattern;
 import org.yardship.core.domain.primitives.VersionValue;
 
+import java.util.List;
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Validates an {@code http-header} current source's {@code version-header} (+ optional
@@ -30,8 +30,9 @@ import java.util.regex.Pattern;
  * <p>The optional {@code regex}'s selection rule is "first match that parses", never "largest" —
  * see ADR-0030, "The first match, not the largest": a current version is a single observation, not
  * a selection. Regex compilation/capture-group validation is shared with
- * {@link RegexExtractionValidation} via {@link RegexPatternValidation} rather than reimplemented a
- * third time.
+ * {@link RegexExtractionValidation} via {@code :backend:domain}'s
+ * {@link org.yardship.core.domain.primitives.VersionPattern} rather than reimplemented a third
+ * time.
  *
  * <ul>
  *   <li>Header absent from the response → {@link ValidationOutcome.HeaderValidButEmpty}, naming
@@ -80,11 +81,11 @@ public final class HeaderExtractionValidation {
             boolean stripPreRelease,
             Optional<VersionParser> parser) {
 
-        Pattern pattern = null;
+        VersionPattern pattern = null;
         if (regex.isPresent()) {
             try {
-                pattern = RegexPatternValidation.compileWithCaptureGroup(regex.get());
-            } catch (RegexPatternValidation.InvalidPatternException e) {
+                pattern = new VersionPattern(regex.get());
+            } catch (IllegalArgumentException e) {
                 return new ValidationOutcome.ConfigInvalid(e.getMessage());
             }
         }
@@ -123,20 +124,19 @@ public final class HeaderExtractionValidation {
     }
 
     private ValidationOutcome validateWithRegex(
-            int statusCode, String trimmed, Pattern pattern, boolean stripPreRelease, Optional<VersionParser> parser) {
-        Matcher matcher = pattern.matcher(trimmed);
+            int statusCode, String trimmed, VersionPattern pattern, boolean stripPreRelease, Optional<VersionParser> parser) {
+        List<String> candidates = pattern.rawCandidates(trimmed);
 
         if (parser.isEmpty()) {
-            if (matcher.find()) {
-                return new ValidationOutcome.HeaderOk(HeaderResult.extractedOnly(statusCode, matcher.group(1)));
+            if (!candidates.isEmpty()) {
+                return new ValidationOutcome.HeaderOk(HeaderResult.extractedOnly(statusCode, candidates.get(0)));
             }
             return new ValidationOutcome.HeaderValidButEmpty(
                     "No match for the configured regex in header value '" + trimmed + "' (status " + statusCode + ").",
                     HeaderResult.rejected(statusCode, trimmed, stripPreRelease, "no match"));
         }
 
-        while (matcher.find()) {
-            String candidateText = matcher.group(1);
+        for (String candidateText : candidates) {
             try {
                 VersionValue value = parser.get().parse(candidateText);
                 VersionValue reported = stripPreRelease ? value.withoutPreRelease() : value;

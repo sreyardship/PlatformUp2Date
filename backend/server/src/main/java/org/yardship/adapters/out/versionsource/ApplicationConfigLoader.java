@@ -32,7 +32,17 @@ public interface ApplicationConfigLoader {
     Github github();
 
     interface AppConfig {
-        String name();
+        /**
+         * The app's identity. Declared {@link Optional} (issue 02 / ADR-0032) so SmallRye binding
+         * can no longer fail on a missing {@code name} — the config document must still bind as a
+         * whole for anything per-app to be rescued. An app that binds with an absent name is
+         * dropped from the fleet entirely by {@code VersionSourceResolver}: it cannot be a board
+         * row, a {@code configErrors} entry, or a labelled metric series, because reporting an app
+         * requires an identity that does not exist. It is counted in the unlabelled
+         * {@code pu2d_config_unnamed_apps} metric and gets a line in the aggregate boot report
+         * instead. No synthetic or positional name is ever fabricated for it.
+         */
+        Optional<String> name();
         VersionSource current();
         VersionSource latest();
 
@@ -48,9 +58,10 @@ public interface ApplicationConfigLoader {
         /**
          * The calendar-version format (calver.org grammar, e.g. {@code YY.0M.MICRO}) this app's
          * versions are parsed against. Required when {@link #versionScheme()} is {@code calver};
-         * absent (and ignored) for {@code semver}. Optional at the SmallRye binding level — the
-         * requiredness for calver apps is enforced fail-fast when the per-app {@link VersionParser}
-         * is built in the resolver, not by config binding (a semver app simply has no calver-format).
+         * absent (and ignored) for {@code semver}. Optional at the SmallRye binding level — for a
+         * calver app a missing or invalid format is recorded by {@code VersionParsers} as an
+         * {@code APP}-scope config error (ADR-0032), degrading both of that app's legs rather than
+         * failing the boot (a semver app simply has no calver-format).
          */
         Optional<String> calverFormat();
 
@@ -59,9 +70,11 @@ public interface ApplicationConfigLoader {
          * — NOT a {@link VersionSource} field, since the changelog link is a property of the app,
          * not of either version-source leg. Absent leaves {@code changelogUrl} {@code null} on the
          * REST payload; no source kind gets a default template. Placeholder legality (e.g.
-         * {@code {version}}, {@code {major}}, or a calver-format-symbol token) is validated
-         * fail-fast at startup by the {@code ChangelogTemplates} wiring bean via {@link
-         * org.yardship.core.domain.primitives.ChangelogTemplate}'s constructor.
+         * {@code {version}}, {@code {major}}, or a calver-format-symbol token) is checked at
+         * startup by the {@code ChangelogTemplates} wiring bean via {@link
+         * org.yardship.core.domain.primitives.ChangelogTemplate}'s constructor; an illegal template
+         * is recorded as a {@code CHANGELOG}-scope config error (ADR-0032), which degrades nothing
+         * but the link itself.
          */
         Optional<String> changelogUrl();
     }
@@ -71,7 +84,14 @@ public interface ApplicationConfigLoader {
      * Fields that do not apply to the selected source type are absent.
      */
     interface VersionSource {
-        String type();
+        /**
+         * The tagged-union discriminator selecting the source kind. Declared {@link Optional}
+         * (issue 02 / ADR-0032) so SmallRye binding can no longer fail when {@code type} is
+         * absent — its requiredness moves to {@code VersionSourceResolver}, which degrades that
+         * side with a clear reason exactly as it already does for an unknown or retired {@code
+         * type}: there is no kind to dispatch to either way.
+         */
+        Optional<String> type();
         Optional<String> url();
 
         /**
@@ -261,14 +281,16 @@ public interface ApplicationConfigLoader {
         Optional<String> prereleaseFilter();
 
         /**
-         * Tagged auth fragment: a required {@code type} discriminator (e.g. {@code basic}) plus the
-         * union of scheme-specific credential fields. {@code type()} is intentionally a bare
-         * (non-Optional) leaf — like {@link VersionSource#type()} itself — so a configured
-         * {@code auth:} block missing {@code type} fails SmallRye binding at boot rather than
-         * surfacing as a confusing runtime value error.
+         * Tagged auth fragment: a {@code type} discriminator (e.g. {@code basic}) plus the union of
+         * scheme-specific credential fields. {@code type()} is declared {@link Optional} (issue 02
+         * / ADR-0032) — the last survivor of ADR-0008's retired "malformed structure fails the
+         * boot" rule — so a configured {@code auth:} block missing {@code type} binds cleanly and
+         * becomes a {@code ConfigError} scoped to the affected side ({@code CURRENT} for the HTTP
+         * current-leg kinds via {@code HttpTransportConfig}, {@code LATEST} for {@code
+         * oci-registry}) rather than a SmallRye binding failure.
          */
         interface Auth {
-            String type();
+            Optional<String> type();
 
             Optional<String> username();
 

@@ -205,8 +205,8 @@ class HttpHeaderCurrentSourceFactoryTests {
     private static Auth auth(String type, Optional<String> username, Optional<String> password) {
         return new Auth() {
             @Override
-            public String type() {
-                return type;
+            public Optional<String> type() {
+                return Optional.of(type);
             }
 
             @Override
@@ -258,8 +258,8 @@ class HttpHeaderCurrentSourceFactoryTests {
         }
 
         @Override
-        public String type() {
-            return "http-header";
+        public Optional<String> type() {
+            return Optional.of("http-header");
         }
 
         @Override

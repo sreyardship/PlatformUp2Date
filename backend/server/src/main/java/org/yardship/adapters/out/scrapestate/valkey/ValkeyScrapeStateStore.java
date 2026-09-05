@@ -18,12 +18,16 @@ import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionValue;
+import org.yardship.core.ports.out.ApplicationSources;
 import org.yardship.core.ports.out.ScrapeStateStore;
+import org.yardship.core.ports.out.VersionSources;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -52,12 +56,25 @@ public class ValkeyScrapeStateStore implements ScrapeStateStore {
     private final ValueCommands<String, String> values;
     private final ObjectMapper objectMapper;
     private final VersionParsers versionParsers;
+    private final Set<String> configuredAppNames;
 
     @Inject
-    public ValkeyScrapeStateStore(RedisDataSource redisDataSource, ObjectMapper objectMapper, VersionParsers versionParsers) {
+    public ValkeyScrapeStateStore(
+            RedisDataSource redisDataSource,
+            ObjectMapper objectMapper,
+            VersionParsers versionParsers,
+            VersionSources versionSources) {
         this.values = redisDataSource.value(String.class, String.class);
         this.objectMapper = objectMapper;
         this.versionParsers = versionParsers;
+        // The seam that tells "removed from config" apart from "still configured, but its
+        // version-scheme carries an APP-scope config error": VersionSourceResolver registers one
+        // ApplicationSources entry per NAMED configured app (issue 02 / ADR-0032), including
+        // APP-scope-broken ones -- see its resolve()'s app-scope degrade path -- so this set is
+        // exactly the set of apps a persisted entry may still legitimately belong to.
+        this.configuredAppNames = versionSources.applicationSources().stream()
+                .map(ApplicationSources::name)
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     @Override
@@ -111,18 +128,46 @@ public class ValkeyScrapeStateStore implements ScrapeStateStore {
         return new ScrapeSnapshot(applications, Instant.ofEpochMilli(dto.lastAttemptAtEpochMillis()));
     }
 
-    // A config change can remove an app that still has a persisted entry from a prior scrape:
-    // that entry is stale, not corrupt, so it is skipped (not thrown) and logged as expected.
+    // A persisted entry with no parser now falls into exactly one of two cases, distinguished by
+    // whether the app is still configured (VersionSources.applicationSources(), which registers one
+    // entry per NAMED configured app INCLUDING APP-scope-broken ones -- see
+    // VersionSourceResolver.resolve()'s app-scope degrade path), not by parser presence:
+    //   - No longer configured: the entry is genuinely stale (e.g. removed from config), so it is
+    //     skipped (not thrown) and logged as expected.
+    //   - Still configured, but its version-scheme itself carries an APP-scope config error
+    //     (ADR-0032): the app keeps its identity and is rehydrated as Unresolved on both sides --
+    //     neither leg is parseable while that error stands -- rather than vanishing from every
+    //     Surface. The APP-scope ConfigError already recorded elsewhere supplies the reason.
     private Stream<VersionApplication> toVersionApplicationOrSkip(AppDTO app) {
+        if (!configuredAppNames.contains(app.name())) {
+            logger.info("Skipping app '{}' from scrape snapshot: no longer configured", app.name());
+            return Stream.empty();
+        }
         Optional<VersionParser> parser = versionParsers.forApp(app.name());
         if (parser.isEmpty()) {
-            logger.info("Skipping unconfigured app '{}' from scrape snapshot (removed from config)", app.name());
-            return Stream.empty();
+            logger.info("App '{}' is configured but has no version parser (its version-scheme "
+                    + "carries an APP-scope config error); rehydrating as Unresolved", app.name());
+            return Stream.of(new VersionApplication(
+                    app.name(),
+                    toDegradedSideObservation(app.currentLastFailureAtEpochMillis()),
+                    toDegradedSideObservation(app.latestLastFailureAtEpochMillis())));
         }
         return Stream.of(new VersionApplication(
                 app.name(),
                 toSideObservation(app.name(), "current", app.currentValue(), app.currentLastSuccessAtEpochMillis(), app.currentLastFailureAtEpochMillis(), parser.get()),
                 toSideObservation(app.name(), "latest", app.latestValue(), app.latestLastSuccessAtEpochMillis(), app.latestLastFailureAtEpochMillis(), parser.get())));
+    }
+
+    // Builds a value-less side for an app whose version-scheme itself has an APP-scope config
+    // error: no parser exists to retype the persisted string under, so no value is fabricated and
+    // no fallback parser is invented (ADR-0032). lastSuccessAt is dropped along with the value,
+    // exactly as toSideObservation below does when it cannot produce one -- a side that reports
+    // "last read succeeded at T" while holding nothing read is a state no other path in the system
+    // produces, and it would read as neither resolved nor a failed refresh. lastFailureAt is
+    // preserved as stored, since it records an attempt that genuinely happened.
+    private SideObservation toDegradedSideObservation(Long lastFailureMillis) {
+        Optional<Instant> lastFailure = lastFailureMillis != null ? Optional.of(Instant.ofEpochMilli(lastFailureMillis)) : Optional.empty();
+        return new SideObservation(Optional.empty(), Optional.empty(), lastFailure);
     }
 
     // A stored value can predate a config change (e.g. semver -> calver flip) or simply not match

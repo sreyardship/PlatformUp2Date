@@ -1,5 +1,7 @@
 # The HTTP current source can authenticate, with per-app credentials and graceful degradation
 
+> **Amended by [ADR-0032](0032-config-errors-degrade-per-app-never-the-boot.md):** the "malformed structure fails the boot; bad values degrade gracefully" split is retired. That boundary did no real work — `ca-cert: /wrong/path` is structurally fine and semantically dead, and so is a `regex` with no capture group, yet one degraded and one crashed. Every per-app config error now degrades what it touches; only an unbindable config document fails the boot.
+
 The `http` current source ([ADR-0005](0005-version-sources-as-pluggable-factories.md),
 [ADR-0007](0007-json-pointer-current-version-extraction.md)) deliberately sent
 **no** credentials: its Javadoc warned that registering an auth filter on the

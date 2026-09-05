@@ -5,9 +5,13 @@ import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.in.mcp.ApplicationMcpTools;
+import org.yardship.adapters.in.mcp.ApplicationMcpTools.ConfigErrorView;
 import org.yardship.adapters.in.mcp.ApplicationMcpTools.ScrapeTargetArg;
 import org.yardship.adapters.in.mcp.ApplicationView;
 import org.yardship.adapters.out.versionsource.ChangelogTemplates;
+import org.yardship.adapters.out.versionsource.configerror.ConfigError;
+import org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope;
+import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
 import org.yardship.core.domain.primitives.ChangelogTemplate;
 import org.yardship.core.domain.primitives.ScrapeTarget;
 import org.yardship.core.domain.primitives.Side;
@@ -58,6 +62,13 @@ public class ApplicationMcpToolsTests {
     // approach for the REST sibling.
     @InjectMock
     private ChangelogTemplates changelogTemplates;
+
+    // Shared fleet-wide config-error read model (ADR-0032). Mocked here so each test controls
+    // exactly which apps/scopes carry a recorded config error, mirroring VersionControllerIT's
+    // approach for the REST sibling. Unstubbed calls fall back to Mockito's default empty list —
+    // exactly the "clean app"/"clean config" case.
+    @InjectMock
+    private ConfigErrors configErrors;
 
     @Inject
     private ApplicationMcpTools sut;
@@ -624,5 +635,155 @@ public class ApplicationMcpToolsTests {
         assertNull(view.changelogUrl(),
                 "changelogUrl must be null when the latest side has no known version, "
                         + "even with a template configured");
+    }
+
+    // === configErrors on the MCP surface (ADR-0032, issue 06) ===================================
+    //
+    // ApplicationView.configErrors mirrors ApplicationStatus.configErrors exactly: empty list
+    // (never null) for a clean app, projected on read from ConfigErrors.forApp(...). The two wire
+    // records are deliberate siblings and must stay in step.
+
+    @Test
+    void getApplication_returnsConfigErrors_forMisconfiguredApp() {
+        VersionApplication app = new VersionApplication("half-broken-app",
+                SideObservation.resolved(new SemverVersion("1.0.0"), NOW),
+                SideObservation.resolved(new SemverVersion("1.1.0"), NOW));
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(app));
+        when(configErrors.forApp("half-broken-app")).thenReturn(List.of(
+                new ConfigError("half-broken-app", ConfigErrorScope.CURRENT, "unknown current source type 'bogus'")));
+
+        ApplicationView view = sut.get_application("half-broken-app");
+
+        assertNotNull(view);
+        assertEquals(1, view.configErrors().size(),
+                "a misconfigured app must carry its recorded config error(s)");
+        assertEquals("CURRENT", view.configErrors().getFirst().scope());
+        assertEquals("unknown current source type 'bogus'", view.configErrors().getFirst().message());
+    }
+
+    @Test
+    void getApplication_configErrorsIsEmptyList_forCleanApp_notNullNotAbsent() {
+        VersionApplication app = new VersionApplication("clean-app",
+                SideObservation.resolved(new SemverVersion("1.0.0"), NOW),
+                SideObservation.resolved(new SemverVersion("1.0.0"), NOW));
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(app));
+        // configErrors.forApp(...) is unstubbed -> Mockito's default empty list.
+
+        ApplicationView view = sut.get_application("clean-app");
+
+        assertNotNull(view);
+        assertNotNull(view.configErrors(), "configErrors must never be null, even for a clean app");
+        assertTrue(view.configErrors().isEmpty(), "a clean app must carry an empty configErrors list");
+    }
+
+    // The other two tools also project configErrors onto the views they return. Without these,
+    // deleting either configErrors.forApp(...) argument in ApplicationMcpTools would leave the
+    // suite green while silently stripping the reason from two of the three MCP entry points.
+
+    @Test
+    void listOutdatedApplications_carriesConfigErrors_onTheViewsItReturns() {
+        VersionApplication outdated = new VersionApplication("argo-cd",
+                SideObservation.resolved(new SemverVersion("1.0.0"), NOW),
+                SideObservation.resolved(new SemverVersion("2.0.0"), NOW));
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(outdated));
+        when(configErrors.forApp("argo-cd")).thenReturn(List.of(
+                new ConfigError("argo-cd", ConfigErrorScope.LATEST, "regex has no capture group 1")));
+
+        List<ApplicationView> result = sut.list_outdated_applications(null);
+
+        assertEquals(1, result.size());
+        assertEquals(1, result.getFirst().configErrors().size(),
+                "an outdated app's view must carry its recorded config error");
+        assertEquals("LATEST", result.getFirst().configErrors().getFirst().scope());
+    }
+
+    @Test
+    void listApplicationsWithFailedScrapes_carriesConfigErrors_soTheReasonNeedsNoSecondCall() {
+        // The operationally valuable one: when a read failed BECAUSE the config is wrong, an agent
+        // triaging the failed scrape gets the reason in the same response rather than having to
+        // call list_misconfigured_applications to find out why.
+        VersionApplication failed = new VersionApplication("vault",
+                failedRefreshAfterSuccess("1.0.0"),
+                SideObservation.resolved(new SemverVersion("1.1.0"), NOW));
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(failed));
+        when(configErrors.forApp("vault")).thenReturn(List.of(
+                new ConfigError("vault", ConfigErrorScope.CURRENT, "unreadable ca-cert path")));
+
+        List<ApplicationView> result = sut.list_applications_with_failed_scrapes();
+
+        assertEquals(1, result.size());
+        assertEquals(1, result.getFirst().configErrors().size(),
+                "a failed-scrape app's view must carry the config error explaining the failure");
+        assertEquals("CURRENT", result.getFirst().configErrors().getFirst().scope());
+        assertEquals("unreadable ca-cert path", result.getFirst().configErrors().getFirst().message());
+    }
+
+    // --- list_misconfigured_applications: the agent-facing twin of the aggregate boot report ---
+
+    @Test
+    void listMisconfiguredApplications_returnsEveryRecordedConfigError() {
+        when(configErrors.all()).thenReturn(List.of(
+                new ConfigError("argo-cd", ConfigErrorScope.CURRENT, "unknown current source type 'bogus'"),
+                new ConfigError("grafana", ConfigErrorScope.APP, "invalid calver-format 'bogus'"),
+                new ConfigError("gitea", ConfigErrorScope.CHANGELOG, "illegal changelog-url template")));
+
+        List<ConfigErrorView> result = sut.list_misconfigured_applications();
+
+        assertEquals(3, result.size(), "every recorded config error must be returned");
+        assertEquals(new ConfigErrorView(
+                        "argo-cd", "CURRENT", "unknown current source type 'bogus'"),
+                result.get(0));
+        assertEquals(new ConfigErrorView(
+                        "grafana", "APP", "invalid calver-format 'bogus'"),
+                result.get(1));
+        assertEquals(new ConfigErrorView(
+                        "gitea", "CHANGELOG", "illegal changelog-url template"),
+                result.get(2));
+    }
+
+    @Test
+    void listMisconfiguredApplications_returnsEmptyResult_forCleanConfig() {
+        when(configErrors.all()).thenReturn(List.of());
+
+        List<ConfigErrorView> result = sut.list_misconfigured_applications();
+
+        assertTrue(result.isEmpty(), "a fleet with no recorded config errors must yield an empty result");
+    }
+
+    @Test
+    void listMisconfiguredApplicationsToolDescription_distinguishesFromFailedScrapesTool()
+            throws NoSuchMethodException {
+        Method method = ApplicationMcpTools.class.getMethod("list_misconfigured_applications");
+        io.quarkiverse.mcp.server.Tool annotation = method.getAnnotation(io.quarkiverse.mcp.server.Tool.class);
+        String description = annotation.description();
+
+        assertTrue(description.contains("list_applications_with_failed_scrapes"),
+                "description must name its neighbour tool explicitly so an agent choosing between "
+                        + "them knows which question it is asking: " + description);
+        assertTrue(description.toLowerCase().contains("config"),
+                "description must frame this tool around configuration, not scrape/read failure: "
+                        + description);
+    }
+
+    // --- list_applications_with_failed_scrapes stays purely observation-based (ADR-0019) ---
+    //
+    // A config error — CHANGELOG scope in particular — must never cause an app to appear here.
+    // That asymmetry (a CHANGELOG-scope error shows up in list_misconfigured_applications and in
+    // NO failed-scrape listing, because nothing failed to read) is the point of issue 06.
+
+    @Test
+    void listApplicationsWithFailedScrapes_changelogScopeConfigErrorOnly_isNotIncluded() {
+        // The app scrapes perfectly fine (both sides fresh) but carries a recorded CHANGELOG-scope
+        // config error. list_applications_with_failed_scrapes filters purely on hasFailedScrape();
+        // a config error must never leak into that decision.
+        when(applicationVersionPort.getApplications()).thenReturn(List.of(current));
+        when(configErrors.forApp("gitea")).thenReturn(List.of(
+                new ConfigError("gitea", ConfigErrorScope.CHANGELOG, "illegal changelog-url template")));
+
+        List<ApplicationView> result = sut.list_applications_with_failed_scrapes();
+
+        assertTrue(result.isEmpty(),
+                "a CHANGELOG-scope config error must not cause an app to appear in the "
+                        + "failed-scrapes list — nothing failed to read");
     }
 }

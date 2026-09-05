@@ -118,8 +118,8 @@ class K8sImageCurrentSourceFactoryTests {
             Optional<String> namespace, Optional<String> workload, Optional<String> container) {
         return new ApplicationConfigLoader.VersionSource() {
             @Override
-            public String type() {
-                return "k8s-image";
+            public Optional<String> type() {
+                return Optional.of("k8s-image");
             }
 
             @Override

@@ -8,6 +8,7 @@ import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -66,7 +67,7 @@ class ApplicationConfigLoaderSshBindingTests {
 
         ApplicationConfigLoader.VersionSource current = bind(props).apps().getFirst().current();
 
-        assertEquals("ssh-os-release", current.type());
+        assertEquals(Optional.of("ssh-os-release"), current.type());
         assertTrue(current.host().isPresent(), "host must bind from config");
         assertEquals("router.lan", current.host().get());
         assertEquals(2222, current.port().orElseThrow(), "port must bind from config");

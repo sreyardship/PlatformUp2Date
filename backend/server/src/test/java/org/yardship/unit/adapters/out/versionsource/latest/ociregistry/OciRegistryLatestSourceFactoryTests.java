@@ -219,6 +219,21 @@ class OciRegistryLatestSourceFactoryTests {
     }
 
     @Test
+    void create_withAuthBlockWithNoType_returnsFailedLatestSource_withMessageNamingTypeAndRegistry() {
+        // issue 02 / ADR-0032: a typeless auth block is a value-level failure with a message
+        // distinguishing "no 'type' configured" from an unsupported/empty-string type.
+        LatestVersionSource result = factory.create(source(
+                Optional.of("registry.example.com"), Optional.of("library/nginx"),
+                Optional.of(authWithNoType(Optional.empty(), Optional.empty()))), SEMVER_PARSER);
+
+        assertInstanceOf(FailedLatestSource.class, result,
+                "A typeless auth block must produce a FailedLatestSource");
+        IllegalStateException ex = assertThrows(IllegalStateException.class, result::version);
+        assertEquals("The 'oci-registry' latest source has an 'auth' block with no "
+                + "'type' configured (registry: 'registry.example.com').", ex.getMessage());
+    }
+
+    @Test
     void create_withFailedLatestSource_doesNotThrowAtBoot_otherAppsKeepScraping() {
         // VALUE-level auth failures must never throw — the factory returns a FailedLatestSource
         // so the offending app fails on version() while every other app keeps scraping normally.
@@ -307,8 +322,8 @@ class OciRegistryLatestSourceFactoryTests {
             Optional<ApplicationConfigLoader.VersionSource.Auth> auth) {
         return new ApplicationConfigLoader.VersionSource() {
             @Override
-            public String type() {
-                return "oci-registry";
+            public Optional<String> type() {
+                return Optional.of("oci-registry");
             }
 
             @Override
@@ -420,7 +435,7 @@ class OciRegistryLatestSourceFactoryTests {
             Optional<String> repo,
             Optional<String> prereleaseFilter) {
         return new ApplicationConfigLoader.VersionSource() {
-            @Override public String type() { return "oci-registry"; }
+            @Override public Optional<String> type() { return Optional.of("oci-registry"); }
             @Override public Optional<String> url() { return Optional.empty(); }
             @Override public Optional<String> regex() { return Optional.empty(); }
             @Override public Optional<String> versionHeader()      { return Optional.empty(); }
@@ -458,8 +473,39 @@ class OciRegistryLatestSourceFactoryTests {
             Optional<String> password) {
         return new ApplicationConfigLoader.VersionSource.Auth() {
             @Override
-            public String type() {
-                return type;
+            public Optional<String> type() {
+                return Optional.of(type);
+            }
+
+            @Override
+            public Optional<String> username() {
+                return username;
+            }
+
+            @Override
+            public Optional<String> password() {
+                return password;
+            }
+
+            @Override
+            public Optional<String> token() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> tokenFile() {
+                return Optional.empty();
+            }
+        };
+    }
+
+    /** An {@code auth} fragment with no {@code type} configured (issue 02 / ADR-0032). */
+    private static ApplicationConfigLoader.VersionSource.Auth authWithNoType(
+            Optional<String> username, Optional<String> password) {
+        return new ApplicationConfigLoader.VersionSource.Auth() {
+            @Override
+            public Optional<String> type() {
+                return Optional.empty();
             }
 
             @Override

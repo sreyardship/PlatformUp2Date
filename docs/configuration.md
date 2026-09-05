@@ -14,6 +14,36 @@ JSON Pointer, a `calver-format`, a `changelog-url` template) can be tested
 before deploying with the [`conf-check` CLI](conf-check.md), which also
 validates a whole `platform-config.yaml` in one run for CI gating.
 
+## When configuration is wrong
+
+A defect in one Application's configuration degrades only what that defect
+touches; it never stops the backend from starting (ADR-0032). The only
+configuration failure that stops the application is one that makes the config
+document unbindable — un-tokenizable YAML.
+
+Because a typo now reaches production rather than being caught by a crash-loop,
+the board says precisely what is wrong. A `current`/`latest` defect shows its
+reason on the affected side, which keeps its last-known version; the other side
+goes on reading normally. A defect in the shared version scheme is marked once
+at app level, since it breaks both legs for one reason. And a broken
+`changelog-url` degrades nothing at all — the app scrapes normally and only its
+link is absent.
+
+![The board showing a config error at each scope, alongside a clean app and an app whose newest read merely failed](img/board-config-errors.png)
+
+A config error is permanent until someone edits the ConfigMap, so it reads
+differently from a transient failed refresh: a red glyph with an always-visible
+reason, rather than the amber hover-only warning (`vault-transient` above). The
+one exception is the changelog scope, where nothing degrades and the reason sits
+behind the icon it replaces:
+
+![The changelog-scope reason, shown on hover in place of the changelog icon](img/board-config-error-reason.png)
+
+The same information reaches the other Surfaces: `configErrors` on the REST
+payload and on the MCP `get_application` view, the `list_misconfigured_applications`
+MCP tool, and `pu2d_config_error{application, scope}` for alerting — see
+[`deployment.md`](deployment.md#metrics).
+
 ## Top-level keys
 
 | Key | Type | Required | Default | Notes |
@@ -64,8 +94,8 @@ the tier model is defined in
 | `auth.token-file` | path | exactly one of `token`/`token-file` required for `auth.type: bearer`; re-read on every request (never cached), so a rotating projected token stays valid | — |
 
 A present-but-blank `ca-cert`, or one that fails to load, shows up as a
-failed scrape for that app, not a boot crash. Missing/blank `url` fails
-boot.
+failed scrape for that app, not a boot crash. Missing/blank `url` also
+degrades only this app — it never fails the boot.
 
 `insecure-skip-tls-verify` gives full `curl -k` semantics — it skips both
 certificate chain validation and hostname verification for that app's REST
@@ -75,8 +105,9 @@ refused (a value-level failure, not a boot crash).
 
 > **Renamed from `http`** ([ADR-0031](adr/0031-http-current-source-renamed-http-json.md)). This
 > is a breaking, pre-1.0.0 config change with no alias: a `platform-config` still saying
-> `type: http` fails the boot with `The 'http' version source kind was renamed to
-> 'http-json'; update this app's config.` — update the app's `type` to `http-json`.
+> `type: http` degrades that app's current side with `The 'http' version source kind was renamed to
+> 'http-json'; update this app's config.` — it does not fail the boot (ADR-0032) — update the app's
+> `type` to `http-json`.
 
 ### `type: k8s-image` (current) — Tier B, requires cluster access
 
@@ -96,9 +127,9 @@ A value without a `kind/` prefix, or naming any other kind, fails the scrape
 for this app with a clear error.
 
 All three of `namespace`/`workload`/`container` are required and non-blank;
-missing any one fails boot. The Kubernetes client itself needs no
-configuration here — it auto-configures in-cluster from the backend's
-ServiceAccount token.
+missing any one degrades this app's current side rather than failing boot
+(ADR-0032). The Kubernetes client itself needs no configuration here — it
+auto-configures in-cluster from the backend's ServiceAccount token.
 
 ### `type: ssh-os-release` (current) — Tier B, requires SSH access
 
@@ -113,9 +144,9 @@ ServiceAccount token.
 | `known-hosts` | path to `known_hosts` file | exactly one of `host-key`/`known-hosts` required | — |
 | `release-field` | string | no | `VERSION_ID` |
 
-Blank/absent `host` or `user` fails boot; the mutually-exclusive-pair
-violations (both or neither of a pair set) show up as failed scrapes, not
-boot crashes.
+Blank/absent `host` or `user`, and the mutually-exclusive-pair violations
+(both or neither of a pair set), all degrade this app's current side to a
+failed scrape; none of them fail the boot (ADR-0032).
 
 ### `type: http-header` (current) — Tier A, network-reachable, no credentials required
 
@@ -137,10 +168,10 @@ behaviors below are the deliberate, surprising parts.
 | `auth.token` | string | exactly one of `token`/`token-file` required for `auth.type: bearer` | — |
 | `auth.token-file` | path | exactly one of `token`/`token-file` required for `auth.type: bearer`; re-read on every request (never cached) | — |
 
-Missing/blank `url` or `version-header` fails boot; a `regex` that fails to compile or has no
-capture group also fails boot. `auth`/`ca-cert` value problems (an unsupported `auth.type`, a
-`ca-cert` file that cannot be read, or configuring both `ca-cert` and
-`insecure-skip-tls-verify`) degrade the single app to a failed scrape, matching the `http-json` kind.
+Missing/blank `url` or `version-header`, a `regex` that fails to compile or has no capture group,
+and `auth`/`ca-cert` value problems (an unsupported `auth.type`, a `ca-cert` file that cannot be
+read, or configuring both `ca-cert` and `insecure-skip-tls-verify`) all degrade the single app to a
+failed scrape, matching the `http-json` kind — none of them fail the boot (ADR-0032).
 
 Three behaviors are deliberate design decisions, not bugs, and each differs from a sibling HTTP
 source kind:

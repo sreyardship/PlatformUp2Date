@@ -32,10 +32,11 @@ import java.util.function.Function;
  *   <li>{@link HeaderExtractionValidation} against {@code current.url}'s live-fetched response —
  *       headers and status, not a body — when {@code current.type == "http-header"}. A missing or
  *       blank {@code current.url} or {@code version-header} is reported as
- *       {@link ValidationOutcome.ConfigInvalid} rather than {@code notApplicable}, because the
- *       backend's factory throws at boot on either (ADR-0030) and passing such a config would
- *       defeat the point of a pre-deploy gate. That check is pure config, needing no network, so it
- *       runs BEFORE the {@code offline} gate and is reported even in an offline run.</li>
+ *       {@link ValidationOutcome.ConfigInvalid} rather than {@code notApplicable}: the backend now
+ *       degrades that app per-app rather than failing boot (ADR-0032), so {@code conf-check} is the
+ *       only pre-deploy gate left that catches it, and passing such a config through would defeat
+ *       the point of one. That check is pure config, needing no network, so it runs BEFORE the
+ *       {@code offline} gate and is reported even in an offline run.</li>
  *   <li>{@code new org.yardship.core.domain.primitives.ChangelogTemplate(...)}'s constructor ONLY
  *       (never {@link ChangelogResolutionValidation}, which needs a live/sample version to
  *       {@code .resolve()} against that a static config file does not have) — see
@@ -169,13 +170,14 @@ public final class ConfigFileValidation {
         if (!HTTP_HEADER_CURRENT_TYPE.equals(app.currentType())) {
             return SurfaceResult.notApplicable(SurfaceResult.Surface.HEADER);
         }
-        // Both 'url' and 'version-header' are REQUIRED for this kind -- the backend's factory
-        // throws at boot on an absent or blank either (ADR-0030). Reporting 'not applicable' would
-        // pass a config the backend then refuses to start on, the opposite of what a pre-deploy
-        // gate is for, so a missing one is a config error rather than nothing to check. Blank is
-        // checked as well as absent, matching the factory's own isBlank() rule. This runs BEFORE
-        // the offline gate below: it is a pure config check needing no network, so it is worth
-        // reporting even in an offline run.
+        // Both 'url' and 'version-header' are REQUIRED for this kind. The backend no longer fails
+        // boot on an absent or blank either -- it degrades that one app instead (ADR-0032) -- so
+        // conf-check is now the only pre-deploy gate that catches it. Reporting 'not applicable'
+        // would pass a config the backend then quietly runs degraded, the opposite of what a
+        // pre-deploy gate is for, so a missing one is still a config error rather than nothing to
+        // check. Blank is checked as well as absent, matching the factory's own isBlank() rule.
+        // This runs BEFORE the offline gate below: it is a pure config check needing no network,
+        // so it is worth reporting even in an offline run.
         Optional<String> requiredField = missingRequiredHeaderField(app);
         if (requiredField.isPresent()) {
             return SurfaceResult.ran(SurfaceResult.Surface.HEADER, new ValidationOutcome.ConfigInvalid(
@@ -209,7 +211,7 @@ public final class ConfigFileValidation {
     /**
      * Names the first required {@code http-header} field that is absent or blank, mirroring
      * {@code HttpHeaderCurrentSourceFactory}'s own non-blank rule so this gate refuses exactly the
-     * configs the backend refuses to boot on.
+     * configs the backend would otherwise silently run degraded (ADR-0032).
      */
     private static Optional<String> missingRequiredHeaderField(AppConfig app) {
         if (app.currentUrl().filter(v -> !v.isBlank()).isEmpty()) {

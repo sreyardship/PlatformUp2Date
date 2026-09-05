@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Avatar, Box, IconButton, Stack, TableCell, TableRow, Tooltip, Typography } from '@mui/material'
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
+import ErrorOutlinedIcon from '@mui/icons-material/ErrorOutlined'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 
 import RescrapeButton from './RescrapeButton'
@@ -171,8 +172,57 @@ const ChangelogControl = ({ changelogUrl }) => {
   )
 }
 
+/**
+ * Renders an ADR-0032 config-error reason inline, always visible (no hover needed). A config
+ * error is permanent until someone edits the ConfigMap, not a transient read failure, so it is
+ * deliberately visually distinct from FailedRefreshIcon's amber, hover-only warning: a different
+ * icon, error-red colour, and text that is present in the DOM without any interaction.
+ */
+const ConfigErrorNotice = ({ message }) => (
+  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'flex-start', gap: 0.5, color: 'error.main' }}>
+    <ErrorOutlinedIcon sx={{ fontSize: '1rem', mt: '1px', flexShrink: 0 }} />
+    <Typography component="span" sx={{ fontSize: '12px' }}>
+      {message}
+    </Typography>
+  </Box>
+)
+
+/**
+ * Renders the changelog icon column when its CHANGELOG-scope config error is set. Unlike
+ * CURRENT/LATEST config errors — which supersede a side that genuinely cannot be read, and so
+ * are always visible — a CHANGELOG error degrades nothing: the app's versions, drift and
+ * freshness all still read normally. The only casualty is one icon-only, auto-width column, so
+ * an always-on sentence of red text here would stretch that column and squeeze every other
+ * column across the whole board for a scope where ADR-0032 promises nothing degrades. Hover is
+ * proportionate: reuse ChangelogControl's own disabled-icon + Tooltip affordance, just recoloured
+ * to error and swapped to the error glyph, so the reason is a hover away like the healthy
+ * "No changelog link" case, not a permanent fixture.
+ */
+const ChangelogConfigErrorNotice = ({ message }) => (
+  <Tooltip title={message}>
+    <span>
+      <IconButton
+        aria-label="Changelog unavailable"
+        size="small"
+        disabled
+        sx={{ color: 'error.main', '&.Mui-disabled': { pointerEvents: 'auto', color: 'error.main' } }}
+      >
+        <ErrorOutlinedIcon fontSize="small" />
+      </IconButton>
+    </span>
+  </Tooltip>
+)
+
+// configErrors is a flat array of { scope, message }, always present (never null) on the REST
+// payload — empty for a clean app. At most one entry is expected per scope.
+const configErrorMessage = (configErrors, scope) => configErrors.find((error) => error.scope === scope)?.message
+
 const ApplicationRow = ({ name, ver, onRefreshed }) => {
-  const { current, latest, outdated, drift, changelogUrl } = ver
+  const { current, latest, outdated, drift, changelogUrl, configErrors = [] } = ver
+  const currentConfigError = configErrorMessage(configErrors, 'CURRENT')
+  const latestConfigError = configErrorMessage(configErrors, 'LATEST')
+  const appConfigError = configErrorMessage(configErrors, 'APP')
+  const changelogConfigError = configErrorMessage(configErrors, 'CHANGELOG')
   // null drift means Unresolved; map to UNKNOWN for colour computation.
   const effectiveDrift = drift ?? 'UNKNOWN'
   const rowTint = hexToRgba(severityColor[effectiveDrift], 0.1)
@@ -213,20 +263,37 @@ const ApplicationRow = ({ name, ver, onRefreshed }) => {
             {name}
           </Typography>
         </Stack>
+        {appConfigError && (
+          <Box sx={{ mt: 0.5 }}>
+            <ConfigErrorNotice message={appConfigError} />
+          </Box>
+        )}
       </TableCell>
       <TableCell>
         <StatusBadge drift={drift} />
       </TableCell>
       <TableCell sx={{ color: 'text.secondary' }}>
         <VersionString version={currentVersion} readAt={currentReadAt} />
-        <FailedRefreshIcon readAt={currentReadAt} failedAt={currentFailedAt} />
+        {currentConfigError ? (
+          <ConfigErrorNotice message={currentConfigError} />
+        ) : (
+          <FailedRefreshIcon readAt={currentReadAt} failedAt={currentFailedAt} />
+        )}
       </TableCell>
       <TableCell sx={outdated ? { color: 'primary.main', fontWeight: 600 } : { color: 'text.secondary' }}>
         <VersionString version={latestVersion} readAt={latestReadAt} />
-        <FailedRefreshIcon readAt={latestReadAt} failedAt={latestFailedAt} />
+        {latestConfigError ? (
+          <ConfigErrorNotice message={latestConfigError} />
+        ) : (
+          <FailedRefreshIcon readAt={latestReadAt} failedAt={latestFailedAt} />
+        )}
       </TableCell>
       <TableCell align="center">
-        <ChangelogControl changelogUrl={changelogUrl} />
+        {changelogConfigError ? (
+          <ChangelogConfigErrorNotice message={changelogConfigError} />
+        ) : (
+          <ChangelogControl changelogUrl={changelogUrl} />
+        )}
       </TableCell>
       <TableCell align="right" sx={{ pr: 2 }}>
         <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ width: '100%' }}>

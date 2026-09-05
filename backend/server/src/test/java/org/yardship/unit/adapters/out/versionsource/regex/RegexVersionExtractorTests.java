@@ -203,4 +203,36 @@ class RegexVersionExtractorTests {
                 () -> new RegexVersionExtractor(TEST_LABEL, "Version: \\S+", SEMVER_PARSER),
                 "a pattern with no capture group must throw at construction — group 1 is required");
     }
+
+    // --- construction: kind-labelled wording is preserved after delegating to VersionPattern ------
+    //
+    // RegexVersionExtractor now delegates pattern compilation/capture-group validation to
+    // org.yardship.core.domain.primitives.VersionPattern (:backend:domain), whose own messages are
+    // neutral (name no source kind or leg). These two tests pin that the EXTRACTOR still produces
+    // its own kind-labelled wording, unchanged from before the refactor — this was previously
+    // unpinned (assertThrows only checked the exception type), so the refactor could otherwise
+    // silently regress it.
+
+    @Test
+    void construction_nonCompilingPattern_keepsItsOwnKindLabelledWording() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> new RegexVersionExtractor(TEST_LABEL, "Version: (\\S+", SEMVER_PARSER));
+
+        assertTrue(ex.getMessage().startsWith("The 'http-regex' latest source's 'regex' does not compile:"),
+                "the extractor must keep its own kind-labelled wording for a non-compiling pattern "
+                        + "after delegating validation to VersionPattern; was: " + ex.getMessage());
+    }
+
+    @Test
+    void construction_zeroCaptureGroupPattern_keepsItsOwnKindLabelledWording() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> new RegexVersionExtractor(TEST_LABEL, "Version: \\S+", SEMVER_PARSER));
+
+        assertEquals(
+                "The 'http-regex' latest source's 'regex' must have at least one capture group "
+                        + "(group 1 is read); was: 'Version: \\S+'.",
+                ex.getMessage(),
+                "the extractor must keep its own kind-labelled wording for a zero-capture-group "
+                        + "pattern after delegating validation to VersionPattern");
+    }
 }

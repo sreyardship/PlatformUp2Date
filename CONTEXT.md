@@ -160,9 +160,27 @@ else; what failed is *our attempt to observe its version*. Surfaces as the
 *failed-refresh* marker in *Side freshness* and as the `list_applications_with_
 failed_scrapes` MCP tool. Note this is narrower than *Unresolved*: an Unresolved
 app can be either *failed* (a read was tried and failed) or merely *pending* (no
-read attempted yet) — only the former is a Failed scrape.
+read attempted yet) — only the former is a Failed scrape. A side broken by a *Config
+error* registers as a Failed scrape on every scrape and carries that error's
+reason; a side whose read simply failed carries none.
 _Avoid_: Failing/unhealthy application (the app is not what failed), broken app,
 down
+
+**Config error**:
+A defect in one Application's own configuration that stops part of its monitoring
+from working — an unusable source kind, `url`, `regex` or `version-key`, an
+incoherent credential, a version scheme its versions cannot be parsed under, or an
+illegal changelog template. It is *scoped*: to one side (`current` or `latest`), to
+the whole Application (its *Version scheme*, which both sides share), or to its
+*Changelog link* alone. Known when the fleet's sources are assembled, before any
+version is read, and it never self-heals until the configuration changes. Never
+fleet-wide: one Application's config error never stops another from being
+monitored. The sole configuration defect that stops the whole fleet is one that
+makes the configuration document unreadable as a whole — and an Application with no
+name is not monitored at all, since there is no identity to report it under.
+_Avoid_: Validation error; invalid config (says nothing about scope); boot failure
+(a config error is precisely what no longer fails boot); Failed scrape (that is the
+*read* failing — a config error means no read was ever possible)
 
 **Backend unavailable**:
 The state of a Surface that cannot obtain the scrape state at all — its request

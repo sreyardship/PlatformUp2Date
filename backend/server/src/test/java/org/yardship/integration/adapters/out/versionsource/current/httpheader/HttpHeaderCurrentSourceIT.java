@@ -210,8 +210,8 @@ class HttpHeaderCurrentSourceIT {
     private static Auth basicAuth(String username, String password) {
         return new Auth() {
             @Override
-            public String type() {
-                return "basic";
+            public Optional<String> type() {
+                return Optional.of("basic");
             }
 
             @Override
@@ -239,8 +239,8 @@ class HttpHeaderCurrentSourceIT {
     private static Auth bearerAuth(String token) {
         return new Auth() {
             @Override
-            public String type() {
-                return "bearer";
+            public Optional<String> type() {
+                return Optional.of("bearer");
             }
 
             @Override
@@ -281,8 +281,8 @@ class HttpHeaderCurrentSourceIT {
         }
 
         @Override
-        public String type() {
-            return "http-header";
+        public Optional<String> type() {
+            return Optional.of("http-header");
         }
 
         @Override

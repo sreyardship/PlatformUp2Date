@@ -1,5 +1,7 @@
 # The Changelog link is a read-time projection from an app-level template
 
+> **Amended by [ADR-0032](0032-config-errors-degrade-per-app-never-the-boot.md):** an illegal `changelog-url` template no longer fails the boot. It collapses to "no link" — the state this ADR already defines for an absent template — plus a `changelog`-scope config error reported on every Surface. The app itself keeps scraping normally.
+
 Every Application can carry one operator-configured `changelog-url` template —
 an app-level field (sibling of `version-scheme`), never a per-latest-source
 option. On read, the template is resolved against the app's stored latest

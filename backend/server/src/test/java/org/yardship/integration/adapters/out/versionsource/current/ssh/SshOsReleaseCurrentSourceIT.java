@@ -511,7 +511,7 @@ class SshOsReleaseCurrentSourceIT {
 
             return new ApplicationConfigLoader.VersionSource() {
                 // --- Existing interface methods ---
-                @Override public String type()                          { return "ssh-os-release"; }
+                @Override public Optional<String> type()                          { return Optional.of("ssh-os-release"); }
                 @Override public Optional<String> url()                { return Optional.empty(); }
                 @Override public Optional<String> caCert()             { return Optional.empty(); }
                 @Override public Optional<Boolean> insecureSkipTlsVerify() { return Optional.empty(); }

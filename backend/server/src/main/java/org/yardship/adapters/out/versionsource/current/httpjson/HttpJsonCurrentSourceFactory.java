@@ -3,8 +3,6 @@ package org.yardship.adapters.out.versionsource.current.httpjson;
 import com.fasterxml.jackson.core.JsonPointer;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.current.CurrentVersionSourceFactory;
 import org.yardship.adapters.out.versionsource.current.FailedCurrentSource;
@@ -37,8 +35,6 @@ public class HttpJsonCurrentSourceFactory implements CurrentVersionSourceFactory
     private static final String DEFAULT_VERSION_KEY = "/version";
     private static final String KIND_LABEL = "http-json";
 
-    private final Logger logger = LoggerFactory.getLogger(HttpJsonCurrentSourceFactory.class);
-
     private final HttpJsonCurrentVersionClientFactory clientFactory;
     private final HttpTransportConfig transportConfig = new HttpTransportConfig(KIND_LABEL);
 
@@ -66,7 +62,6 @@ public class HttpJsonCurrentSourceFactory implements CurrentVersionSourceFactory
         HttpTransportConfig.Resolution resolution =
                 transportConfig.resolve(cfg.auth(), cfg.caCert(), insecureSkipTlsVerify, url);
         if (resolution.failureMessage().isPresent()) {
-            logger.warn(resolution.failureMessage().get());
             return new FailedCurrentSource(resolution.failureMessage().get());
         }
 

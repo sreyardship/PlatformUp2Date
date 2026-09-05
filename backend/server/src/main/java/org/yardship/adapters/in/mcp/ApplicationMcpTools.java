@@ -5,6 +5,8 @@ import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.yardship.adapters.out.versionsource.ChangelogTemplates;
+import org.yardship.adapters.out.versionsource.configerror.ConfigError;
+import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
 import org.yardship.core.domain.primitives.ScrapeTarget;
 import org.yardship.core.domain.primitives.Side;
 import org.yardship.core.domain.primitives.VersionValue;
@@ -24,10 +26,15 @@ public class ApplicationMcpTools {
 
     private final ApplicationVersionPort applicationVersionPort;
     private final ChangelogTemplates changelogTemplates;
+    private final ConfigErrors configErrors;
 
-    public ApplicationMcpTools(ApplicationVersionPort applicationVersionPort, ChangelogTemplates changelogTemplates) {
+    public ApplicationMcpTools(
+            ApplicationVersionPort applicationVersionPort,
+            ChangelogTemplates changelogTemplates,
+            ConfigErrors configErrors) {
         this.applicationVersionPort = applicationVersionPort;
         this.changelogTemplates = changelogTemplates;
+        this.configErrors = configErrors;
     }
 
     @Tool(
@@ -49,7 +56,8 @@ public class ApplicationMcpTools {
         // failed-scrape app surfaces via get_application / list_applications_with_failed_scrapes.
         return applicationVersionPort.getApplications().stream()
                 .filter(app -> app.isResolved() && app.hasDriftAtLeast(threshold))
-                .map(app -> ApplicationView.from(app, changelogTemplates.forApp(app.name())))
+                .map(app -> ApplicationView.from(
+                        app, changelogTemplates.forApp(app.name()), configErrors.forApp(app.name())))
                 .toList();
     }
 
@@ -64,7 +72,8 @@ public class ApplicationMcpTools {
         return applicationVersionPort.getApplications().stream()
                 .filter(app -> app.name().equals(name))
                 .findFirst()
-                .map(app -> ApplicationView.from(app, changelogTemplates.forApp(app.name())))
+                .map(app -> ApplicationView.from(
+                        app, changelogTemplates.forApp(app.name()), configErrors.forApp(app.name())))
                 .orElse(null);
     }
 
@@ -78,7 +87,31 @@ public class ApplicationMcpTools {
     public List<ApplicationView> list_applications_with_failed_scrapes() {
         return applicationVersionPort.getApplications().stream()
                 .filter(app -> app.hasFailedScrape())
-                .map(app -> ApplicationView.from(app, changelogTemplates.forApp(app.name())))
+                .map(app -> ApplicationView.from(
+                        app, changelogTemplates.forApp(app.name()), configErrors.forApp(app.name())))
+                .toList();
+    }
+
+    @Tool(
+            name = "list_misconfigured_applications",
+            description = "List every monitored application currently affected by a recorded "
+                    + "CONFIGURATION defect — an operator mistake in that app's config entry "
+                    + "(an unknown source type, an uncompilable regex, a bad calver-format, an "
+                    + "illegal changelog-url, an incoherent auth fragment, etc.), one entry per "
+                    + "(application, scope, message). 'scope' is one of CURRENT, LATEST, APP or "
+                    + "CHANGELOG and says what the defect breaks. This is NOT the same question as "
+                    + "list_applications_with_failed_scrapes: that tool reports whose most recent "
+                    + "READ attempt failed (a live/transient problem, ADR-0019); THIS tool reports "
+                    + "whose CONFIGURATION is wrong (a static problem from the ConfigMap, discovered "
+                    + "at boot). The two lists are not subsets of one another — a CHANGELOG-scope "
+                    + "entry here means the app scrapes perfectly fine (both sides read normally) "
+                    + "and only its changelog link is broken, so that app will never appear in "
+                    + "list_applications_with_failed_scrapes. Use this tool to diagnose 'why is this "
+                    + "app not configured correctly' as distinct from 'why did the last read fail'.")
+    public List<ConfigErrorView> list_misconfigured_applications() {
+        return configErrors.all().stream()
+                .map(error -> new ConfigErrorView(
+                        error.application(), error.scope().name(), error.reason()))
                 .toList();
     }
 
@@ -141,5 +174,21 @@ public class ApplicationMcpTools {
     public record ScrapeTargetArg(
             String name,
             @JsonFormat(with = JsonFormat.Feature.ACCEPT_CASE_INSENSITIVE_VALUES) Side side) {
+    }
+
+    /**
+     * Wire-shape for one recorded {@link ConfigError}, returned by the fleet-wide
+     * {@code list_misconfigured_applications} tool (ADR-0032, issue 06). Unlike {@link
+     * ApplicationView.ConfigErrorEntry} (which is nested under a single per-app payload and so
+     * omits the app name), this record carries {@code application} explicitly, because this
+     * listing spans the whole fleet. {@code scope} is the plain {@link
+     * org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope} name; {@code message}
+     * is {@link ConfigError#reason()}.
+     */
+    // Array registered alongside the record — list_misconfigured_applications returns a List, so
+    // native-image needs ConfigErrorView[] too (see ApplicationStatus.ConfigErrorEntry).
+    @io.quarkus.runtime.annotations.RegisterForReflection(
+            targets = { ConfigErrorView.class, ConfigErrorView[].class })
+    public record ConfigErrorView(String application, String scope, String message) {
     }
 }
