@@ -6,6 +6,7 @@ import org.yardship.adapters.out.versionsource.latest.httpregex.HttpRegexLatestS
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -150,6 +151,11 @@ class HttpRegexLatestSourceFactoryTests {
             @Override
             public Optional<String> type() {
                 return Optional.of("http-regex");
+            }
+
+            @Override
+            public Map<String, String> labels() {
+                return Map.of();
             }
 
             @Override

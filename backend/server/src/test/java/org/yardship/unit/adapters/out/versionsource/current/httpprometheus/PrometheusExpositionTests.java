@@ -331,4 +331,106 @@ class PrometheusExpositionTests {
                 "duplicate label names must resolve first-wins, consistent with "
                         + "document-order-first-wins elsewhere in this kind");
     }
+
+    // -----------------------------------------------------------------------
+    // Issue 02: the optional `labels:` installation selector, on
+    // samplesOf(String, String, Map<String,String>). Exact string equality on every entry, ANDed
+    // — no !=, =~, !~ (ADR-0033, following oci-registry's prerelease-filter). This is the selector
+    // — first-in-document-order winning among whatever survives is HttpPrometheusCurrentSource's
+    // job, not this pure parser's, and is covered at that seam
+    // (HttpPrometheusCurrentSourceTests).
+    // -----------------------------------------------------------------------
+
+    @Test
+    void labelSelector_empty_matchesEverySampleOfTheMetric_identicalToTheUnfilteredOverload() {
+        String body = """
+                blackbox_exporter_build_info{instance="a",version="0.24.0"} 1
+                blackbox_exporter_build_info{instance="b",version="0.25.0"} 1
+                """;
+
+        List<PrometheusSample> unfiltered = exposition.samplesOf(body, "blackbox_exporter_build_info");
+        List<PrometheusSample> withEmptySelector =
+                exposition.samplesOf(body, "blackbox_exporter_build_info", Map.of());
+
+        assertEquals(unfiltered, withEmptySelector,
+                "an empty label selector must behave identically to the unfiltered overload — this "
+                        + "is how an absent 'labels:' config block must behave");
+    }
+
+    @Test
+    void labelSelector_requiresEveryEntryToMatch_AND() {
+        String body = """
+                blackbox_exporter_build_info{job="blackbox",pod_name="blackbox-0",version="1.0.0"} 1
+                blackbox_exporter_build_info{job="blackbox",pod_name="blackbox-1",version="2.0.0"} 1
+                """;
+        Map<String, String> selector = Map.of("job", "blackbox", "pod_name", "blackbox-1");
+
+        List<PrometheusSample> result =
+                exposition.samplesOf(body, "blackbox_exporter_build_info", selector);
+
+        assertEquals(1, result.size(),
+                "a sample matching only SOME of the selector's entries (e.g. 'job' but not "
+                        + "'pod_name') must not be selected; found: " + result);
+        assertEquals("2.0.0", result.get(0).labels().get("version"));
+    }
+
+    @Test
+    void labelSelector_isExactStringEquality_notSubstringOrPrefix() {
+        String body = "blackbox_exporter_build_info{job=\"blackbox\",version=\"1.0.0\"} 1\n";
+        Map<String, String> selector = Map.of("job", "black");
+
+        List<PrometheusSample> result =
+                exposition.samplesOf(body, "blackbox_exporter_build_info", selector);
+
+        assertTrue(result.isEmpty(),
+                "'job: black' must NOT match a sample whose 'job' label is 'blackbox' — matching "
+                        + "is exact string equality, never substring/prefix; found: " + result);
+    }
+
+    @Test
+    void labelSelector_preservesDocumentOrder_amongSurvivingSamples() {
+        String body = """
+                blackbox_exporter_build_info{job="blackbox",version="0.24.0"} 1
+                blackbox_exporter_build_info{job="other",version="9.9.9"} 1
+                blackbox_exporter_build_info{job="blackbox",version="0.25.0"} 1
+                blackbox_exporter_build_info{job="blackbox",version="0.26.0"} 1
+                """;
+        Map<String, String> selector = Map.of("job", "blackbox");
+
+        List<PrometheusSample> result =
+                exposition.samplesOf(body, "blackbox_exporter_build_info", selector);
+
+        assertEquals(3, result.size(), "the non-matching 'other' job sample must be excluded");
+        assertEquals("0.24.0", result.get(0).labels().get("version"));
+        assertEquals("0.25.0", result.get(1).labels().get("version"));
+        assertEquals("0.26.0", result.get(2).labels().get("version"));
+    }
+
+    @Test
+    void labelSelector_matchesAgainstTheUnescapedLabelValue_notTheWireEscapedText() {
+        // Wire text: pod_name="blackbox\"0" — the selector's configured value is the UNESCAPED
+        // form (a literal quote character), exactly what PrometheusSample.labels() already
+        // returns. A selector implementation that matched against the raw wire substring instead
+        // of the parsed value would fail to match here.
+        String body = "blackbox_exporter_build_info{pod_name=\"blackbox\\\"0\",version=\"1.2.3\"} 1\n";
+        Map<String, String> selector = Map.of("pod_name", "blackbox\"0");
+
+        List<PrometheusSample> result =
+                exposition.samplesOf(body, "blackbox_exporter_build_info", selector);
+
+        assertEquals(1, result.size(),
+                "the selector must match against the unescaped label value; found: " + result);
+        assertEquals("1.2.3", result.get(0).labels().get("version"));
+    }
+
+    @Test
+    void labelSelector_matchingNothing_returnsAnEmptyList_notAnError() {
+        String body = "blackbox_exporter_build_info{job=\"blackbox\",version=\"1.0.0\"} 1\n";
+        Map<String, String> selector = Map.of("job", "does-not-exist");
+
+        List<PrometheusSample> result =
+                exposition.samplesOf(body, "blackbox_exporter_build_info", selector);
+
+        assertTrue(result.isEmpty());
+    }
 }

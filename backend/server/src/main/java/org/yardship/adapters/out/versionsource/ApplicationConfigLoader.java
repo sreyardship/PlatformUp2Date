@@ -6,6 +6,7 @@ import org.yardship.core.domain.primitives.VersionScheme;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @ConfigMapping(prefix = "platform-config")
@@ -211,6 +212,24 @@ public interface ApplicationConfigLoader {
          * every other kind.
          */
         Optional<String> versionLabel();
+
+        /**
+         * Optional installation-selector map read only by the {@code http-prometheus} current
+         * source (ADR-0033): exact-string-equality label matchers, ANDed, that narrow which
+         * sample of {@link #metric()} is a candidate before first-in-document-order selection
+         * applies. Absent means every sample of the metric is a candidate, exactly as slice 01
+         * behaved before this field existed. Absent for every other kind.
+         *
+         * <p>BINDING NOTE (issue 02): {@code Optional<Map<String,String>>} does NOT bind through
+         * SmallRye {@code @ConfigMapping} in this position — {@code ConfigMappingInterface}
+         * throws {@code IllegalArgumentException("Property type ... cannot be optional")} at
+         * mapping-load time (see {@code ApplicationConfigLoaderLabelsBindingTests}, response (1)
+         * of the issue's decided binding-gate outcomes). A plain {@code Map<String,String>} DOES
+         * bind, defaulting to an empty map when {@code labels:} is absent — the same YAML, the
+         * same operator surface — so that is the shape used here. Callers test for "no selector
+         * configured" with {@link Map#isEmpty()}, not {@link Optional#isPresent()}.
+         */
+        Map<String, String> labels();
 
         /**
          * Optional per-app authentication fragment for the {@code http-json} current source (ADR-0008).

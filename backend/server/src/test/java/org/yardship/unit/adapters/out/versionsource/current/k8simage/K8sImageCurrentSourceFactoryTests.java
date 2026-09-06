@@ -8,6 +8,7 @@ import org.mockito.Mockito;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.current.k8simage.K8sImageCurrentSourceFactory;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -120,6 +121,11 @@ class K8sImageCurrentSourceFactoryTests {
             @Override
             public Optional<String> type() {
                 return Optional.of("k8s-image");
+            }
+
+            @Override
+            public Map<String, String> labels() {
+                return Map.of();
             }
 
             @Override

@@ -10,6 +10,7 @@ import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -209,6 +210,11 @@ class HttpPrometheusCurrentSourceFactoryTests {
         @Override
         public Optional<String> type() {
             return Optional.of("http-prometheus");
+        }
+
+        @Override
+        public Map<String, String> labels() {
+            return Map.of();
         }
 
         @Override

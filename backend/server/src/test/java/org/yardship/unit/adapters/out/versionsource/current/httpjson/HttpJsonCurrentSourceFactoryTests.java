@@ -27,6 +27,7 @@ import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -691,6 +692,11 @@ class HttpJsonCurrentSourceFactoryTests {
             @Override
             public Optional<String> type() {
                 return Optional.of("http-json");
+            }
+
+            @Override
+            public Map<String, String> labels() {
+                return Map.of();
             }
 
             @Override

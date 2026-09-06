@@ -65,6 +65,66 @@ public class PrometheusExposition {
     }
 
     /**
+     * Returns the label maps of every sample of {@code metricName} in {@code body}, in document
+     * order, narrowed to samples whose label map matches {@code labelSelector} — an installation
+     * selector (ADR-0033, issue 02), NOT a Prometheus matcher grammar: every entry is exact string
+     * equality, ANDed, with no {@code !=} / {@code =~} / {@code !~}. An empty {@code labelSelector}
+     * matches every sample of the metric, identical to {@link #samplesOf(String, String)} — this
+     * is how an absent {@code labels:} config block must behave.
+     *
+     * <p>Matching is performed against the ALREADY-UNESCAPED label values this class parses, so a
+     * selector value matches a wire-escaped label value correctly (e.g. a label carrying an
+     * escaped quote) without the caller needing to know about wire escaping at all.
+     *
+     * @param body          raw Prometheus (or OpenMetrics) text-exposition body
+     * @param metricName    the exact metric name to match
+     * @param labelSelector exact-match label filters, ANDed; empty matches every sample
+     * @return matching samples, in document order; empty when none match
+     */
+    public List<PrometheusSample> samplesOf(String body, String metricName, Map<String, String> labelSelector) {
+        return narrowBySelector(samplesOf(body, metricName), labelSelector);
+    }
+
+    /**
+     * Narrows an already-parsed list of samples (in document order) to those matching {@code
+     * labelSelector} — the same exact-match, ANDed rule as {@link #samplesOf(String, String, Map)},
+     * exposed separately so a caller that also needs the UNFILTERED list (e.g. to name label sets
+     * seen when the selector matches nothing) can parse the body once with
+     * {@link #samplesOf(String, String)} and narrow in memory, instead of re-parsing the body a
+     * second time for the filtered view.
+     *
+     * @param samples       already-parsed samples of one metric, in document order
+     * @param labelSelector exact-match label filters, ANDed; empty matches every sample
+     * @return the samples matching every entry of {@code labelSelector}, in document order
+     */
+    public List<PrometheusSample> narrowBySelector(List<PrometheusSample> samples, Map<String, String> labelSelector) {
+        if (labelSelector.isEmpty()) {
+            return samples;
+        }
+        List<PrometheusSample> matching = new ArrayList<>();
+        for (PrometheusSample sample : samples) {
+            if (matchesSelector(sample, labelSelector)) {
+                matching.add(sample);
+            }
+        }
+        return matching;
+    }
+
+    /**
+     * Returns whether every entry of {@code labelSelector} matches a label on {@code sample} by
+     * exact string equality (ADR-0033, issue 02) — no {@code !=} / {@code =~} / {@code !~}. A
+     * label absent from the sample never matches a configured entry.
+     */
+    private boolean matchesSelector(PrometheusSample sample, Map<String, String> labelSelector) {
+        for (Map.Entry<String, String> entry : labelSelector.entrySet()) {
+            if (!entry.getValue().equals(sample.labels().get(entry.getKey()))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Counts the non-comment, non-blank lines in {@code body} — i.e. every line that was a
      * candidate sample line, whether or not it matched a metric name or parsed cleanly. Exists
      * solely so a "metric not found" message can distinguish an empty or comment-only body from

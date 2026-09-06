@@ -7,6 +7,8 @@ import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.domain.primitives.VersionValue;
 
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -23,12 +25,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * parsing (comment-skipping, escaping, exact metric matching, document order) is exhaustively owned
  * by {@code PrometheusExpositionTests} at the pure-parser level and is NOT re-asserted here in
  * detail — this class exercises the source's OWN behavior on top of that: first-sample-wins
- * selection, {@code version-label} resolution, and the three failure messages this source itself
- * raises (a fourth — non-2xx — belongs to the production {@code PrometheusBodyFetch} and is an
- * integration-level concern). Every failure-message test in this class also asserts that a
- * recognisable sentinel string present in the body never leaks into the thrown message — the hard
- * requirement in ADR-0033 that a routinely-hundreds-of-KB {@code /metrics} body is never echoed
- * back.
+ * selection, {@code version-label} resolution, and the four failure messages this source itself
+ * raises (a fifth — non-2xx — belongs to the production {@code PrometheusBodyFetch} and is an
+ * integration-level concern). Of those four, three — metric absent, version-label absent, and
+ * an unparseable/empty value — are asserted to never leak any slice of the fetched body via a
+ * recognisable sentinel string. The fourth, "selector matched nothing", is the ADR-sanctioned
+ * exception: it is permitted, bounded and scoped to the named metric, to quote label sets actually
+ * seen for that metric, so its own tests assert what IS and is not named rather than a blanket
+ * no-leak guarantee.
  */
 class HttpPrometheusCurrentSourceTests {
 
@@ -163,6 +167,185 @@ class HttpPrometheusCurrentSourceTests {
         assertNotEquals(emptyAfterTrim, unparseable);
     }
 
+    /**
+     * Issue 02's fifth distinct failure message (numbered "the fourth" in ADR-0033's own list,
+     * which numbers among the {@code current}-leg failures the non-2xx case owned by
+     * {@code PrometheusBodyFetch} separately) must differ from EVERY case above it, in particular
+     * from "metric absent" — the two are easy to conflate ("no sample" vs "no MATCHING sample")
+     * but lead to different operator fixes: a bad {@code metric} name vs. a bad {@code labels:}
+     * selector.
+     */
+    @Test
+    void selectorMatchingNothing_isDistinctFromEveryOtherFailureCase() {
+        String metricAbsent = failureMessage("some_other{version=\"1.0.0\"} 1\n");
+        String labelAbsent = failureMessage("blackbox_exporter_build_info{other=\"x\"} 1\n");
+        String emptyAfterTrim = failureMessage("blackbox_exporter_build_info{version=\"   \"} 1\n");
+        String unparseable = failureMessage("blackbox_exporter_build_info{version=\"garbage\"} 1\n");
+        String selectorMatchesNothing = selectorFailureMessage(
+                "blackbox_exporter_build_info{job=\"blackbox\",version=\"1.0.0\"} 1\n",
+                Map.of("job", "does-not-exist"));
+
+        assertNotEquals(metricAbsent, selectorMatchesNothing,
+                "'metric absent' and 'selector matched nothing' are different faults with "
+                        + "different fixes (bad 'metric' vs. bad 'labels:') and must not share a message");
+        assertNotEquals(labelAbsent, selectorMatchesNothing);
+        assertNotEquals(emptyAfterTrim, selectorMatchesNothing);
+        assertNotEquals(unparseable, selectorMatchesNothing);
+    }
+
+    // -----------------------------------------------------------------------
+    // Issue 02: the optional `labels:` installation selector — exact string equality on every
+    // entry, ANDed, no !=/=~/!~ (ADR-0033). It narrows which samples of `metric` are candidates;
+    // first-in-document-order still wins among whatever survives, with no error over a
+    // disagreeing later sample (same rule as slice 01, just applied to the narrowed set).
+    // -----------------------------------------------------------------------
+
+    @Test
+    void version_labelsAbsent_behavesExactlyAsSlice01_everySampleOfTheMetricIsACandidate() {
+        String body = """
+                blackbox_exporter_build_info{instance="a",version="0.24.0"} 1
+                blackbox_exporter_build_info{instance="b",version="0.25.0"} 1
+                """;
+        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, Map.of());
+
+        VersionValue result = source.version();
+
+        assertEquals("0.24.0", result.value(),
+                "with no 'labels:' configured, every sample of the metric must remain a candidate "
+                        + "and first-in-document-order must win, exactly as slice 01 behaved");
+    }
+
+    @Test
+    void version_selectsTheInstallationMatchingAllSelectorEntries_amongSeveralSamples() {
+        // The motivating scenario at the source level: two "installations" of blackbox_exporter
+        // behind one endpoint, distinguished by job+pod_name. The selector must pick out the
+        // SECOND installation's sample even though it is not first in document order.
+        String body = """
+                blackbox_exporter_build_info{job="blackbox",pod_name="blackbox-0",version="0.24.0"} 1
+                blackbox_exporter_build_info{job="blackbox",pod_name="blackbox-1",version="0.25.0"} 1
+                """;
+        Map<String, String> selector = Map.of("job", "blackbox", "pod_name", "blackbox-1");
+        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, selector);
+
+        VersionValue result = source.version();
+
+        assertEquals("0.25.0", result.value(),
+                "the selector must pick the sample matching ALL entries (job AND pod_name), not "
+                        + "the document-order-first sample of the metric");
+    }
+
+    @Test
+    void version_selectorIsExactStringEquality_notPartial() {
+        // Deliberately NOT the class SENTINEL: this is the selector-matched-nothing path, the one
+        // message ADR-0033 permits to quote the named metric's label sets, so a sentinel here would
+        // legitimately appear and blur what SENTINEL means everywhere else in this class.
+        String body = "blackbox_exporter_build_info{job=\"blackbox\",version=\"1.0.0\","
+                + "other=\"unremarkable\"} 1\n";
+        Map<String, String> selector = Map.of("job", "black");
+        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, selector);
+
+        assertThrows(IllegalStateException.class, source::version,
+                "'job: black' must not match a sample whose 'job' is 'blackbox'");
+    }
+
+    @Test
+    void version_firstDocumentOrderSampleWins_amongMultipleSamplesMatchingTheSelector_withNoError() {
+        String body = """
+                blackbox_exporter_build_info{job="blackbox",version="0.24.0"} 1
+                blackbox_exporter_build_info{job="blackbox",version="0.25.0"} 1
+                """;
+        Map<String, String> selector = Map.of("job", "blackbox");
+        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, selector);
+
+        VersionValue result = source.version();
+
+        assertEquals("0.24.0", result.value(),
+                "among several samples surviving the selector, the FIRST in document order must "
+                        + "win, with no error raised over the disagreeing second sample");
+    }
+
+    // Escaped-quote label-value matching is owned at the parser level by
+    // PrometheusExpositionTests.labelSelector_matchesAgainstTheUnescapedLabelValue_notTheWireEscapedText,
+    // where unescaping actually lives; selector-threading through the source is already proven by
+    // version_selectsTheInstallationMatchingAllSelectorEntries_amongSeveralSamples above, so no
+    // duplicate is kept at this level.
+
+    // -----------------------------------------------------------------------
+    // The selector-matches-nothing failure: distinct from "metric absent", naming a BOUNDED
+    // number of the label sets actually seen for the metric. This is the sole message in this
+    // kind permitted to quote anything from the document — bounded, and only for the named
+    // metric. Every other message's body-free guarantee is unaffected (see
+    // noFailureMessage_everContainsAnySliceOfTheFetchedBody above, which this must not weaken).
+    // -----------------------------------------------------------------------
+
+    @Test
+    void version_selectorMatchingNothing_throws_namingTheMetricAndUrl() {
+        String body = "blackbox_exporter_build_info{job=\"blackbox\",version=\"1.0.0\"} 1\n";
+        Map<String, String> selector = Map.of("job", "does-not-exist");
+        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, selector);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, source::version);
+
+        assertTrue(ex.getMessage().contains(METRIC), "must name the metric; was: " + ex.getMessage());
+        assertTrue(ex.getMessage().contains(URL), "must name the url; was: " + ex.getMessage());
+    }
+
+    @Test
+    void version_selectorMatchingNothing_withOnlyOneSampleSeen_stillNamesItsLabelSet() {
+        // The single most common misconfiguration: one endpoint, one sample of the metric, a
+        // typo'd selector. The operator gets nothing to go on unless this one sample's label set
+        // is named — a cap of MAX_LABEL_SETS_NAMED must never round a single sample down to zero.
+        String body = "blackbox_exporter_build_info{job=\"blackbox\",pod_name=\"blackbox-0\","
+                + "version=\"1.0.0\"} 1\n";
+        Map<String, String> selector = Map.of("job", "does-not-exist");
+        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, selector);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, source::version);
+
+        assertTrue(ex.getMessage().contains("pod_name=\"blackbox-0\""),
+                "with a single sample of the metric seen, its label set must be named so the "
+                        + "operator has something to correct the selector against; was: "
+                        + ex.getMessage());
+    }
+
+    @Test
+    void version_selectorMatchingNothing_boundedQuoting_namesSomeOfTheMetricsLabelSets_butIsCappedAndScopedToTheNamedMetric() {
+        // 20 samples of the CONFIGURED metric, none matching the selector, each individually
+        // identifiable by a unique per-sample marker — proves the message names label sets
+        // actually seen for the metric, WITHOUT proving it is exhaustive (it must be capped).
+        StringBuilder body = new StringBuilder();
+        int sampleCount = 20;
+        for (int i = 0; i < sampleCount; i++) {
+            body.append("blackbox_exporter_build_info{job=\"blackbox\",instance=\"sample-marker-")
+                    .append(i).append("\",version=\"1.0.").append(i).append("\"} 1\n");
+        }
+        // A sentinel living OUTSIDE any sample of the configured metric: a different metric
+        // entirely. The bounded quoting must cover ONLY the named metric's label sets — this
+        // string must never appear in the failure message.
+        String elsewhereSentinel = "SENTINEL_OTHER_METRIC_NOT_THE_CONFIGURED_ONE_4d2f";
+        body.append("some_other_metric{label=\"").append(elsewhereSentinel).append("\"} 1\n");
+
+        Map<String, String> selector = Map.of("job", "does-not-exist");
+        HttpPrometheusCurrentSource source = source(body.toString(), METRIC, DEFAULT_VERSION_LABEL, selector);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, source::version);
+        String message = ex.getMessage();
+
+        assertFalse(message.contains(elsewhereSentinel),
+                "the bounded quoting must cover ONLY label sets of the NAMED metric — a sentinel "
+                        + "living in a different metric entirely must never appear; was: " + message);
+
+        long markersNamed = java.util.stream.IntStream.range(0, sampleCount)
+                .filter(i -> message.contains("sample-marker-" + i))
+                .count();
+        assertTrue(markersNamed > 0,
+                "the message must name at least some of the label sets actually seen for the "
+                        + "metric, to let the operator correct the selector; was: " + message);
+        assertTrue(markersNamed <= 5,
+                "the quoting must be CAPPED at MAX_LABEL_SETS_NAMED (5) — named " + markersNamed
+                        + " of the " + sampleCount + " samples seen; was: " + message);
+    }
+
     // -----------------------------------------------------------------------
     // No body content leaks into ANY failure message — a dedicated, explicit sentinel assertion
     // covering every failure path in one place, per ADR-0033's hard requirement.
@@ -192,8 +375,19 @@ class HttpPrometheusCurrentSourceTests {
         return assertThrows(IllegalStateException.class, source::version).getMessage();
     }
 
+    private static String selectorFailureMessage(String body, Map<String, String> selector) {
+        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, selector);
+        return assertThrows(IllegalStateException.class, source::version).getMessage();
+    }
+
     private static HttpPrometheusCurrentSource source(String body, String metric, String versionLabel) {
         PrometheusBodyFetch fetch = () -> body;
         return new HttpPrometheusCurrentSource(fetch, URL, metric, versionLabel, SEMVER_PARSER);
+    }
+
+    private static HttpPrometheusCurrentSource source(
+            String body, String metric, String versionLabel, Map<String, String> labels) {
+        PrometheusBodyFetch fetch = () -> body;
+        return new HttpPrometheusCurrentSource(fetch, URL, metric, versionLabel, labels, SEMVER_PARSER);
     }
 }

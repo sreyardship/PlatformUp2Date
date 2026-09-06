@@ -21,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -227,17 +228,60 @@ class HttpPrometheusCurrentSourceIT {
         assertEquals("1.2.3", source.version().value());
     }
 
+    /**
+     * The motivating case (ADR-0033, issue 02): two Applications monitored as separate config
+     * entries, both pointed at ONE aggregating endpoint (a Pushgateway, a {@code /federate}
+     * output, a sidecar-merged endpoint — modelled here as a single WireMock stub serving both
+     * installations' samples of the SAME metric), each with its own {@code labels:} selector, must
+     * resolve to its OWN installation's version — not each other's, and not whichever happens to
+     * be first in document order.
+     */
+    @Test
+    void version_twoApplicationsPointedAtOneAggregatingEndpoint_withDifferentLabels_resolveToTheirOwnVersions() {
+        String aggregatedBody = """
+                blackbox_exporter_build_info{job="blackbox",pod_name="blackbox-0",version="0.24.0"} 1
+                blackbox_exporter_build_info{job="blackbox",pod_name="blackbox-1",version="0.25.0"} 1
+                """;
+        wireMockServer.stubFor(get(urlEqualTo("/federate")).willReturn(
+                aResponse().withStatus(200).withBody(aggregatedBody)));
+
+        CurrentVersionSource installationZero = new HttpPrometheusCurrentSourceFactory().create(
+                source("http://localhost:8089/federate", METRIC,
+                        Map.of("job", "blackbox", "pod_name", "blackbox-0")),
+                SEMVER_PARSER);
+        CurrentVersionSource installationOne = new HttpPrometheusCurrentSourceFactory().create(
+                source("http://localhost:8089/federate", METRIC,
+                        Map.of("job", "blackbox", "pod_name", "blackbox-1")),
+                SEMVER_PARSER);
+
+        assertEquals("0.24.0", installationZero.version().value(),
+                "the app selecting 'pod_name: blackbox-0' must resolve to ITS installation's "
+                        + "version, regardless of the other installation's samples in the same body");
+        assertEquals("0.25.0", installationOne.version().value(),
+                "the app selecting 'pod_name: blackbox-1' must resolve to ITS OWN installation's "
+                        + "version, not the document-order-first sample belonging to the other app");
+    }
+
     private static ApplicationConfigLoader.VersionSource source(String url, String metric) {
-        return new FakeVersionSource(Optional.of(url), Optional.of(metric), Optional.empty(), Optional.empty());
+        return new FakeVersionSource(Optional.of(url), Optional.of(metric), Optional.empty(), Optional.empty(),
+                Map.of());
     }
 
     private static ApplicationConfigLoader.VersionSource source(String url, String metric, Auth auth) {
-        return new FakeVersionSource(Optional.of(url), Optional.of(metric), Optional.empty(), Optional.of(auth));
+        return new FakeVersionSource(Optional.of(url), Optional.of(metric), Optional.empty(), Optional.of(auth),
+                Map.of());
+    }
+
+    private static ApplicationConfigLoader.VersionSource source(
+            String url, String metric, Map<String, String> labels) {
+        return new FakeVersionSource(Optional.of(url), Optional.of(metric), Optional.empty(), Optional.empty(),
+                labels);
     }
 
     private static ApplicationConfigLoader.VersionSource sourceWithVersionLabel(
             String url, String metric, Optional<String> versionLabel) {
-        return new FakeVersionSource(Optional.of(url), Optional.of(metric), versionLabel, Optional.empty());
+        return new FakeVersionSource(Optional.of(url), Optional.of(metric), versionLabel, Optional.empty(),
+                Map.of());
     }
 
     private static Auth basicAuth(String username, String password) {
@@ -337,18 +381,25 @@ class HttpPrometheusCurrentSourceIT {
         private final Optional<String> metric;
         private final Optional<String> versionLabel;
         private final Optional<Auth> auth;
+        private final Map<String, String> labels;
 
         FakeVersionSource(Optional<String> url, Optional<String> metric, Optional<String> versionLabel,
-                Optional<Auth> auth) {
+                Optional<Auth> auth, Map<String, String> labels) {
             this.url = url;
             this.metric = metric;
             this.versionLabel = versionLabel;
             this.auth = auth;
+            this.labels = labels;
         }
 
         @Override
         public Optional<String> type() {
             return Optional.of("http-prometheus");
+        }
+
+        @Override
+        public Map<String, String> labels() {
+            return labels;
         }
 
         @Override

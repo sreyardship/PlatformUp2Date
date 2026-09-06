@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleaseLatestSourceFactory;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -137,6 +138,11 @@ class GithubReleaseLatestSourceFactoryTests {
             @Override
             public Optional<String> type() {
                 return Optional.of("github-release");
+            }
+
+            @Override
+            public Map<String, String> labels() {
+                return Map.of();
             }
 
             @Override

@@ -64,7 +64,7 @@ public class HttpPrometheusCurrentSourceFactory implements CurrentVersionSourceF
                 RedirectFollowingHttpGet.withTls(resolution.trustStore(), resolution.insecureSkipTlsVerify());
         PrometheusBodyFetch fetch =
                 new RedirectFollowingPrometheusBodyFetch(http, URI.create(url), resolution.authFilter());
-        return new HttpPrometheusCurrentSource(fetch, url, metric, versionLabel, parser);
+        return new HttpPrometheusCurrentSource(fetch, url, metric, versionLabel, cfg.labels(), parser);
     }
 
     private static String requireNonBlank(Optional<String> value, String fieldName) {

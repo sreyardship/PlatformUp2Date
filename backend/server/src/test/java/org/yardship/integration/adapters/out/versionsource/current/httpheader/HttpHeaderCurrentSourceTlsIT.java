@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.util.Base64;
+import java.util.Map;
 import java.util.Optional;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
@@ -171,6 +172,11 @@ class HttpHeaderCurrentSourceTlsIT {
         @Override
         public Optional<String> type() {
             return Optional.of("http-header");
+        }
+
+        @Override
+        public Map<String, String> labels() {
+            return Map.of();
         }
 
         @Override

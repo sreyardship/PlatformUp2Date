@@ -16,6 +16,7 @@ import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentS
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
@@ -147,6 +148,11 @@ class HttpJsonCurrentSourceIT {
             @Override
             public Optional<String> type() {
                 return Optional.of("http-json");
+            }
+
+            @Override
+            public Map<String, String> labels() {
+                return Map.of();
             }
 
             @Override
@@ -296,6 +302,11 @@ class HttpJsonCurrentSourceIT {
             @Override
             public Optional<String> type() {
                 return Optional.of("http-json");
+            }
+
+            @Override
+            public Map<String, String> labels() {
+                return Map.of();
             }
 
             @Override
