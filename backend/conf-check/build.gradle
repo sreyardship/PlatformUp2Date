@@ -53,6 +53,15 @@ compileTestJava {
 test {
     useJUnitPlatform()
 
+    // PrometheusExpositionCopyFidelityTests reads the backend's copy of the exposition parser off
+    // disk to prove this module's hand copy has not drifted from it (issue 05: :backend:conf-check
+    // cannot depend on :backend:server, so the parser is duplicated deliberately). Those files are
+    // not otherwise inputs to this task, so without declaring them Gradle would consider the tests
+    // up-to-date after a backend-side edit and skip the very run that would catch the drift.
+    inputs.files(fileTree("${rootDir}/backend/server/src/main/java/org/yardship/adapters/out/versionsource/current/httpprometheus") {
+        include 'PrometheusExposition.java', 'PrometheusSample.java'
+    }).withPropertyName('backendPrometheusParserCopies').withPathSensitivity(PathSensitivity.RELATIVE)
+
     // The unit-only lane excludes integration and command-wiring tests.
     if (project.hasProperty('unitTestsOnly')) {
         filter {

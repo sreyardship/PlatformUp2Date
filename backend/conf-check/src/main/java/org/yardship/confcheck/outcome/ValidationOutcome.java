@@ -312,6 +312,53 @@ public sealed interface ValidationOutcome {
     }
 
     /**
+     * {@code metric} validation succeeded: the configured metric resolved (optionally narrowed by
+     * {@code --label}), its {@code version-label} was present and non-blank, and — if a scheme was
+     * given — the resulting text parsed. Per ADR-0033, this is deliberately reachable even when
+     * {@link MetricResult#matchedSampleCount()} is greater than one: several samples matching is a
+     * fact to report (naming which sample was taken), never a reason to fail the command, mirroring
+     * the backend {@code http-prometheus} source's own "first match wins, conflicts are not
+     * refused" rule.
+     */
+    record MetricOk(MetricResult result) implements ValidationOutcome {
+        public static final int EXIT_CODE = 0;
+
+        @Override
+        public int exitCode() {
+            return EXIT_CODE;
+        }
+    }
+
+    /**
+     * {@code metric} validation found nothing usable: the metric was absent from the body entirely,
+     * present but the {@code --label} selector matched no sample, a matched sample's
+     * {@code version-label} was absent or present-but-empty after trimming, or (with a scheme/regex
+     * given) its value failed to parse or match.
+     *
+     * <p>The four failure kinds are told apart by {@code message} text, not by distinct
+     * {@link ValidationOutcome} cases — mirroring {@link HeaderValidButEmpty}'s "absent" vs
+     * "present but empty" precedent — because they share one exit code and the distinguishing
+     * information (which label sets were seen, which label was missing, ...) is naturally prose,
+     * not a structured field every case would otherwise need.
+     *
+     * @param message a human-readable explanation of why nothing usable resulted; for the
+     *                "selector matched nothing" case, names a bounded number of the label sets
+     *                actually seen for the configured metric, so the operator can correct
+     *                {@code --label}.
+     * @param result  the result reached so far — {@link MetricResult#matchedSampleCount()} is 0 for
+     *                the "metric absent" / "selector matched nothing" cases, and positive once a
+     *                sample was matched but its label/value failed a later check.
+     */
+    record MetricValidButEmpty(String message, MetricResult result) implements ValidationOutcome {
+        public static final int EXIT_CODE = 4;
+
+        @Override
+        public int exitCode() {
+            return EXIT_CODE;
+        }
+    }
+
+    /**
      * The aggregate result of the {@code config} gate: one {@link AppValidationResult}
      * per app in the file, in file order.
      *

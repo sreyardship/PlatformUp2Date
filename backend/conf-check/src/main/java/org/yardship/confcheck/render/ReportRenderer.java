@@ -3,6 +3,7 @@ package org.yardship.confcheck.render;
 import org.yardship.confcheck.outcome.AppValidationResult;
 import org.yardship.confcheck.outcome.CalverMapping;
 import org.yardship.confcheck.outcome.HeaderResult;
+import org.yardship.confcheck.outcome.MetricResult;
 import org.yardship.confcheck.outcome.PointerResult;
 import org.yardship.confcheck.outcome.RegexCandidate;
 import org.yardship.confcheck.outcome.SurfaceResult;
@@ -39,6 +40,8 @@ public final class ReportRenderer {
             case ValidationOutcome.ChangelogTemplateValid ok -> renderChangelogTemplateValid(ok, out);
             case ValidationOutcome.CalverFormatValid ok -> renderCalverFormatValid(ok, out);
             case ValidationOutcome.PrometheusConfigValid ok -> renderPrometheusConfigValid(ok, out);
+            case ValidationOutcome.MetricOk ok -> renderMetricOk(ok, out);
+            case ValidationOutcome.MetricValidButEmpty empty -> renderMetricValidButEmpty(empty, out);
             case ValidationOutcome.ConfigFileResult result -> renderConfigFileResult(result, out);
         }
         return outcome.exitCode();
@@ -123,6 +126,42 @@ public final class ReportRenderer {
 
     private void renderPrometheusConfigValid(ValidationOutcome.PrometheusConfigValid ok, PrintStream out) {
         out.println("OK: http-prometheus current source config for metric '" + ok.metric() + "' is well-formed.");
+    }
+
+    private void renderMetricOk(ValidationOutcome.MetricOk ok, PrintStream out) {
+        MetricResult result = ok.result();
+        out.println("OK: metric resolved to '" + result.rawText().orElse("") + "'"
+                + (result.strippedPreRelease() ? " (pre-release stripped)" : "") + " (taken sample "
+                + formatLabels(result.takenLabels()) + ").");
+        if (result.matchedSampleCount() > 1) {
+            out.println("NOTE: " + result.matchedSampleCount()
+                    + " samples matched the metric/selector; the first in document order was taken: "
+                    + formatLabels(result.takenLabels()));
+        }
+        if (result.parsed().isPresent()) {
+            out.println("Parsed: " + result.parsed().get().value());
+        }
+    }
+
+    private void renderMetricValidButEmpty(ValidationOutcome.MetricValidButEmpty empty, PrintStream out) {
+        out.println("VALID BUT EMPTY: " + empty.message());
+        empty.result().rawText().ifPresent(rawText -> out.println("  - raw text: '" + rawText + "'"));
+        if (!empty.result().takenLabels().isEmpty()) {
+            out.println("  - sample: " + formatLabels(empty.result().takenLabels()));
+        }
+    }
+
+    private String formatLabels(java.util.Map<String, String> labels) {
+        StringBuilder sb = new StringBuilder("{");
+        boolean first = true;
+        for (var entry : labels.entrySet()) {
+            if (!first) {
+                sb.append(",");
+            }
+            sb.append(entry.getKey()).append("=\"").append(entry.getValue()).append("\"");
+            first = false;
+        }
+        return sb.append("}").toString();
     }
 
     private void renderConfigFileResult(ValidationOutcome.ConfigFileResult result, PrintStream out) {
