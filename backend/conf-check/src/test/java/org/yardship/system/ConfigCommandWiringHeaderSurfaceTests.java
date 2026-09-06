@@ -81,7 +81,7 @@ class ConfigCommandWiringHeaderSurfaceTests {
      * THE load-bearing assertion for this slice's fixed defect: the header surface must report as
      * having RUN and PASSED ("HEADER: OK"), never "HEADER: not applicable" — which is exactly what
      * it reports today, because {@code YamlAppConfigReader} never populates
-     * {@code AppConfig#currentHeaderName()}/{@code #currentHeaderRegex()}, so
+     * {@code AppConfig#currentHeaderName()}/{@code #currentRegex()}, so
      * {@code ConfigFileValidation}'s applicability check ({@code app.currentHeaderName().isPresent()})
      * is always false for a real, disk-parsed app. This assertion is expected to be RED until that
      * reader gap is fixed; checking the exit code alone would not catch the regression, since

@@ -57,6 +57,7 @@ public final class ConfigFileValidation {
 
     private static final String HTTP_JSON_CURRENT_TYPE = "http-json";
     private static final String HTTP_HEADER_CURRENT_TYPE = "http-header";
+    private static final String HTTP_PROMETHEUS_CURRENT_TYPE = "http-prometheus";
     private static final String HTTP_REGEX_LATEST_TYPE = "http-regex";
     private static final String DEFAULT_POINTER = "/version";
 
@@ -105,7 +106,9 @@ public final class ConfigFileValidation {
         SurfaceResult changelog = changelogSurface(app);
         SurfaceResult calver = calverSurface(app);
         SurfaceResult header = headerSurface(app, offline);
-        return new AppValidationResult(app.name(), List.of(regex, pointer, changelog, calver, header));
+        SurfaceResult prometheus = prometheusSurface(app);
+        return new AppValidationResult(
+                app.name(), List.of(regex, pointer, changelog, calver, header, prometheus));
     }
 
     private SurfaceResult regexSurface(AppConfig app, boolean offline) {
@@ -203,7 +206,7 @@ public final class ConfigFileValidation {
         }
 
         ValidationOutcome outcome = headerValidation.validate(
-                response, app.currentHeaderName().orElseThrow(), app.currentHeaderRegex(),
+                response, app.currentHeaderName().orElseThrow(), app.currentRegex(),
                 app.currentStripPrerelease(), parser);
         return SurfaceResult.ran(SurfaceResult.Surface.HEADER, outcome);
     }
@@ -219,6 +222,65 @@ public final class ConfigFileValidation {
         }
         if (app.currentHeaderName().filter(v -> !v.isBlank()).isEmpty()) {
             return Optional.of("version-header");
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * The {@code http-prometheus} surface (ADR-0033, slice 04): a STRUCTURAL-only check with no
+     * live fetch — extraction against a real Prometheus body is slice 05's separate command. Mirrors
+     * exactly what {@code HttpPrometheusCurrentSourceFactory} validates at boot (non-blank
+     * {@code url}/{@code metric}; an optional {@code regex} that, if configured, must compile and
+     * declare capture group 1; {@code version-label} never checked, since it defaults
+     * consumption-side) — never more, never less, so this gate's verdict agrees with the backend's
+     * for the two required fields it can see (ADR-0031). Two backend failures are outside its
+     * reach and will still report OK here: a transport-value problem ({@code HttpTransportConfig}
+     * yielding a {@code FailedCurrentSource} on an unsupported {@code auth.type} or an unreadable
+     * {@code ca-cert}, neither of which this gate can read from the pod's filesystem), and a
+     * syntactically invalid {@code url} that makes {@code URI.create} throw. Both predate this kind
+     * and apply equally to the header surface. Never affected by {@code --offline}, like
+     * changelog/calver: it needs no network.
+     */
+    private SurfaceResult prometheusSurface(AppConfig app) {
+        if (!HTTP_PROMETHEUS_CURRENT_TYPE.equals(app.currentType())) {
+            return SurfaceResult.notApplicable(SurfaceResult.Surface.PROMETHEUS);
+        }
+        Optional<String> requiredField = missingRequiredPrometheusField(app);
+        if (requiredField.isPresent()) {
+            return SurfaceResult.ran(SurfaceResult.Surface.PROMETHEUS, new ValidationOutcome.ConfigInvalid(
+                    "The 'http-prometheus' current source requires a non-blank '" + requiredField.get()
+                            + "'; none is configured."));
+        }
+        if (app.currentRegex().filter(v -> !v.isBlank()).isPresent()) {
+            try {
+                new org.yardship.core.domain.primitives.VersionPattern(app.currentRegex().get());
+            } catch (IllegalArgumentException e) {
+                return SurfaceResult.ran(SurfaceResult.Surface.PROMETHEUS, new ValidationOutcome.ConfigInvalid(e.getMessage()));
+            }
+        }
+        return SurfaceResult.ran(
+                SurfaceResult.Surface.PROMETHEUS, new ValidationOutcome.PrometheusConfigValid(app.currentMetric().orElseThrow()));
+    }
+
+    /**
+     * Names the first required {@code http-prometheus} field that is absent or blank, mirroring
+     * {@code HttpPrometheusCurrentSourceFactory}'s own non-blank rule so this gate refuses exactly
+     * the configs the backend would otherwise silently run degraded (ADR-0032).
+     *
+     * <p>This rule is a HAND COPY, and nothing mechanically enforces the mirror:
+     * {@code :backend:conf-check} deliberately cannot depend on {@code :backend:server}, so a
+     * change to {@code HttpPrometheusCurrentSourceFactory}'s required fields must be reflected here
+     * by hand or the two silently disagree — exactly what ADR-0031 exists to prevent. The regex
+     * half of the surface needs no such care: both sides construct the same
+     * {@code VersionPattern} from {@code :backend:domain}, so it cannot drift. The identical
+     * duplication already exists for {@code missingRequiredHeaderField}.
+     */
+    private static Optional<String> missingRequiredPrometheusField(AppConfig app) {
+        if (app.currentUrl().filter(v -> !v.isBlank()).isEmpty()) {
+            return Optional.of("url");
+        }
+        if (app.currentMetric().filter(v -> !v.isBlank()).isEmpty()) {
+            return Optional.of("metric");
         }
         return Optional.empty();
     }

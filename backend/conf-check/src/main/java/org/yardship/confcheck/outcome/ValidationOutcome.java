@@ -283,6 +283,35 @@ public sealed interface ValidationOutcome {
     }
 
     /**
+     * The {@code config} gate's {@code http-prometheus} surface succeeded: a non-blank
+     * {@code url} and {@code metric} are configured, and, if a {@code regex} is configured, it
+     * compiles and declares capture group 1.
+     *
+     * <p>Like {@link ChangelogTemplateValid}/{@link CalverFormatValid}, this is a STRUCTURAL-only
+     * check with no live fetch: this slice (ADR-0033 conf-check gate) never fetches the app's
+     * Prometheus exposition body, so it cannot prove the metric/label actually resolve to a
+     * parseable version — that live extraction check belongs to slice 05's separate extraction
+     * command. Mirrors exactly what {@code HttpPrometheusCurrentSourceFactory} validates at boot
+     * (non-blank {@code url}/{@code metric}, a well-formed optional {@code regex}) — never more —
+     * so the gate's verdict here agrees with the backend's for the fields it can see (ADR-0031).
+     * A transport-value problem, or a syntactically invalid {@code url}, still degrades the app at
+     * boot while reporting OK here; neither is reachable without the pod's filesystem.
+     * {@code version-label} is deliberately not checked here:
+     * it is optional and the backend defaults it consumption-side, so its absence is never an
+     * error.
+     *
+     * @param metric the {@code current.metric} that was validated.
+     */
+    record PrometheusConfigValid(String metric) implements ValidationOutcome {
+        public static final int EXIT_CODE = 0;
+
+        @Override
+        public int exitCode() {
+            return EXIT_CODE;
+        }
+    }
+
+    /**
      * The aggregate result of the {@code config} gate: one {@link AppValidationResult}
      * per app in the file, in file order.
      *

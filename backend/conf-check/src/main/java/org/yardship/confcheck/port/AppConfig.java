@@ -2,6 +2,7 @@ package org.yardship.confcheck.port;
 
 import org.yardship.core.domain.primitives.VersionScheme;
 
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -53,10 +54,29 @@ import java.util.Optional;
  *                               {@code http-header}; see slice 04 / ADR-0030). Header names are
  *                               matched case-insensitively by the header surface, not by this
  *                               record, which stores exactly what the YAML said.
- * @param currentHeaderRegex    {@code current.regex}, when configured for an {@code http-header}
- *                               current source; optional even when {@code currentType} is
- *                               {@code http-header} (absent = the raw trimmed header value, per
- *                               ADR-0030).
+ * @param currentRegex           {@code current.regex} — the SHARED {@code regex} field for both
+ *                               {@code http-header} (ADR-0030) and {@code http-prometheus}
+ *                               (ADR-0033, issue 03) current sources: one YAML key, one
+ *                               {@link AppConfig} field, read by whichever kind's validator applies
+ *                               to a given app's {@code currentType}. Optional in both cases
+ *                               (absent = the raw trimmed value, unregexed).
+ * @param currentMetric         {@code current.metric}, when configured (required for
+ *                               {@code http-prometheus}, ADR-0033).
+ * @param currentVersionLabel   {@code current.version-label}, when configured (optional for
+ *                               {@code http-prometheus}; the backend's factory defaults an absent
+ *                               value to {@code "version"} at CONSUMPTION time — see
+ *                               {@code HttpPrometheusCurrentSourceFactory} — so, mirroring
+ *                               {@link #currentVersionKey()}'s design note, this record reports
+ *                               exactly what the YAML said, with no default fabricated by the
+ *                               reader).
+ * @param currentLabels         {@code current.labels}, the {@code http-prometheus} installation
+ *                               selector (ADR-0033, issue 02): a plain {@code Map<String,String>},
+ *                               empty when {@code labels:} is absent from the YAML — mirroring the
+ *                               backend's {@code ApplicationConfigLoader.VersionSource#labels()}
+ *                               shape exactly (a mandatory SmallRye binding gate ruled out
+ *                               {@code Optional<Map<String,String>>} there: it does not bind
+ *                               through {@code @ConfigMapping}). Keys are read verbatim, with no
+ *                               kebab-case mangling.
  * @param latestType            {@code latest.type} (e.g. {@code "http-regex"}, {@code "github-release"},
  *                               {@code "oci-registry"}); never null — required by the real schema.
  * @param latestUrl             {@code latest.url}, when configured (present for {@code http-regex}).
@@ -72,7 +92,10 @@ public record AppConfig(
         Optional<String> currentVersionKey,
         boolean currentStripPrerelease,
         Optional<String> currentHeaderName,
-        Optional<String> currentHeaderRegex,
+        Optional<String> currentRegex,
+        Optional<String> currentMetric,
+        Optional<String> currentVersionLabel,
+        Map<String, String> currentLabels,
         String latestType,
         Optional<String> latestUrl,
         Optional<String> latestRegex) {

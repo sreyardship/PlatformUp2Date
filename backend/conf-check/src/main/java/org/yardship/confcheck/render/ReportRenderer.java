@@ -38,6 +38,7 @@ public final class ReportRenderer {
             case ValidationOutcome.CalverOk ok -> renderCalverOk(ok, out);
             case ValidationOutcome.ChangelogTemplateValid ok -> renderChangelogTemplateValid(ok, out);
             case ValidationOutcome.CalverFormatValid ok -> renderCalverFormatValid(ok, out);
+            case ValidationOutcome.PrometheusConfigValid ok -> renderPrometheusConfigValid(ok, out);
             case ValidationOutcome.ConfigFileResult result -> renderConfigFileResult(result, out);
         }
         return outcome.exitCode();
@@ -118,6 +119,10 @@ public final class ReportRenderer {
 
     private void renderCalverFormatValid(ValidationOutcome.CalverFormatValid ok, PrintStream out) {
         out.println("OK: calver-format '" + ok.format() + "' is well-formed.");
+    }
+
+    private void renderPrometheusConfigValid(ValidationOutcome.PrometheusConfigValid ok, PrintStream out) {
+        out.println("OK: http-prometheus current source config for metric '" + ok.metric() + "' is well-formed.");
     }
 
     private void renderConfigFileResult(ValidationOutcome.ConfigFileResult result, PrintStream out) {
