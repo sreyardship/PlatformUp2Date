@@ -33,11 +33,12 @@ The native build needs GraalVM with native-image; the dev shell in `project-envi
 | `regex` | An `http-regex` pattern extracts at least one parseable version from a body, and reports which candidate wins | yes |
 | `pointer` | A `version-key` JSON Pointer (RFC 6901) resolves to text in a JSON body, optionally also parsing it under a scheme | yes |
 | `header` | An `http-header` source's `version-header` (and, if configured, `regex`) resolves against a response's headers, taking the first match | no — a whole response (status + headers), not a body |
+| `metric` | An `http-prometheus` source's `metric`/`labels`/`version-label` (and, if configured, `regex`) resolve against a Prometheus text-exposition body, taking the first matching sample | yes |
 | `changelog` | A `changelog-url` template's placeholders are legal and resolve against a given version | no |
 | `calver` | A calver.org format string parses a sample version, printing the token=value mapping | no |
-| `config` | Every app in a `platform-config.yaml`, all five surfaces at once | fetched from the config's own URLs |
+| `config` | Every app in a `platform-config.yaml`, all six surfaces at once | fetched from the config's own URLs |
 
-`regex` and `pointer` take the body from exactly one of three sources: `--url` (live fetch), `--body-file`, or `-` for stdin. `header` instead takes a whole response — live via `--url`, or offline via `--offline` with `--status` and repeatable `--header-value NAME=VALUE` fixtures, since what needs faking is a whole response (status + headers), not a body read from disk. `changelog` and `calver` are pure functions of their arguments; they never touch the network.
+`regex`, `pointer` and `metric` take the body from exactly one of three sources: `--url` (live fetch), `--body-file`, or `-` for stdin. `header` instead takes a whole response — live via `--url`, or offline via `--offline` with `--status` and repeatable `--header-value NAME=VALUE` fixtures, since what needs faking is a whole response (status + headers), not a body read from disk. `changelog` and `calver` are pure functions of their arguments; they never touch the network.
 
 ### Examples
 
@@ -64,6 +65,20 @@ Check the same header against an offline fixture (useful for a secured instance'
 
 ```
 conf-check header --header X-Jenkins --status 403 --header-value X-Jenkins=2.568.2
+```
+
+Check an `http-prometheus` source's metric/selector/label against a live URL:
+
+```
+conf-check metric --metric blackbox_exporter_build_info --label job=blackbox \
+    --scheme semver --url https://blackbox.example.com/metrics
+```
+
+Check the same against a saved fixture, without a selector:
+
+```
+curl -s https://blackbox.example.com/metrics > blackbox.txt
+conf-check metric --metric blackbox_exporter_build_info --body-file blackbox.txt
 ```
 
 Confirm a changelog template resolves for a calver app:
@@ -95,7 +110,7 @@ Every subcommand prints a human-readable report and exits with a code that encod
 | 0 | Everything passed |
 | 2 | The config itself is invalid: regex won't compile or lacks capture group 1, illegal changelog placeholder, malformed calver format, bad scheme combination. For `config`, also an unreadable or unparseable YAML file |
 | 3 | Body acquisition failed: network error, timeout, non-2xx response, or an unreadable `--body-file` |
-| 4 | The config is valid and a body was obtained, but nothing usable came out: zero regex matches, no match parsed under the scheme, the pointer resolved to nothing, or the header was absent/empty/unparseable |
+| 4 | The config is valid and a body was obtained, but nothing usable came out: zero regex matches, no match parsed under the scheme, the pointer resolved to nothing, the header was absent/empty/unparseable, or the metric was absent, its `labels:` selector matched nothing, or its `version-label` was absent/empty/unparseable |
 | 5 | `config` only: the file parsed, but at least one app failed at least one surface |
 
 Code 1 is reserved for uncaught errors (bugs), so a deliberate failure never looks like a crash. The codes are stable; scripts can depend on them.
@@ -104,15 +119,16 @@ Code 2 mirrors what the backend rejects at boot, code 3 mirrors a fetch failure 
 
 ## How the config gate works
 
-`conf-check config <file>` reads every app out of the file and runs up to five surfaces per app:
+`conf-check config <file>` reads every app out of the file and runs up to six surfaces per app:
 
 - regex, when `latest.type` is `http-regex` and both `url` and `regex` are set. Fetches `latest.url` live.
 - pointer, when `current.type` is `http-json`. Fetches `current.url` live and applies the `/version` default when `version-key` is absent, same as the backend.
 - header, when `current.type` is `http-header`. Fetches `current.url` live and validates `version-header` (and `regex`, if set) against the response's headers, same as the backend; a missing or blank `url`/`version-header` is reported as a config error rather than "not applicable".
+- prometheus, when `current.type` is `http-prometheus`. STRUCTURAL only, with no live fetch: it validates non-blank `url`/`metric`, and that a configured `regex` compiles and declares capture group 1 — exactly what `HttpPrometheusCurrentSourceFactory` checks at boot, no more. It cannot check `labels:`/`version-label` against a real body; use the `metric` subcommand for that before deploying.
 - changelog, when `changelog-url` is set. Constructs the template to prove every placeholder is legal, but never resolves it: a static file has no current version to resolve against, and the backend's boot check draws the same line.
 - calver, when the app declares `version-scheme: calver` with a `calver-format`. Constructs the format to prove it is well-formed.
 
-A surface that doesn't apply to an app (say, the regex surface for a `github-release` latest source) is reported as not applicable and never counts as a failure. `--offline` additionally skips the three fetch-backed surfaces (regex, pointer, and header) so the gate can run without network access; changelog and calver still run, because they need none.
+A surface that doesn't apply to an app (say, the regex surface for a `github-release` latest source) is reported as not applicable and never counts as a failure. `--offline` additionally skips the three fetch-backed surfaces (regex, pointer, and header) so the gate can run without network access; changelog and calver still run, because they need none — as does prometheus, since it never fetches.
 
 The aggregate exit code is 0 only when every app passed every surface that ran.
 
