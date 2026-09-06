@@ -13,6 +13,7 @@ import org.yardship.core.ports.out.CurrentVersionSource;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -90,6 +91,54 @@ class HttpPrometheusCurrentSourceFactoryTests {
                 () -> factory.create(source(Optional.of(URL), Optional.of("   "), Optional.empty()), SEMVER_PARSER));
     }
 
+    // --- structural: regex (only when configured, via RegexVersionExtractor) -----------------
+    // Issue 03: `regex` is applied via the existing RegexVersionExtractor.firstIn, constructed
+    // with the "'http-prometheus' current source" label. A non-compiling regex, or one with no
+    // capture group, THROWS IllegalArgumentException from that constructor, which this factory
+    // must let propagate (the resolver records it as a per-app ConfigError, degrading only the
+    // current side — ADR-0032. It does not fail the boot).
+
+    @Test
+    void create_throws_whenRegexIsConfiguredButDoesNotCompile_namingHttpPrometheus() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> factory.create(sourceWithRegex(URL, METRIC, "(unterminated"), SEMVER_PARSER));
+
+        assertTrue(ex.getMessage().contains("http-prometheus"),
+                "the validation error must name 'http-prometheus'; was: " + ex.getMessage());
+        assertTrue(ex.getMessage().contains("regex"),
+                "the validation error must mention 'regex'; was: " + ex.getMessage());
+    }
+
+    @Test
+    void create_throws_whenRegexIsConfiguredWithZeroCaptureGroups_namingHttpPrometheus() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> factory.create(sourceWithRegex(URL, METRIC, "\\d+\\.\\d+\\.\\d+"), SEMVER_PARSER));
+
+        assertTrue(ex.getMessage().contains("http-prometheus"),
+                "the validation error must name 'http-prometheus'; was: " + ex.getMessage());
+    }
+
+    @Test
+    void create_treatsABlankRegex_asAbsent_doesNotThrow_andBuildsAWorkingSource() {
+        // A blank `regex` (e.g. "   ") must be treated the same as an absent one — silently
+        // optional, matching how every other optional field is read across the codebase (see
+        // HttpHeaderCurrentSourceFactory's identical treatment). A bare blank pattern has ZERO
+        // capture groups, so if a future change stopped filtering it, building the extractor from
+        // it would throw right here, inside create() — this test would go red the moment a blank
+        // regex started being treated as an active one.
+        CurrentVersionSource result = assertDoesNotThrow(
+                () -> factory.create(sourceWithRegex(URL, METRIC, "   "), SEMVER_PARSER),
+                "a blank 'regex' must be treated as absent, not compiled as a real "
+                        + "(zero-capture-group) pattern");
+
+        assertInstanceOf(HttpPrometheusCurrentSource.class, result);
+    }
+
+    // --- strip-prerelease: wiring is proven at the integration level in
+    // HttpPrometheusCurrentSourceIT#version_honoursStripPrerelease, which fails for the right
+    // reason if the factory drops the field; no factory-level test is kept here since a bare
+    // "builds a working source" assertion passes whether or not stripPrerelease() is ever read.
+
     // --- value-level: auth --------------------------------------------------------------------
 
     @Test
@@ -142,17 +191,23 @@ class HttpPrometheusCurrentSourceFactoryTests {
 
     private static ApplicationConfigLoader.VersionSource source(
             Optional<String> url, Optional<String> metric, Optional<String> versionLabel) {
-        return new FakeVersionSource(url, metric, versionLabel, Optional.empty(), Optional.empty(), Optional.empty());
+        return new FakeVersionSource(url, metric, versionLabel, Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty());
     }
 
     private static ApplicationConfigLoader.VersionSource sourceWithAuth(String url, String metric, Auth auth) {
         return new FakeVersionSource(Optional.of(url), Optional.of(metric), Optional.empty(), Optional.of(auth),
-                Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
     }
 
     private static ApplicationConfigLoader.VersionSource sourceWithCaCert(String url, String metric, String caCert) {
         return new FakeVersionSource(Optional.of(url), Optional.of(metric), Optional.empty(), Optional.empty(),
-                Optional.of(caCert), Optional.empty());
+                Optional.of(caCert), Optional.empty(), Optional.empty(), Optional.empty());
+    }
+
+    private static ApplicationConfigLoader.VersionSource sourceWithRegex(String url, String metric, String regex) {
+        return new FakeVersionSource(Optional.of(url), Optional.of(metric), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.of(regex), Optional.empty());
     }
 
     private static Auth auth(String type, Optional<String> username, Optional<String> password) {
@@ -196,15 +251,20 @@ class HttpPrometheusCurrentSourceFactoryTests {
         private final Optional<Auth> auth;
         private final Optional<String> caCert;
         private final Optional<Boolean> insecureSkipTlsVerify;
+        private final Optional<String> regex;
+        private final Optional<Boolean> stripPrerelease;
 
         FakeVersionSource(Optional<String> url, Optional<String> metric, Optional<String> versionLabel,
-                Optional<Auth> auth, Optional<String> caCert, Optional<Boolean> insecureSkipTlsVerify) {
+                Optional<Auth> auth, Optional<String> caCert, Optional<Boolean> insecureSkipTlsVerify,
+                Optional<String> regex, Optional<Boolean> stripPrerelease) {
             this.url = url;
             this.metric = metric;
             this.versionLabel = versionLabel;
             this.auth = auth;
             this.caCert = caCert;
             this.insecureSkipTlsVerify = insecureSkipTlsVerify;
+            this.regex = regex;
+            this.stripPrerelease = stripPrerelease;
         }
 
         @Override
@@ -239,12 +299,12 @@ class HttpPrometheusCurrentSourceFactoryTests {
 
         @Override
         public Optional<String> regex() {
-            return Optional.empty();
+            return regex;
         }
 
         @Override
         public Optional<Boolean> stripPrerelease() {
-            return Optional.empty();
+            return stripPrerelease;
         }
 
         @Override

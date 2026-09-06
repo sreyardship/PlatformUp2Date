@@ -262,26 +262,71 @@ class HttpPrometheusCurrentSourceIT {
                         + "version, not the document-order-first sample belonging to the other app");
     }
 
+    /**
+     * Proves {@code regex} genuinely threads through the factory into a working extractor. The
+     * fixture is deliberately built so that dropping the field (wiring {@code Optional.empty()}
+     * instead) fails for the right reason: the raw trimmed label value {@code
+     * "release-v1.2.3-build"} does not parse as a bare semver, so if the regex were thrown away the
+     * read would throw rather than silently reporting a wrong-but-plausible version.
+     */
+    @Test
+    void version_honoursAConfiguredRegex() {
+        wireMockServer.stubFor(get(urlEqualTo("/metrics")).willReturn(aResponse().withStatus(200)
+                .withBody("blackbox_exporter_build_info{version=\"release-v1.2.3-build\"} 1\n")));
+
+        CurrentVersionSource source = new HttpPrometheusCurrentSourceFactory().create(
+                sourceWithRegex("http://localhost:8089/metrics", METRIC, "v(\\d+\\.\\d+\\.\\d+)"), SEMVER_PARSER);
+
+        assertEquals("1.2.3", source.version().value());
+    }
+
+    /**
+     * Proves {@code strip-prerelease} genuinely threads through the factory. If the flag were
+     * dropped (wiring {@code false} instead), the result would be {@code "2.11.1-6b7ecba1"} rather
+     * than {@code "2.11.1"} — a value that parses fine either way, so only asserting the exact
+     * stripped value catches the drop.
+     */
+    @Test
+    void version_honoursStripPrerelease() {
+        wireMockServer.stubFor(get(urlEqualTo("/metrics")).willReturn(aResponse().withStatus(200)
+                .withBody("blackbox_exporter_build_info{version=\"2.11.1-6b7ecba1\"} 1\n")));
+
+        CurrentVersionSource source = new HttpPrometheusCurrentSourceFactory().create(
+                sourceWithStripPrerelease("http://localhost:8089/metrics", METRIC), SEMVER_PARSER);
+
+        assertEquals("2.11.1", source.version().value());
+    }
+
     private static ApplicationConfigLoader.VersionSource source(String url, String metric) {
         return new FakeVersionSource(Optional.of(url), Optional.of(metric), Optional.empty(), Optional.empty(),
-                Map.of());
+                Map.of(), Optional.empty(), Optional.empty());
     }
 
     private static ApplicationConfigLoader.VersionSource source(String url, String metric, Auth auth) {
         return new FakeVersionSource(Optional.of(url), Optional.of(metric), Optional.empty(), Optional.of(auth),
-                Map.of());
+                Map.of(), Optional.empty(), Optional.empty());
     }
 
     private static ApplicationConfigLoader.VersionSource source(
             String url, String metric, Map<String, String> labels) {
         return new FakeVersionSource(Optional.of(url), Optional.of(metric), Optional.empty(), Optional.empty(),
-                labels);
+                labels, Optional.empty(), Optional.empty());
     }
 
     private static ApplicationConfigLoader.VersionSource sourceWithVersionLabel(
             String url, String metric, Optional<String> versionLabel) {
         return new FakeVersionSource(Optional.of(url), Optional.of(metric), versionLabel, Optional.empty(),
-                Map.of());
+                Map.of(), Optional.empty(), Optional.empty());
+    }
+
+    private static ApplicationConfigLoader.VersionSource sourceWithRegex(String url, String metric, String regex) {
+        return new FakeVersionSource(Optional.of(url), Optional.of(metric), Optional.empty(), Optional.empty(),
+                Map.of(), Optional.of(regex), Optional.empty());
+    }
+
+    private static ApplicationConfigLoader.VersionSource sourceWithStripPrerelease(String url, String metric) {
+        return new FakeVersionSource(Optional.of(url), Optional.of(metric), Optional.empty(), Optional.empty(),
+                Map.of(), Optional.empty(), Optional.of(true));
     }
 
     private static Auth basicAuth(String username, String password) {
@@ -382,14 +427,19 @@ class HttpPrometheusCurrentSourceIT {
         private final Optional<String> versionLabel;
         private final Optional<Auth> auth;
         private final Map<String, String> labels;
+        private final Optional<String> regex;
+        private final Optional<Boolean> stripPrerelease;
 
         FakeVersionSource(Optional<String> url, Optional<String> metric, Optional<String> versionLabel,
-                Optional<Auth> auth, Map<String, String> labels) {
+                Optional<Auth> auth, Map<String, String> labels, Optional<String> regex,
+                Optional<Boolean> stripPrerelease) {
             this.url = url;
             this.metric = metric;
             this.versionLabel = versionLabel;
             this.auth = auth;
             this.labels = labels;
+            this.regex = regex;
+            this.stripPrerelease = stripPrerelease;
         }
 
         @Override
@@ -424,12 +474,12 @@ class HttpPrometheusCurrentSourceIT {
 
         @Override
         public Optional<String> regex() {
-            return Optional.empty();
+            return regex;
         }
 
         @Override
         public Optional<Boolean> stripPrerelease() {
-            return Optional.empty();
+            return stripPrerelease;
         }
 
         @Override

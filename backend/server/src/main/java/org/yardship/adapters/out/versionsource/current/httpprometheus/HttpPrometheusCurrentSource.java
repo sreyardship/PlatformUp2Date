@@ -1,5 +1,6 @@
 package org.yardship.adapters.out.versionsource.current.httpprometheus;
 
+import org.yardship.adapters.out.versionsource.regex.RegexVersionExtractor;
 import org.yardship.core.domain.exceptions.InvalidVersionException;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionValue;
@@ -7,6 +8,7 @@ import org.yardship.core.ports.out.CurrentVersionSource;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -58,27 +60,37 @@ public class HttpPrometheusCurrentSource implements CurrentVersionSource {
     private final String metric;
     private final String versionLabel;
     private final Map<String, String> labels;
+    private final Optional<RegexVersionExtractor> extractor;
+    private final boolean stripPrerelease;
     private final VersionParser parser;
     private final PrometheusExposition exposition = new PrometheusExposition();
-
-    public HttpPrometheusCurrentSource(
-            PrometheusBodyFetch fetch, String url, String metric, String versionLabel, VersionParser parser) {
-        this(fetch, url, metric, versionLabel, Map.of(), parser);
-    }
 
     /**
      * @param labels optional installation-selector map (ADR-0033, issue 02): exact-match label
      *               filters, ANDed, narrowing which samples of {@code metric} are candidates.
      *               Empty means every sample of the metric is a candidate, exactly as this class
      *               behaved before this field existed.
+     * @param extractor optional {@code regex} extraction (ADR-0033, issue 03): applied to the
+     *                   trimmed label value via {@link RegexVersionExtractor#firstIn} — capture
+     *                   group 1 of the FIRST match, never the largest (a current version is a
+     *                   single observation, not a selection). Absent means the trimmed label
+     *                   value is parsed directly, exactly as this class behaved before this field
+     *                   existed.
+     * @param stripPrerelease when {@code true}, clears the prerelease segment of the resolved
+     *                        version before it is reported ({@link VersionValue#withoutPreRelease()}),
+     *                        exactly as for {@code http-json}, {@code http-header}, {@code
+     *                        k8s-image} and {@code oci-registry}.
      */
     public HttpPrometheusCurrentSource(PrometheusBodyFetch fetch, String url, String metric, String versionLabel,
-            Map<String, String> labels, VersionParser parser) {
+            Map<String, String> labels, Optional<RegexVersionExtractor> extractor, boolean stripPrerelease,
+            VersionParser parser) {
         this.fetch = fetch;
         this.url = url;
         this.metric = metric;
         this.versionLabel = versionLabel;
         this.labels = labels;
+        this.extractor = extractor;
+        this.stripPrerelease = stripPrerelease;
         this.parser = parser;
     }
 
@@ -87,7 +99,8 @@ public class HttpPrometheusCurrentSource implements CurrentVersionSource {
         String body = fetch.fetch();
         PrometheusSample sample = firstSample(body);
         String trimmedValue = trimmedLabelValue(sample);
-        return parseVersion(trimmedValue);
+        VersionValue version = parseVersion(trimmedValue);
+        return stripPrerelease ? version.withoutPreRelease() : version;
     }
 
     private PrometheusSample firstSample(String body) {
@@ -153,12 +166,21 @@ public class HttpPrometheusCurrentSource implements CurrentVersionSource {
     }
 
     private VersionValue parseVersion(String trimmedValue) {
+        if (extractor.isPresent()) {
+            return extractor.get().firstIn(trimmedValue)
+                    .orElseThrow(() -> unparseableVersion(trimmedValue,
+                            "the configured 'regex' matched nothing parseable"));
+        }
         try {
             return parser.parse(trimmedValue);
         } catch (InvalidVersionException ex) {
-            throw new IllegalStateException("The 'http-prometheus' current source's metric '" + metric
-                    + "' label '" + versionLabel + "' did not yield a parseable version: " + ex.getMessage()
-                    + " (url '" + url + "').");
+            throw unparseableVersion(trimmedValue, ex.getMessage());
         }
+    }
+
+    private IllegalStateException unparseableVersion(String trimmedValue, String reason) {
+        return new IllegalStateException("The 'http-prometheus' current source's metric '" + metric
+                + "' label '" + versionLabel + "' had value '" + trimmedValue
+                + "', which did not yield a parseable version: " + reason + " (url '" + url + "').");
     }
 }

@@ -3,11 +3,13 @@ package org.yardship.unit.adapters.out.versionsource.current.httpprometheus;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.current.httpprometheus.HttpPrometheusCurrentSource;
 import org.yardship.adapters.out.versionsource.current.httpprometheus.PrometheusBodyFetch;
+import org.yardship.adapters.out.versionsource.regex.RegexVersionExtractor;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.domain.primitives.VersionValue;
 
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -347,6 +349,103 @@ class HttpPrometheusCurrentSourceTests {
     }
 
     // -----------------------------------------------------------------------
+    // Issue 03: optional `regex` and `strip-prerelease` on the value read out of `version-label`.
+    // Both are already implemented elsewhere (RegexVersionExtractor.firstIn,
+    // VersionValue.withoutPreRelease) and reused here, not rewritten.
+    // -----------------------------------------------------------------------
+
+    private static final String EXTRACTOR_LABEL = "'http-prometheus' current source";
+
+    @Test
+    void version_withNoRegexConfigured_theTrimmedLabelValueIsParsedDirectly_slice01Behaviour() {
+        String body = "blackbox_exporter_build_info{version=\"  0.25.0  \"} 1\n";
+        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, Optional.empty(), false);
+
+        VersionValue result = source.version();
+
+        assertEquals("0.25.0", result.value());
+    }
+
+    @Test
+    void version_withRegexConfigured_takesCaptureGroup1OfTheFirstMatch_evenWhenALaterMatchParsesLarger() {
+        // Unambiguous pin of first-wins over largest-wins: the label value contains 1.0.0 before
+        // 9.9.9. A largest-wins rule would report 9.9.9; ADR-0030's current-leg rule (a current
+        // version is an observation, not a selection) requires 1.0.0.
+        String body = "blackbox_exporter_build_info{version=\"1.0.0 then later 9.9.9\"} 1\n";
+        RegexVersionExtractor extractor =
+                new RegexVersionExtractor(EXTRACTOR_LABEL, "(\\d+\\.\\d+\\.\\d+)", SEMVER_PARSER);
+        HttpPrometheusCurrentSource source =
+                source(body, METRIC, DEFAULT_VERSION_LABEL, Optional.of(extractor), false);
+
+        VersionValue result = source.version();
+
+        assertEquals("1.0.0", result.value(),
+                "firstIn must pick the FIRST match (1.0.0), never the largest (9.9.9)");
+    }
+
+    @Test
+    void version_withRegexConfigured_matchingNothing_throws_withSlice01sDidNotYieldAParseableVersionMessage() {
+        // The label value ("1.2.3", no 'v' prefix) is deliberately something the RAW trimmed
+        // value WOULD parse successfully on its own — so this test only goes red for the right
+        // reason (the regex genuinely not being applied) rather than passing vacuously off the
+        // raw-parse fallback path, the way a "no digits in here" fixture would (that fails to
+        // parse either way and produces the same message text regardless of whether the regex
+        // was ever consulted).
+        String body = "blackbox_exporter_build_info{version=\"1.2.3\"} 1\n";
+        RegexVersionExtractor extractor =
+                new RegexVersionExtractor(EXTRACTOR_LABEL, "^v(\\d+\\.\\d+\\.\\d+)$", SEMVER_PARSER);
+        HttpPrometheusCurrentSource source =
+                source(body, METRIC, DEFAULT_VERSION_LABEL, Optional.of(extractor), false);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, source::version,
+                "the configured regex requires a 'v' prefix that '1.2.3' does not have; the "
+                        + "regex must actually be consulted rather than falling back to a raw "
+                        + "parse of the trimmed value, which would succeed");
+
+        assertTrue(ex.getMessage().contains("did not yield a parseable version"),
+                "must carry slice 01's 'did not yield a parseable version' message; was: " + ex.getMessage());
+        assertTrue(ex.getMessage().contains("1.2.3"),
+                "must carry the reason/actual value the regex failed to match a version in; was: "
+                        + ex.getMessage());
+    }
+
+    @Test
+    void version_withStripPrereleaseTrue_clearsThePrereleaseSegment() {
+        String body = "blackbox_exporter_build_info{version=\"2.11.1-6b7ecba1\"} 1\n";
+        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, Optional.empty(), true);
+
+        VersionValue result = source.version();
+
+        assertEquals("2.11.1", result.value());
+    }
+
+    @Test
+    void version_withStripPrereleaseAbsent_preservesThePrereleaseSegment() {
+        String body = "blackbox_exporter_build_info{version=\"2.11.1-6b7ecba1\"} 1\n";
+        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, Optional.empty(), false);
+
+        VersionValue result = source.version();
+
+        assertEquals("2.11.1-6b7ecba1", result.value(),
+                "with strip-prerelease absent, the prerelease segment must be preserved");
+    }
+
+    @Test
+    void version_regexAndStripPrerelease_compose_theRegexExtractsThenThePrereleaseIsStripped() {
+        String body = "blackbox_exporter_build_info{version=\"prefix-v2.11.1-6b7ecba1-suffix\"} 1\n";
+        RegexVersionExtractor extractor =
+                new RegexVersionExtractor(EXTRACTOR_LABEL, "v(\\d+\\.\\d+\\.\\d+-[a-z0-9]+)", SEMVER_PARSER);
+        HttpPrometheusCurrentSource source =
+                source(body, METRIC, DEFAULT_VERSION_LABEL, Optional.of(extractor), true);
+
+        VersionValue result = source.version();
+
+        assertEquals("2.11.1", result.value(),
+                "the regex must extract 2.11.1-6b7ecba1 first, then strip-prerelease must clear "
+                        + "the prerelease segment; was: " + result.value());
+    }
+
+    // -----------------------------------------------------------------------
     // No body content leaks into ANY failure message — a dedicated, explicit sentinel assertion
     // covering every failure path in one place, per ADR-0033's hard requirement.
     // -----------------------------------------------------------------------
@@ -364,6 +463,19 @@ class HttpPrometheusCurrentSourceTests {
             assertFalse(message.contains(SENTINEL),
                     "message must not contain the body's sentinel; body was hidden, message was: " + message);
         }
+
+        // A fifth path reaching the same unparseableVersion helper: a configured regex that
+        // matches nothing in the version-label value. The sentinel sits in a NEIGHBOURING label
+        // (not the version-label value itself, which the message legitimately names) so this
+        // guard catches any widening of the message beyond that single trimmed value.
+        String regexMissBody =
+                "blackbox_exporter_build_info{version=\"1.2.3\",other=\"" + SENTINEL + "\"} 1\n";
+        RegexVersionExtractor nonMatchingExtractor =
+                new RegexVersionExtractor(EXTRACTOR_LABEL, "^v(\\d+\\.\\d+\\.\\d+)$", SEMVER_PARSER);
+        String regexMissMessage = failureMessage(regexMissBody, Optional.of(nonMatchingExtractor));
+        assertFalse(regexMissMessage.contains(SENTINEL),
+                "message must not contain the body's sentinel; body was hidden, message was: "
+                        + regexMissMessage);
     }
 
     // -----------------------------------------------------------------------
@@ -375,19 +487,35 @@ class HttpPrometheusCurrentSourceTests {
         return assertThrows(IllegalStateException.class, source::version).getMessage();
     }
 
+    private static String failureMessage(String body, Optional<RegexVersionExtractor> extractor) {
+        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, extractor, false);
+        return assertThrows(IllegalStateException.class, source::version).getMessage();
+    }
+
     private static String selectorFailureMessage(String body, Map<String, String> selector) {
         HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, selector);
         return assertThrows(IllegalStateException.class, source::version).getMessage();
     }
 
     private static HttpPrometheusCurrentSource source(String body, String metric, String versionLabel) {
-        PrometheusBodyFetch fetch = () -> body;
-        return new HttpPrometheusCurrentSource(fetch, URL, metric, versionLabel, SEMVER_PARSER);
+        return source(body, metric, versionLabel, Map.of(), Optional.empty(), false);
     }
 
     private static HttpPrometheusCurrentSource source(
             String body, String metric, String versionLabel, Map<String, String> labels) {
+        return source(body, metric, versionLabel, labels, Optional.empty(), false);
+    }
+
+    private static HttpPrometheusCurrentSource source(String body, String metric, String versionLabel,
+            Optional<RegexVersionExtractor> extractor, boolean stripPrerelease) {
+        return source(body, metric, versionLabel, Map.of(), extractor, stripPrerelease);
+    }
+
+    /** The single construction site: every other overload above delegates here. */
+    private static HttpPrometheusCurrentSource source(String body, String metric, String versionLabel,
+            Map<String, String> labels, Optional<RegexVersionExtractor> extractor, boolean stripPrerelease) {
         PrometheusBodyFetch fetch = () -> body;
-        return new HttpPrometheusCurrentSource(fetch, URL, metric, versionLabel, labels, SEMVER_PARSER);
+        return new HttpPrometheusCurrentSource(
+                fetch, URL, metric, versionLabel, labels, extractor, stripPrerelease, SEMVER_PARSER);
     }
 }
