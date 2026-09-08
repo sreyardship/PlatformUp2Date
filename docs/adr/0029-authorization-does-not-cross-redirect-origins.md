@@ -1,3 +1,8 @@
 # Authorization does not cross redirect origins
 
-Outbound HTTP GETs made by version sources and `conf-check` follow 301, 302, 303, 307, and 308 automatically through bounded chains, without caching permanent destinations. Redirects retain `Authorization` only when scheme, host, and effective port are unchanged; a cross-origin target receives no credential, and HTTPS-to-HTTP downgrades are refused, so a source-controlled `Location` cannot silently widen the configured trust boundary. This supersedes ADR-0008's accepted residual assumption that current-source credentials may be replayed to another host.
+> **Amended by [ADR-0034](0034-conf-check-removed-the-backend-proves-the-config.md):** this rule
+> was scoped to "version sources and `conf-check`"; the `conf-check` CLI has been removed, so the
+> scope below now names version sources alone. The rule itself is unchanged and still binds every
+> outbound GET a *Scrape* makes.
+
+Outbound HTTP GETs made by version sources follow 301, 302, 303, 307, and 308 automatically through bounded chains, without caching permanent destinations. Redirects retain `Authorization` only when scheme, host, and effective port are unchanged; a cross-origin target receives no credential, and HTTPS-to-HTTP downgrades are refused, so a source-controlled `Location` cannot silently widen the configured trust boundary. This supersedes ADR-0008's accepted residual assumption that current-source credentials may be replayed to another host.

@@ -1,5 +1,12 @@
 # A config error degrades only what it touches; it never fails the boot
 
+> **Amended by [ADR-0034](0034-conf-check-removed-the-backend-proves-the-config.md):** this ADR's consequences record that "nothing
+> replaces the deploy-time gate: `conf-check` validates behavioural surfaces". ADR-0034 answers
+> that concession by removing `conf-check` and accepting the gap deliberately: configuration is
+> proven by the running backend alone. Every statement below about `conf-check` is a record of what
+> was true when this ADR was written; the config-error rule itself is unchanged, and it is what
+> makes ADR-0034 affordable.
+
 Version-source factories and the startup wiring beans split configuration errors
 into two categories with two very different blast radii — a missing `url`,
 a malformed `version-key`, an uncompilable `regex`, a bad `calver-format` or an
