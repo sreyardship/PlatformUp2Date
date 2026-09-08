@@ -17,7 +17,7 @@ docker compose up -d
 ```
 
 ### Backend (Quarkus + Gradle)
-The Gradle root is the repo root (multi-module build under `backend/`: `:backend:domain` + `:backend:server` + `:backend:conf-check`); run these from the repo root, not `backend/server/`.
+The Gradle root is the repo root (multi-module build under `backend/`: `:backend:domain` + `:backend:server`); run these from the repo root, not `backend/server/`.
 ```bash
 gradle :backend:server:quarkusDev          # Dev mode with live reload (localhost:8080)
 gradle :backend:server:build                # Build JAR
