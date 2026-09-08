@@ -53,9 +53,9 @@ jobs:
     needs: images
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # Only this job gets contents:write, and only for the duration of
-    # creating the release — the image-publishing jobs above stay at
-    # packages:write/contents:read throughout.
+    # This job and bump-pins are the only ones with contents:write, each
+    # only for what it must write — the release, and the pin commit. The
+    # image-publishing jobs above stay at packages:write/contents:read.
     permissions:
       contents: write
     steps:
@@ -67,16 +67,13 @@ jobs:
       #
       # The release body leads with an Artifacts section pointing at the
       # actual deliverables — the GHCR image coordinates for this exact
-      # version and the conf-check binary — because --generate-notes alone
-      # produces only a commit changelog that never says where to pull the
-      # images from. --notes together with --generate-notes prepends the
-      # given notes above the generated changelog (documented gh behavior;
-      # --notes-file is not documented to combine). The heredoc is quoted so
-      # the markdown backticks aren't shell-expanded; the version is
-      # substituted afterwards. The conf-check asset is uploaded by a job
-      # that runs after this one (conf-check-native-release), so the body
-      # promises it a few minutes before it appears — accepted deliberately
-      # over a draft-then-publish dance (see RELEASE.md).
+      # version — because --generate-notes alone produces only a commit
+      # changelog that never says where to pull the images from. --notes
+      # together with --generate-notes prepends the given notes above the
+      # generated changelog (documented gh behavior; --notes-file is not
+      # documented to combine). The heredoc is quoted so the markdown
+      # backticks aren't shell-expanded; the version is substituted
+      # afterwards.
       - name: Create GitHub Release with generated notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -97,10 +94,6 @@ jobs:
           docker pull ghcr.io/sreyardship/platformup2date/backend:__VERSION__
           docker pull ghcr.io/sreyardship/platformup2date/frontend:__VERSION__
           ```
-
-          **conf-check CLI** — native binary attached below as
-          `conf-check-linux-amd64`. Validates your `application.yml` before
-          deploying — see [docs/conf-check.md](docs/conf-check.md).
           EOF
           sed -i "s/__VERSION__/${version}/g" "$notes_file"
           gh release create "$tag" --notes "$(cat "$notes_file")" --generate-notes "${prerelease_flag[@]}"
@@ -150,66 +143,3 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "chore(release): pin images to ${GITHUB_REF_NAME#v}"
           git push origin main
-
-  conf-check-native-release:
-    name: conf-check native (${{ matrix.os }}/${{ matrix.arch }})
-    needs: github-release
-    # The matrix starts with Linux/amd64; another OS/architecture only needs a new row. Each row
-    # builds its own native binary and uploads it as a same-named asset on
-    # the release github-release already created.
-    strategy:
-      matrix:
-        include:
-          - os: linux
-            arch: amd64
-            runner: ubuntu-latest
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
-    # Only this job (like github-release above) gets contents:write, scoped
-    # to uploading its own release asset — the image-publishing jobs stay at
-    # packages:write/contents:read throughout, unchanged by this addition.
-    permissions:
-      contents: write
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      # Same GraalVM CE 25 toolchain as pr.yml's `native` job (see its
-      # comment for the JDK 25/21 split rationale): native-image comes from
-      # GRAALVM_HOME, Gradle itself runs on JDK 21.
-      - name: Set up GraalVM CE 25 (native-image toolchain)
-        uses: graalvm/setup-graalvm@v1
-        with:
-          java-version: '25'
-          distribution: 'graalvm-community'
-          set-java-home: 'false'
-
-      - name: Set up JDK 21 (Gradle launcher)
-        uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6.3.0
-        with:
-          gradle-version: '8.14.4'
-
-      - name: Build :conf-check native binary
-        run: gradle --no-daemon :backend:conf-check:nativeCompile
-
-      - name: Rename binary for its release asset
-        run: |
-          mkdir -p dist
-          cp backend/conf-check/build/native/nativeCompile/conf-check "dist/conf-check-${{ matrix.os }}-${{ matrix.arch }}"
-          chmod +x "dist/conf-check-${{ matrix.os }}-${{ matrix.arch }}"
-
-      # Uploads onto the release github-release already created for this
-      # tag; --clobber makes the step safely re-runnable (e.g. a retry after
-      # a transient failure) without failing on an existing asset.
-      - name: Upload native binary to the release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          tag="${{ github.ref_name }}"
-          gh release upload "$tag" "dist/conf-check-${{ matrix.os }}-${{ matrix.arch }}" --clobber

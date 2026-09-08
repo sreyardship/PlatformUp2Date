@@ -12,4 +12,3 @@ rootProject.name = 'platform-up-2-date'
 
 include ':backend:domain'
 include ':backend:server'
-include ':backend:conf-check'
