@@ -16,9 +16,10 @@ import java.util.regex.PatternSyntaxException;
  * shared by every caller that extracts a version out of a regex — see
  * {@code docs/adr/0032-config-errors-degrade-per-app-never-the-boot.md} and
  * {@code docs/adr/0030-http-header-current-source.md}, "The first match, not the largest": only
- * the SELECTION rule differs between callers ({@code http-regex} takes the largest, {@code
- * http-header} takes the first, {@code conf-check} reports every candidate); compilation,
- * validation and candidate matching do not, and must not drift into divergent copies.
+ * the SELECTION rule differs between callers ({@code http-regex} takes the largest match,
+ * {@code http-header} takes the first, and {@code http-prometheus} takes the first too, after
+ * narrowing samples by its label selector); compilation, validation and candidate matching do not,
+ * and must not drift into divergent copies.
  *
  * <p>Deliberately has NO {@link VersionParser} dependency: parsing a candidate, selecting among
  * candidates, and reporting per-candidate outcomes all stay with each caller. This class only
@@ -26,8 +27,9 @@ import java.util.regex.PatternSyntaxException;
  *
  * <p>Messages are neutral: they name no source kind, leg, or config field, because this type is
  * shared by callers with different vocabularies for the same rule ({@code "http-regex"} vs
- * {@code "http-header"}, a server factory vs a {@code conf-check} validator). A caller that needs a
- * kind-labelled failure wraps construction and reformats the message itself.
+ * {@code "http-header"} vs {@code "http-prometheus"}, each its own {@code RegexVersionExtractor}
+ * caller). A caller that needs a kind-labelled failure wraps construction and reformats the
+ * message itself.
  */
 public final class VersionPattern {
 

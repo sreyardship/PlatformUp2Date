@@ -67,17 +67,9 @@ class VersionPatternTests {
 
     // --- messages are neutral: no source kind, leg, or config field name -------------------------
 
-    @Test
-    void zeroCaptureGroupMessage_matchesTheEstablishedNeutralWording() {
-        // This is conf-check's existing RegexPatternValidation wording verbatim (ADR-0032) — pinned
-        // exactly so conf-check can render VersionPattern's message directly with no rewriting.
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> new VersionPattern("Version: \\S+"));
-
-        assertEquals("Regex 'Version: \\S+' has no capture group 1 to parse a version from.",
-                ex.getMessage());
-    }
-
+    // ADR-0032 made VersionPattern the one implementation shared by callers with different
+    // vocabularies for the same rule; its messages therefore commit to no caller's terms, and each
+    // caller relabels them for its own kind.
     @Test
     void zeroCaptureGroupMessage_namesNoSourceKindLegOrConfigField() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
