@@ -8,6 +8,7 @@ import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -381,11 +382,18 @@ class SshOsReleaseCurrentSourceFactoryTests {
             return new ApplicationConfigLoader.VersionSource() {
                 // --- Existing interface methods (always @Override) ----------
                 @Override public Optional<String> type()                          { return Optional.of("ssh-os-release"); }
+                @Override public Map<String, String> labels() { return Map.of(); }
                 @Override public Optional<String> url()                { return Optional.empty(); }
                 @Override public Optional<String> caCert()             { return Optional.empty(); }
                 @Override public Optional<Boolean> insecureSkipTlsVerify() { return Optional.empty(); }
                 @Override
                 public Optional<String> registry() { return Optional.empty(); }
+
+                @Override
+                public Optional<String> metric() { return Optional.empty(); }
+
+                @Override
+                public Optional<String> versionLabel() { return Optional.empty(); }
 
                 @Override
                 public Optional<Integer> maxTags() { return Optional.empty(); }

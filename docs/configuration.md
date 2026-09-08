@@ -195,6 +195,66 @@ source kind:
 Test a `version-header`/`regex` pair against a real or fixture response before deploying with the
 `conf-check header` subcommand — see [conf-check.md](conf-check.md#subcommands).
 
+### `type: http-prometheus` (current) — Tier A, network-reachable, no credentials required
+
+Reads the current version from a **label on a named Prometheus metric** in a `/metrics`-style
+text-exposition body — for apps (blackbox_exporter is the motivating case) that publish their
+version the way the Prometheus ecosystem conventionally does, as a label on a constant-`1`
+`*_build_info` gauge, and never in a JSON body or a response header. See
+[ADR-0033](adr/0033-http-prometheus-current-source.md) for the full rationale; the three behaviors
+below are the deliberate, surprising parts.
+
+```
+blackbox_exporter_build_info{branch="HEAD",goversion="go1.22.4",revision="0ec2a6b",version="0.25.0"} 1
+```
+
+| Key | Type | Required | Default |
+|---|---|---|---|
+| `url` | string | yes | — |
+| `metric` | string | yes | — |
+| `labels` | map of string → string | no | absent → every sample of `metric` is a candidate |
+| `version-label` | string | no | `version` |
+| `regex` | regex with ≥1 capture group | no | absent → the raw trimmed label value is parsed directly |
+| `strip-prerelease` | boolean | no | `false` |
+| `ca-cert` | path to PEM file | no | absent → JVM default trust |
+| `insecure-skip-tls-verify` | boolean | no | `false` |
+| `auth.type` | `basic` \| `bearer` | required if `auth` present | — |
+| `auth.username` / `auth.password` | string | required for `auth.type: basic` | — |
+| `auth.token` | string | exactly one of `token`/`token-file` required for `auth.type: bearer` | — |
+| `auth.token-file` | path | exactly one of `token`/`token-file` required for `auth.type: bearer`; re-read on every request (never cached) | — |
+
+Missing/blank `url` or `metric`, a `regex` that fails to compile or has no capture group, and
+`auth`/`ca-cert` value problems (an unsupported `auth.type`, a `ca-cert` file that cannot be read,
+or configuring both `ca-cert` and `insecure-skip-tls-verify`) all degrade the single app to a
+failed scrape, matching the `http-json` and `http-header` kinds — none of them fail the boot
+(ADR-0032).
+
+Three behaviors are deliberate design decisions, not bugs, and each differs from a sibling HTTP
+source kind:
+
+- **The version comes from the label, never the sample value**, and there is no config switch for
+  the latter. A Prometheus sample value is a float, and `0.25.0` cannot be one at all — which is
+  exactly why the `*_build_info` convention (a constant `1`, with the real version carried as a
+  label) exists in the first place.
+- **A 2xx status is required on the final response**, unlike `http-header`, which is deliberately
+  status-blind. This is not an inconsistency between the two: `http-header` reads metadata the
+  server volunteers about itself regardless of whether it authorizes the caller to read the
+  resource, but here the metrics body *is* the resource — a 403 yields a login page carrying no
+  metrics at all, and a 502 yields a proxy error page. See
+  [ADR-0033](adr/0033-http-prometheus-current-source.md) for the full reconciliation with
+  `http-header`'s rule.
+- **The first matching sample in document order wins, and conflicting samples are not refused.**
+  `labels:` exists to select among *installations* — an operator running two installations of the
+  same application behind one aggregating endpoint points each Application at its own series with
+  an exact-match, ANDed selector (no `!=` / `=~` / `!~`). It is not a remedy for disagreement
+  between samples: two samples of the same metric disagreeing means a rollout is in flight, a
+  condition that is short-lived by construction and resolves itself.
+
+OpenMetrics bodies (including a trailing `# EOF` line) are accepted as-is — a tolerant line parser
+handles both formats without a mode flag. Test a `metric`/`labels`/`version-label` combination
+against a real or fixture `/metrics` body before deploying with the `conf-check metric`
+subcommand — see [conf-check.md](conf-check.md#subcommands).
+
 ### `type: github-release` (latest) — no credentials required for public repos
 
 Selects the largest semver release; configured by `owner/repo` slug, not a

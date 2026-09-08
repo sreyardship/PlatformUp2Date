@@ -50,7 +50,7 @@ class YamlAppConfigReaderHeaderSurfaceIT {
         assertEquals("X-Jenkins", jenkins.currentHeaderName().orElseThrow(),
                 "current.version-header must survive the YAML round trip into AppConfig — this is "
                         + "the field the review found YamlAppConfigReader silently drops");
-        assertEquals("(\\d+\\.\\d+\\.\\d+)", jenkins.currentHeaderRegex().orElseThrow(),
+        assertEquals("(\\d+\\.\\d+\\.\\d+)", jenkins.currentRegex().orElseThrow(),
                 "current.regex (optional, for http-header) must survive the YAML round trip too");
     }
 }

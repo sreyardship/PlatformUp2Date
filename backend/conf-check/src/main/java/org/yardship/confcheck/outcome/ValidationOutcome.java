@@ -283,6 +283,82 @@ public sealed interface ValidationOutcome {
     }
 
     /**
+     * The {@code config} gate's {@code http-prometheus} surface succeeded: a non-blank
+     * {@code url} and {@code metric} are configured, and, if a {@code regex} is configured, it
+     * compiles and declares capture group 1.
+     *
+     * <p>Like {@link ChangelogTemplateValid}/{@link CalverFormatValid}, this is a STRUCTURAL-only
+     * check with no live fetch: this slice (ADR-0033 conf-check gate) never fetches the app's
+     * Prometheus exposition body, so it cannot prove the metric/label actually resolve to a
+     * parseable version — that live extraction check belongs to slice 05's separate extraction
+     * command. Mirrors exactly what {@code HttpPrometheusCurrentSourceFactory} validates at boot
+     * (non-blank {@code url}/{@code metric}, a well-formed optional {@code regex}) — never more —
+     * so the gate's verdict here agrees with the backend's for the fields it can see (ADR-0031).
+     * A transport-value problem, or a syntactically invalid {@code url}, still degrades the app at
+     * boot while reporting OK here; neither is reachable without the pod's filesystem.
+     * {@code version-label} is deliberately not checked here:
+     * it is optional and the backend defaults it consumption-side, so its absence is never an
+     * error.
+     *
+     * @param metric the {@code current.metric} that was validated.
+     */
+    record PrometheusConfigValid(String metric) implements ValidationOutcome {
+        public static final int EXIT_CODE = 0;
+
+        @Override
+        public int exitCode() {
+            return EXIT_CODE;
+        }
+    }
+
+    /**
+     * {@code metric} validation succeeded: the configured metric resolved (optionally narrowed by
+     * {@code --label}), its {@code version-label} was present and non-blank, and — if a scheme was
+     * given — the resulting text parsed. Per ADR-0033, this is deliberately reachable even when
+     * {@link MetricResult#matchedSampleCount()} is greater than one: several samples matching is a
+     * fact to report (naming which sample was taken), never a reason to fail the command, mirroring
+     * the backend {@code http-prometheus} source's own "first match wins, conflicts are not
+     * refused" rule.
+     */
+    record MetricOk(MetricResult result) implements ValidationOutcome {
+        public static final int EXIT_CODE = 0;
+
+        @Override
+        public int exitCode() {
+            return EXIT_CODE;
+        }
+    }
+
+    /**
+     * {@code metric} validation found nothing usable: the metric was absent from the body entirely,
+     * present but the {@code --label} selector matched no sample, a matched sample's
+     * {@code version-label} was absent or present-but-empty after trimming, or (with a scheme/regex
+     * given) its value failed to parse or match.
+     *
+     * <p>The four failure kinds are told apart by {@code message} text, not by distinct
+     * {@link ValidationOutcome} cases — mirroring {@link HeaderValidButEmpty}'s "absent" vs
+     * "present but empty" precedent — because they share one exit code and the distinguishing
+     * information (which label sets were seen, which label was missing, ...) is naturally prose,
+     * not a structured field every case would otherwise need.
+     *
+     * @param message a human-readable explanation of why nothing usable resulted; for the
+     *                "selector matched nothing" case, names a bounded number of the label sets
+     *                actually seen for the configured metric, so the operator can correct
+     *                {@code --label}.
+     * @param result  the result reached so far — {@link MetricResult#matchedSampleCount()} is 0 for
+     *                the "metric absent" / "selector matched nothing" cases, and positive once a
+     *                sample was matched but its label/value failed a later check.
+     */
+    record MetricValidButEmpty(String message, MetricResult result) implements ValidationOutcome {
+        public static final int EXIT_CODE = 4;
+
+        @Override
+        public int exitCode() {
+            return EXIT_CODE;
+        }
+    }
+
+    /**
      * The aggregate result of the {@code config} gate: one {@link AppValidationResult}
      * per app in the file, in file order.
      *

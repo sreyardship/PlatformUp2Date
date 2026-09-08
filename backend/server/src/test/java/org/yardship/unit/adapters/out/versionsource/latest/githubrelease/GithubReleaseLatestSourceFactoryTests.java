@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleaseLatestSourceFactory;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -140,6 +141,11 @@ class GithubReleaseLatestSourceFactoryTests {
             }
 
             @Override
+            public Map<String, String> labels() {
+                return Map.of();
+            }
+
+            @Override
             public Optional<String> url() {
                 return Optional.empty();
             }
@@ -240,6 +246,16 @@ class GithubReleaseLatestSourceFactoryTests {
 
             @Override
             public Optional<String> registry() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> metric() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> versionLabel() {
                 return Optional.empty();
             }
         };

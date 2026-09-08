@@ -27,6 +27,7 @@ import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -694,6 +695,11 @@ class HttpJsonCurrentSourceFactoryTests {
             }
 
             @Override
+            public Map<String, String> labels() {
+                return Map.of();
+            }
+
+            @Override
             public Optional<String> url() {
                 return url;
             }
@@ -789,6 +795,16 @@ class HttpJsonCurrentSourceFactoryTests {
 
             @Override
             public Optional<String> registry() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> metric() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> versionLabel() {
                 return Optional.empty();
             }
 

@@ -141,6 +141,7 @@ class ConfigFileValidationHeaderSurfaceTests {
                 "regular-http-json-app", VersionScheme.SEMVER, Optional.empty(), Optional.empty(),
                 "http-json", Optional.of("http://example.test/current"), Optional.of("/version"), false,
                 Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Map.of(),
                 "github-release", Optional.empty(), Optional.empty());
 
         ValidationOutcome.ConfigFileResult result = validation.validate(List.of(app), false);
@@ -163,6 +164,7 @@ class ConfigFileValidationHeaderSurfaceTests {
                 "jenkins", VersionScheme.SEMVER, Optional.empty(), Optional.empty(),
                 "http-header", Optional.of("http://example.test/"), Optional.empty(), false,
                 Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Map.of(),
                 "github-release", Optional.empty(), Optional.empty());
 
         ValidationOutcome.ConfigFileResult result = validation.validate(List.of(app), false);
@@ -188,6 +190,7 @@ class ConfigFileValidationHeaderSurfaceTests {
                 "jenkins", VersionScheme.SEMVER, Optional.empty(), Optional.empty(),
                 "http-header", Optional.empty(), Optional.empty(), false,
                 Optional.of("X-Jenkins"), Optional.empty(),
+                Optional.empty(), Optional.empty(), Map.of(),
                 "github-release", Optional.empty(), Optional.empty());
 
         ValidationOutcome.ConfigFileResult result = validation.validate(List.of(app), false);
@@ -221,6 +224,7 @@ class ConfigFileValidationHeaderSurfaceTests {
                 "jenkins", VersionScheme.SEMVER, Optional.empty(), Optional.empty(),
                 "http-header", Optional.of(url), Optional.empty(), false,
                 Optional.of(headerName), headerRegex,
+                Optional.empty(), Optional.empty(), Map.of(),
                 "github-release", Optional.empty(), Optional.empty());
     }
 

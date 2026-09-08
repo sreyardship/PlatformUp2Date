@@ -195,7 +195,7 @@ class ConfigFileValidationTests {
     }
 
     @Test
-    void appWithNothingApplicable_allFourSurfacesNotApplicable_bodySourceFactoryNeverInvoked() {
+    void appWithNothingApplicable_allSurfacesNotApplicable_bodySourceFactoryNeverInvoked() {
         ConfigFileValidation validation = new ConfigFileValidation(NEVER_INVOKED, RESPONSE_SOURCE_NEVER_INVOKED);
 
         AppConfig app = appConfig(
@@ -264,6 +264,7 @@ class ConfigFileValidationTests {
             String latestType, Optional<String> latestUrl, Optional<String> latestRegex) {
         return new AppConfig(name, versionScheme, calverFormat, changelogUrl, currentType, currentUrl,
                 currentVersionKey, stripPrerelease, Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Map.of(),
                 latestType, latestUrl, latestRegex);
     }
 }

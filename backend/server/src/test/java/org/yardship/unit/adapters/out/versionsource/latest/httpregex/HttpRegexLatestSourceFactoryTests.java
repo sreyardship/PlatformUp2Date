@@ -6,6 +6,7 @@ import org.yardship.adapters.out.versionsource.latest.httpregex.HttpRegexLatestS
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -153,6 +154,11 @@ class HttpRegexLatestSourceFactoryTests {
             }
 
             @Override
+            public Map<String, String> labels() {
+                return Map.of();
+            }
+
+            @Override
             public Optional<String> url() {
                 return url;
             }
@@ -193,6 +199,12 @@ class HttpRegexLatestSourceFactoryTests {
 
             @Override
             public Optional<String> registry() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> metric() { return Optional.empty(); }
+
+            @Override
+            public Optional<String> versionLabel() { return Optional.empty(); }
 
             @Override
             public Optional<Integer> maxTags() { return Optional.empty(); }

@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -101,6 +102,9 @@ public final class YamlAppConfigReader implements AppConfigReader {
                 Boolean.TRUE.equals(current.stripPrerelease),
                 Optional.ofNullable(current.versionHeader),
                 Optional.ofNullable(current.regex),
+                Optional.ofNullable(current.metric),
+                Optional.ofNullable(current.versionLabel),
+                current.labels == null ? Map.of() : current.labels,
                 latest.type,
                 Optional.ofNullable(latest.url),
                 Optional.ofNullable(latest.regex));
@@ -155,7 +159,19 @@ public final class YamlAppConfigReader implements AppConfigReader {
         @JsonProperty("version-header")
         public String versionHeader;
 
+        // Shared 'current.regex' key: applies to http-header (ADR-0030) and http-prometheus
+        // (ADR-0033, issue 03) alike -- see AppConfig#currentRegex()'s javadoc.
         public String regex;
+
+        // http-prometheus (ADR-0033, slice 04) fields.
+        public String metric;
+
+        @JsonProperty("version-label")
+        public String versionLabel;
+
+        // Nested map, keys read verbatim (no kebab-case mangling) -- slice 02 settled 'labels:' on
+        // this shape over a 'NAME=VALUE' list fallback.
+        public Map<String, String> labels;
     }
 
     private static final class LatestDto {

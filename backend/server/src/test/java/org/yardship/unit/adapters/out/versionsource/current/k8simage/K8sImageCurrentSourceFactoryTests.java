@@ -8,6 +8,7 @@ import org.mockito.Mockito;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.current.k8simage.K8sImageCurrentSourceFactory;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -123,6 +124,11 @@ class K8sImageCurrentSourceFactoryTests {
             }
 
             @Override
+            public Map<String, String> labels() {
+                return Map.of();
+            }
+
+            @Override
             public Optional<String> url() {
                 return Optional.empty();
             }
@@ -218,6 +224,16 @@ class K8sImageCurrentSourceFactoryTests {
 
             @Override
             public Optional<String> registry() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> metric() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> versionLabel() {
                 return Optional.empty();
             }
 

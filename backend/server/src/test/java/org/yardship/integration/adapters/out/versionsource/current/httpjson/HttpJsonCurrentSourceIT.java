@@ -16,6 +16,7 @@ import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentS
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
@@ -150,6 +151,11 @@ class HttpJsonCurrentSourceIT {
             }
 
             @Override
+            public Map<String, String> labels() {
+                return Map.of();
+            }
+
+            @Override
             public Optional<String> url() {
                 return Optional.of("http://localhost:8089/current");
             }
@@ -277,6 +283,16 @@ class HttpJsonCurrentSourceIT {
             public Optional<String> registry() {
                 return Optional.empty();
             }
+
+            @Override
+            public Optional<String> metric() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> versionLabel() {
+                return Optional.empty();
+            }
         };
     }
 
@@ -286,6 +302,11 @@ class HttpJsonCurrentSourceIT {
             @Override
             public Optional<String> type() {
                 return Optional.of("http-json");
+            }
+
+            @Override
+            public Map<String, String> labels() {
+                return Map.of();
             }
 
             @Override
@@ -409,6 +430,16 @@ class HttpJsonCurrentSourceIT {
 
             @Override
             public Optional<String> registry() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> metric() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> versionLabel() {
                 return Optional.empty();
             }
 

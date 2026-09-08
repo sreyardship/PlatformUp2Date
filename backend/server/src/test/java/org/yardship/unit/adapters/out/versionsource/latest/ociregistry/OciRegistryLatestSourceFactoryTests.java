@@ -9,6 +9,7 @@ import org.yardship.adapters.out.versionsource.latest.ociregistry.OciRegistryLat
 import org.yardship.adapters.out.versionsource.latest.ociregistry.TagSelection;
 import org.yardship.core.ports.out.LatestVersionSource;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -327,6 +328,11 @@ class OciRegistryLatestSourceFactoryTests {
             }
 
             @Override
+            public Map<String, String> labels() {
+                return Map.of();
+            }
+
+            @Override
             public Optional<String> url() {
                 return Optional.empty();
             }
@@ -367,6 +373,16 @@ class OciRegistryLatestSourceFactoryTests {
             @Override
             public Optional<String> registry() {
                 return registry;
+            }
+
+            @Override
+            public Optional<String> metric() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> versionLabel() {
+                return Optional.empty();
             }
 
             @Override
@@ -436,6 +452,7 @@ class OciRegistryLatestSourceFactoryTests {
             Optional<String> prereleaseFilter) {
         return new ApplicationConfigLoader.VersionSource() {
             @Override public Optional<String> type() { return Optional.of("oci-registry"); }
+            @Override public Map<String, String> labels() { return Map.of(); }
             @Override public Optional<String> url() { return Optional.empty(); }
             @Override public Optional<String> regex() { return Optional.empty(); }
             @Override public Optional<String> versionHeader()      { return Optional.empty(); }
@@ -449,6 +466,8 @@ class OciRegistryLatestSourceFactoryTests {
             @Override public Optional<String> releaseField() { return Optional.empty(); }
             @Override public Optional<String> repo() { return repo; }
             @Override public Optional<String> registry() { return registry; }
+            @Override public Optional<String> metric() { return Optional.empty(); }
+            @Override public Optional<String> versionLabel() { return Optional.empty(); }
             @Override public Optional<String> namespace() { return Optional.empty(); }
             @Override public Optional<String> workload() { return Optional.empty(); }
             @Override public Optional<String> container() { return Optional.empty(); }
