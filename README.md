@@ -83,8 +83,8 @@ of your own:
 ```
 
 `current` and `latest` are independent, pluggable sources. Every source type
-(`http-json`, `http-header`, `k8s-image`, `ssh-os-release`, `github-release`, `oci-registry`,
-`http-regex`) and every key is documented in
+(`http-json`, `http-header`, `http-prometheus`, `k8s-image`, `ssh-os-release`,
+`github-release`, `oci-registry`, `http-regex`) and every key is documented in
 [`docs/configuration.md`](docs/configuration.md).
 
 ## Documentation
