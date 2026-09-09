@@ -36,12 +36,8 @@ stream is published between releases.
 - **Push a `v*` tag** — the release pipeline (`.github/workflows/release.yml`):
   1. Builds and publishes the semver image tags for both images.
   2. Creates a GitHub Release: an Artifacts section (image pull coordinates
-     for that exact version, pointer to the conf-check binary) followed by
-     auto-generated release notes.
-  3. Uploads the `conf-check` native binary (`conf-check-linux-amd64`) as a
-     release asset. This job runs after the release is created, so the asset
-     appears a few minutes late — known and accepted.
-  4. Bumps the shipped image pins (`deploy/k8s/base/kustomization.yaml`,
+     for that exact version) followed by auto-generated release notes.
+  3. Bumps the shipped image pins (`deploy/k8s/base/kustomization.yaml`,
      `compose.quickstart.yml`) to the released version with a direct commit
      to `main`. Skipped for prereleases.
 
@@ -60,9 +56,8 @@ version bump first.
    ```
 
 3. Watch the *Release* workflow run; when it finishes, check the release page
-   has the Artifacts section, the generated notes, and the
-   `conf-check-linux-amd64` asset, and that the pin-bump commit landed on
-   `main`.
+   has the Artifacts section and the generated notes, and that the pin-bump
+   commit landed on `main`.
 
 To dry-run the pipeline without touching any rolling tag or pin, cut a
 release candidate first (`git tag v0.2.0-rc.1 && git push origin

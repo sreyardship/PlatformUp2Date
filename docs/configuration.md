@@ -10,9 +10,13 @@ the same file both quick starts run, monitoring two real public apps with no
 credentials on either side.
 
 The harder keys to get right by hand (an `http-regex` regex, a `version-key`
-JSON Pointer, a `calver-format`, a `changelog-url` template) can be tested
-before deploying with the [`conf-check` CLI](conf-check.md), which also
-validates a whole `platform-config.yaml` in one run for CI gating.
+JSON Pointer, a `calver-format`, a `changelog-url` template) are proven by
+the running backend. A value it cannot use at all is recorded as a config
+error against the scope it breaks, and that side then fails every scrape
+carrying its reason; a value it accepts but cannot pull a version out of
+only fails the scrape. See
+[When configuration is wrong](#when-configuration-is-wrong) below for how a
+config error reaches every surface and what to change when one appears.
 
 ## When configuration is wrong
 
@@ -192,8 +196,8 @@ source kind:
   case-insensitive by specification (RFC 9110 §5.1) — the rule is "follow the substrate's own
   spec," and it gives opposite answers for the two. A repeated header takes the first value.
 
-Test a `version-header`/`regex` pair against a real or fixture response before deploying with the
-`conf-check header` subcommand — see [conf-check.md](conf-check.md#subcommands).
+A `version-header`/`regex` pair that compiles but extracts nothing from the real response
+degrades that side to a failed scrape, the same as the invalid values above.
 
 ### `type: http-prometheus` (current) — Tier A, network-reachable, no credentials required
 
@@ -251,9 +255,9 @@ source kind:
   condition that is short-lived by construction and resolves itself.
 
 OpenMetrics bodies (including a trailing `# EOF` line) are accepted as-is — a tolerant line parser
-handles both formats without a mode flag. Test a `metric`/`labels`/`version-label` combination
-against a real or fixture `/metrics` body before deploying with the `conf-check metric`
-subcommand — see [conf-check.md](conf-check.md#subcommands).
+handles both formats without a mode flag. A `metric`/`labels`/`version-label` combination that is
+well-formed but matches nothing in the real `/metrics` body degrades that side to a failed scrape,
+the same as the invalid values above.
 
 ### `type: github-release` (latest) — no credentials required for public repos
 

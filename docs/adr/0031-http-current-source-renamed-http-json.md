@@ -4,6 +4,11 @@ status: accepted
 
 # Every HTTP source kind names its extraction, not its transport: `http` becomes `http-json`
 
+> **Amended by [ADR-0034](0034-conf-check-removed-the-backend-proves-the-config.md):** the `conf-check` CLI has been removed. The
+> consequence below about its `config` gate dispatching on the literal kind name is a record of
+> what was true when this ADR was written; there is no longer a pre-deploy gate that could
+> disagree with the backend about a kind's name. The rename itself stands unchanged.
+
 The `http` current source has never been "the HTTP kind" — it is "http, parsed as
 JSON via a JSON Pointer" ([ADR-0007](0007-json-pointer-current-version-extraction.md)).
 That was harmless while it was the only HTTP-fetching kind. It stopped being harmless

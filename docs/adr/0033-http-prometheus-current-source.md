@@ -4,6 +4,11 @@ status: accepted
 
 # A current version published as a metric label is read by an http-prometheus source, which takes the first matching sample
 
+> **Amended by [ADR-0034](0034-conf-check-removed-the-backend-proves-the-config.md):** the `conf-check` CLI has been removed, and with
+> it the standing instruction in the consequence below that "`conf-check` learns the kind in
+> step". Adding a version source kind is now one implementation, in the backend. The
+> `http-prometheus` kind itself is unchanged.
+
 Blackbox exporter publishes its version nowhere in a response body and nowhere in a response
 header. It publishes it the way the whole Prometheus ecosystem does — as a **label on a
 constant-1 `*_build_info` gauge** on its metrics endpoint:

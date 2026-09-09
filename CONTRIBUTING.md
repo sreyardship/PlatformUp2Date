@@ -32,12 +32,11 @@ as the pipeline. Note there is no Gradle wrapper checked in.
 
 ## Backend (Quarkus + Gradle, Java 21)
 
-The backend is a Quarkus 3.33.2 application on Java 21, split into Gradle
+The backend is a Quarkus 3.33.2 application on Java 21, split into two Gradle
 modules nested under `backend/`: `:backend:domain` (plain `java-library`, the
-domain primitives, zero Quarkus runtime dependency), `:backend:server` (the
-Quarkus app itself, depends on `:backend:domain`), and `:backend:conf-check`
-(the config-validator CLI, also depends on `:backend:domain`). The Gradle
-root is the repo root — run these from there, not from `backend/server/`.
+domain primitives, zero Quarkus runtime dependency) and `:backend:server`
+(the Quarkus app itself, depends on `:backend:domain`). The Gradle root is
+the repo root — run these from there, not from `backend/server/`.
 
 ```bash
 gradle :backend:server:quarkusDev   # dev mode with live reload, localhost:8080
