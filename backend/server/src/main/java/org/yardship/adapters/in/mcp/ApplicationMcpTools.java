@@ -4,12 +4,12 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import jakarta.enterprise.context.ApplicationScoped;
-import org.yardship.adapters.out.versionsource.ChangelogTemplates;
 import org.yardship.core.domain.primitives.ConfigError;
 import org.yardship.core.domain.primitives.ScrapeTarget;
 import org.yardship.core.domain.primitives.Side;
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.in.ApplicationVersionPort;
+import org.yardship.core.ports.in.ChangelogLinkPort;
 import org.yardship.core.ports.in.ConfigErrorPort;
 import org.yardship.core.ports.in.ScrapeStatus;
 
@@ -25,15 +25,15 @@ import java.util.List;
 public class ApplicationMcpTools {
 
     private final ApplicationVersionPort applicationVersionPort;
-    private final ChangelogTemplates changelogTemplates;
+    private final ChangelogLinkPort changelogLinkPort;
     private final ConfigErrorPort configErrorPort;
 
     public ApplicationMcpTools(
             ApplicationVersionPort applicationVersionPort,
-            ChangelogTemplates changelogTemplates,
+            ChangelogLinkPort changelogLinkPort,
             ConfigErrorPort configErrorPort) {
         this.applicationVersionPort = applicationVersionPort;
-        this.changelogTemplates = changelogTemplates;
+        this.changelogLinkPort = changelogLinkPort;
         this.configErrorPort = configErrorPort;
     }
 
@@ -57,7 +57,7 @@ public class ApplicationMcpTools {
         return applicationVersionPort.getApplications().stream()
                 .filter(app -> app.isResolved() && app.hasDriftAtLeast(threshold))
                 .map(app -> ApplicationView.from(
-                        app, changelogTemplates.forApp(app.name()), configErrorPort.configErrorsFor(app.name())))
+                        app, changelogLinkPort.changelogFor(app.name()), configErrorPort.configErrorsFor(app.name())))
                 .toList();
     }
 
@@ -73,7 +73,7 @@ public class ApplicationMcpTools {
                 .filter(app -> app.name().equals(name))
                 .findFirst()
                 .map(app -> ApplicationView.from(
-                        app, changelogTemplates.forApp(app.name()), configErrorPort.configErrorsFor(app.name())))
+                        app, changelogLinkPort.changelogFor(app.name()), configErrorPort.configErrorsFor(app.name())))
                 .orElse(null);
     }
 
@@ -88,7 +88,7 @@ public class ApplicationMcpTools {
         return applicationVersionPort.getApplications().stream()
                 .filter(app -> app.hasFailedScrape())
                 .map(app -> ApplicationView.from(
-                        app, changelogTemplates.forApp(app.name()), configErrorPort.configErrorsFor(app.name())))
+                        app, changelogLinkPort.changelogFor(app.name()), configErrorPort.configErrorsFor(app.name())))
                 .toList();
     }
 

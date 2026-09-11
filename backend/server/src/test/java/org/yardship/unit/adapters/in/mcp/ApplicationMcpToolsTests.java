@@ -8,8 +8,6 @@ import org.yardship.adapters.in.mcp.ApplicationMcpTools.ConfigErrorView;
 import org.yardship.adapters.in.mcp.ApplicationMcpTools.ScrapeTargetArg;
 import org.yardship.adapters.in.mcp.ApplicationMcpTools;
 import org.yardship.adapters.in.mcp.ApplicationView;
-import org.yardship.adapters.out.versionsource.ChangelogTemplates;
-import org.yardship.core.ports.out.ConfigErrors;
 import org.yardship.core.domain.primitives.ChangelogTemplate;
 import org.yardship.core.domain.primitives.ConfigError;
 import org.yardship.core.domain.primitives.ConfigErrorScope;
@@ -21,6 +19,8 @@ import org.yardship.core.domain.primitives.TargetResult;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.domain.primitives.VersionValue;
+import org.yardship.core.ports.out.ChangelogLinks;
+import org.yardship.core.ports.out.ConfigErrors;
 
 import java.time.Instant;
 import org.yardship.core.ports.in.ApplicationVersionPort;
@@ -61,7 +61,7 @@ public class ApplicationMcpToolsTests {
     // so each test controls exactly which apps carry a template, mirroring VersionControllerIT's
     // approach for the REST sibling.
     @InjectMock
-    private ChangelogTemplates changelogTemplates;
+    private ChangelogLinks changelogTemplates;
 
     // Shared fleet-wide config-error read model (ADR-0032). Mocked here so each test controls
     // exactly which apps/scopes carry a recorded config error, mirroring VersionControllerIT's

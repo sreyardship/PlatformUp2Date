@@ -6,11 +6,11 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 import io.vertx.core.MultiMap;
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.versionsource.ChangelogTemplates;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.in.ApplicationVersionPort;
+import org.yardship.core.ports.out.ChangelogLinks;
 
 import java.time.Instant;
 import java.util.List;
@@ -55,7 +55,7 @@ class CrossSurfaceIsolationIT {
     ApplicationVersionPort applicationVersionPort;
 
     @InjectMock
-    ChangelogTemplates changelogTemplates;
+    ChangelogLinks changelogTemplates;
 
     private static MultiMap bearerHeader(String token) {
         return MultiMap.caseInsensitiveMultiMap().set("Authorization", "Bearer " + token);

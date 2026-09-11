@@ -4,11 +4,11 @@ import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.versionsource.ChangelogTemplates;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.in.ApplicationVersionPort;
+import org.yardship.core.ports.out.ChangelogLinks;
 
 import java.time.Instant;
 import java.util.List;
@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
  * validate. A browser extension or misconfigured client attaching a stale/foreign bearer token
  * must not be able to knock the public board's REST API or health endpoint over with a 401.
  *
- * <p>{@link ApplicationVersionPort} and {@link ChangelogTemplates} are mocked exactly as in
+ * <p>{@link ApplicationVersionPort} and {@link ChangelogLinks} are mocked exactly as in
  * {@link org.yardship.integration.adapters.in.http.VersionControllerIT}, so a 200 here reflects
  * the controller actually serving the request, not an unrelated 500.
  */
@@ -41,7 +41,7 @@ class McpOidcNonMcpSurfacesIT {
     ApplicationVersionPort applicationVersionPort;
 
     @InjectMock
-    ChangelogTemplates changelogTemplates;
+    ChangelogLinks changelogTemplates;
 
     private void stubOneApp() {
         Instant readAt = Instant.parse("2026-07-01T10:00:00Z");

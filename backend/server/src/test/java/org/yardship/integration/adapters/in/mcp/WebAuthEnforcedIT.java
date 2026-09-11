@@ -5,11 +5,11 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.versionsource.ChangelogTemplates;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.ports.in.ApplicationVersionPort;
+import org.yardship.core.ports.out.ChangelogLinks;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -53,7 +53,7 @@ class WebAuthEnforcedIT {
     ApplicationVersionPort applicationVersionPort;
 
     @InjectMock
-    ChangelogTemplates changelogTemplates;
+    ChangelogLinks changelogTemplates;
 
     private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
     private static final Pattern ACCESS_TOKEN_PATTERN = Pattern.compile("\"access_token\":\"([^\"]+)\"");

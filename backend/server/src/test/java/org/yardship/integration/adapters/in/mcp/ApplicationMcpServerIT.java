@@ -5,8 +5,6 @@ import io.quarkiverse.mcp.server.test.McpAssured.McpStreamableTestClient;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.versionsource.ChangelogTemplates;
-import org.yardship.core.ports.out.ConfigErrors;
 import org.yardship.core.domain.primitives.ChangelogTemplate;
 import org.yardship.core.domain.primitives.ConfigError;
 import org.yardship.core.domain.primitives.ConfigErrorScope;
@@ -14,6 +12,8 @@ import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.domain.primitives.VersionScheme;
+import org.yardship.core.ports.out.ChangelogLinks;
+import org.yardship.core.ports.out.ConfigErrors;
 
 import java.util.Optional;
 
@@ -63,7 +63,7 @@ public class ApplicationMcpServerIT {
     // each test controls which apps carry a template, mirroring
     // VersionControllerIT's approach for the REST sibling.
     @InjectMock
-    ChangelogTemplates changelogTemplates;
+    ChangelogLinks changelogTemplates;
 
     // Fleet-wide config-error read model (ADR-0032). Mocked here so each test controls which
     // apps/scopes carry a recorded config error, mirroring VersionControllerIT's approach for the
