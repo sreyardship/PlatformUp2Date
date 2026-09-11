@@ -12,7 +12,7 @@ import java.io.Closeable;
  * {@code create(cfg)} throwing, or an unknown/retired config {@code type} with no factory at all.
  * Whichever path produces it, this class is the resolver's own representation of
  * the config error (ADR-0032): every path is recorded as exactly one
- * {@link org.yardship.adapters.out.versionsource.configerror.ConfigError} there, so a factory
+ * {@link org.yardship.core.domain.primitives.ConfigError} there, so a factory
  * building this instance directly is an implementation detail, not a second source of truth.
  *
  * <p>Carries a clear message and re-throws it on every {@link #version()} call, so the offending app

@@ -1,8 +1,8 @@
-package org.yardship.unit.adapters.out.versionsource.configerror;
+package org.yardship.unit.core.domain.primitives;
 
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.versionsource.configerror.ConfigError;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope;
+import org.yardship.core.domain.primitives.ConfigError;
+import org.yardship.core.domain.primitives.ConfigErrorScope;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;

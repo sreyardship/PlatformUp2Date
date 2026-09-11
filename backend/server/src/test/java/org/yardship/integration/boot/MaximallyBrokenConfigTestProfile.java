@@ -14,7 +14,7 @@ import java.util.Map;
  * <p>Every "other", unaffected leg of a defect app points at a shared WireMock filler endpoint
  * ({@code /filler/current} or {@code /filler/latest}) that is deliberately left UNSTUBBED: it is
  * structurally legal config (so it records no {@link
- * org.yardship.adapters.out.versionsource.configerror.ConfigError} of its own), and a 404 at
+ * org.yardship.core.domain.primitives.ConfigError} of its own), and a 404 at
  * SCRAPE time is harmless here — config errors are recorded only at STARTUP resolution, never
  * from a later scrape failure (ADR-0032) — so the fixture needs no stub for it.
  */

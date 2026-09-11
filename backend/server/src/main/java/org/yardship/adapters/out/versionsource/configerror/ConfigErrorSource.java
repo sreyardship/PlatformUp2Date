@@ -1,5 +1,8 @@
 package org.yardship.adapters.out.versionsource.configerror;
 
+import org.yardship.core.domain.primitives.ConfigError;
+import org.yardship.core.domain.primitives.ConfigErrorScope;
+
 import java.util.List;
 
 /**

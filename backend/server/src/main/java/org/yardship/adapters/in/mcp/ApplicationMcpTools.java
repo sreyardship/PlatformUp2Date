@@ -5,13 +5,13 @@ import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.yardship.adapters.out.versionsource.ChangelogTemplates;
-import org.yardship.adapters.out.versionsource.configerror.ConfigError;
 import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
+import org.yardship.core.domain.primitives.ConfigError;
 import org.yardship.core.domain.primitives.ScrapeTarget;
 import org.yardship.core.domain.primitives.Side;
 import org.yardship.core.domain.primitives.VersionValue;
-import org.yardship.core.ports.in.ScrapeStatus;
 import org.yardship.core.ports.in.ApplicationVersionPort;
+import org.yardship.core.ports.in.ScrapeStatus;
 
 import java.util.List;
 
@@ -182,7 +182,7 @@ public class ApplicationMcpTools {
      * ApplicationView.ConfigErrorEntry} (which is nested under a single per-app payload and so
      * omits the app name), this record carries {@code application} explicitly, because this
      * listing spans the whole fleet. {@code scope} is the plain {@link
-     * org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope} name; {@code message}
+     * org.yardship.core.domain.primitives.ConfigErrorScope} name; {@code message}
      * is {@link ConfigError#reason()}.
      */
     // Array registered alongside the record — list_misconfigured_applications returns a List, so

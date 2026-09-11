@@ -1,10 +1,10 @@
 package org.yardship.unit.adapters.out.versionsource.configerror;
 
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.versionsource.configerror.ConfigError;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope;
 import org.yardship.adapters.out.versionsource.configerror.ConfigErrorSource;
 import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
+import org.yardship.core.domain.primitives.ConfigError;
+import org.yardship.core.domain.primitives.ConfigErrorScope;
 
 import java.util.List;
 

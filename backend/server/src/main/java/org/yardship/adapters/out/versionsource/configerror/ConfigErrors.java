@@ -3,6 +3,8 @@ package org.yardship.adapters.out.versionsource.configerror;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
+import org.yardship.core.domain.primitives.ConfigError;
+import org.yardship.core.domain.primitives.ConfigErrorScope;
 
 import java.util.Collection;
 import java.util.List;

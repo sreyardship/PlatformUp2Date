@@ -1,6 +1,6 @@
 package org.yardship.adapters.out.versionsource;
-import org.yardship.adapters.out.versionsource.latest.LatestVersionSourceFactory;
 import org.yardship.adapters.out.versionsource.current.CurrentVersionSourceFactory;
+import org.yardship.adapters.out.versionsource.latest.LatestVersionSourceFactory;
 
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -9,11 +9,11 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
-import org.yardship.adapters.out.versionsource.configerror.ConfigError;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope;
 import org.yardship.adapters.out.versionsource.configerror.ConfigErrorSource;
 import org.yardship.adapters.out.versionsource.current.FailedCurrentSource;
 import org.yardship.adapters.out.versionsource.latest.FailedLatestSource;
+import org.yardship.core.domain.primitives.ConfigError;
+import org.yardship.core.domain.primitives.ConfigErrorScope;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.ports.out.ApplicationSources;
 import org.yardship.core.ports.out.CurrentVersionSource;
