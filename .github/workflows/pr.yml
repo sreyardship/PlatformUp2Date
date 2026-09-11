@@ -41,7 +41,7 @@ jobs:
           gradle-version: '8.14.4'
 
       - name: Backend unit + integration tests
-        run: gradle --no-daemon :backend:server:test
+        run: gradle --no-daemon :backend:test
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -134,7 +134,7 @@ jobs:
           PU2D_IT_CALLBACK_HOST: host.docker.internal
           QUARKUS_TEST_ARG_LINE: --add-host=host.docker.internal:host-gateway
         run: >
-          gradle --no-daemon :backend:server:build :backend:server:quarkusIntTest
+          gradle --no-daemon :backend:build :backend:quarkusIntTest
           -Dquarkus.native.enabled=true
           -Dquarkus.package.jar.enabled=false
           -Dquarkus.container-image.build=true

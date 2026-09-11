@@ -1,2 +1,2 @@
-// Repo-root Gradle build. Intentionally minimal — the :backend:server
+// Repo-root Gradle build. Intentionally minimal — the :backend
 // subproject owns its own plugins and dependencies.
