@@ -17,9 +17,11 @@ import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.in.ApplicationVersionPort;
+import org.yardship.core.ports.in.ScrapeStateUnavailableException;
 import org.yardship.core.ports.in.ScrapeStatus;
 import org.yardship.core.ports.out.ScrapeLock;
 import org.yardship.core.ports.out.ScrapeRateLimiter;
+import org.yardship.core.ports.out.ScrapeStateAccessException;
 import org.yardship.core.ports.out.ScrapeStateStore;
 import org.yardship.core.ports.out.VersionSources;
 
@@ -117,7 +119,7 @@ public class ApplicationVersionService implements ApplicationVersionPort {
 
     @Override
     public List<VersionApplication> getApplications() {
-        Optional<ScrapeSnapshot> snapshot = scrapeStateStore.read();
+        Optional<ScrapeSnapshot> snapshot = readScrapeState();
 
         if (snapshot.isPresent() && isFresh(snapshot.get())) {
             return snapshot.get().applications();
@@ -179,7 +181,7 @@ public class ApplicationVersionService implements ApplicationVersionPort {
      * definitely-stale one is written instead, keeping a subsequent plain read scraping the fleet.
      */
     private List<TargetResult> mergeAndWrite(List<ScrapeTarget> targets) {
-        Optional<ScrapeSnapshot> snapshot = scrapeStateStore.read();
+        Optional<ScrapeSnapshot> snapshot = readScrapeState();
         Map<String, ApplicationSources> sourcesByName = indexSourcesByName();
         List<VersionApplication> merged = new ArrayList<>(lastKnownApplications(snapshot));
         List<TargetResult> results = new ArrayList<>();
@@ -189,7 +191,7 @@ public class ApplicationVersionService implements ApplicationVersionPort {
         }
 
         Instant attemptAt = snapshot.map(ScrapeSnapshot::lastAttemptAt).orElse(Instant.EPOCH);
-        scrapeStateStore.write(merged, attemptAt);
+        writeScrapeState(merged, attemptAt);
         return results;
     }
 
@@ -287,6 +289,26 @@ public class ApplicationVersionService implements ApplicationVersionPort {
         }
     }
 
+    // The boundary between what the store states and what the use case states. The store says it
+    // could not reach the Scrape state; the use case says it has no answer. Translating here, with
+    // the cause preserved, is what keeps adapters.in free of any core.ports.out type — see
+    // ScrapeStateUnavailableException's Javadoc.
+    private Optional<ScrapeSnapshot> readScrapeState() {
+        try {
+            return scrapeStateStore.read();
+        } catch (ScrapeStateAccessException inaccessible) {
+            throw new ScrapeStateUnavailableException(inaccessible.getMessage(), inaccessible);
+        }
+    }
+
+    private void writeScrapeState(List<VersionApplication> applications, Instant attemptAt) {
+        try {
+            scrapeStateStore.write(applications, attemptAt);
+        } catch (ScrapeStateAccessException inaccessible) {
+            throw new ScrapeStateUnavailableException(inaccessible.getMessage(), inaccessible);
+        }
+    }
+
     private List<VersionApplication> lastKnownApplications(Optional<ScrapeSnapshot> snapshot) {
         return snapshot.map(ScrapeSnapshot::applications).orElseGet(List::of);
     }
@@ -294,7 +316,7 @@ public class ApplicationVersionService implements ApplicationVersionPort {
     private ScrapeResult scrapeAndWrite() {
         Instant attemptAt = clock.instant();
         ScrapeResult result = scrape();
-        scrapeStateStore.write(result.applications(), attemptAt);
+        writeScrapeState(result.applications(), attemptAt);
         return result;
     }
 
@@ -315,7 +337,7 @@ public class ApplicationVersionService implements ApplicationVersionPort {
      * clock, so it always advances on a full scrape regardless of per-side outcomes.
      */
     private ScrapeResult scrape() {
-        Optional<ScrapeSnapshot> priorSnapshot = scrapeStateStore.read();
+        Optional<ScrapeSnapshot> priorSnapshot = readScrapeState();
         Map<String, VersionApplication> priorByName = indexApplicationsByName(priorSnapshot);
 
         List<ApplicationSources> apps = versionSources.applicationSources();

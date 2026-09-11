@@ -1,5 +1,5 @@
 package org.yardship.adapters.out.scrapestate.valkey;
-import org.yardship.adapters.out.scrapestate.ScrapeStateUnavailableException;
+import org.yardship.core.ports.out.ScrapeStateAccessException;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,7 +32,7 @@ import java.util.stream.Stream;
 
 /**
  * Valkey-backed {@link ScrapeStateStore}. JSON-serialises the snapshot into a single key
- * with a safety TTL, and fails closed (throws {@link ScrapeStateUnavailableException}) when
+ * with a safety TTL, and fails closed (throws {@link ScrapeStateAccessException}) when
  * Valkey is unreachable.
  *
  * <p>The snapshot is mapped to a plain-string DTO before serialisation so the domain
@@ -83,7 +83,7 @@ public class ValkeyScrapeStateStore implements ScrapeStateStore {
         try {
             json = values.get(KEY);
         } catch (RuntimeException e) {
-            throw new ScrapeStateUnavailableException("Failed to read scrape snapshot from Valkey", e);
+            throw new ScrapeStateAccessException("Failed to read scrape snapshot from Valkey", e);
         }
 
         if (json == null) {
@@ -98,7 +98,7 @@ public class ValkeyScrapeStateStore implements ScrapeStateStore {
         try {
             values.set(KEY, json, new SetArgs().ex(SAFETY_TTL));
         } catch (RuntimeException e) {
-            throw new ScrapeStateUnavailableException("Failed to write scrape snapshot to Valkey", e);
+            throw new ScrapeStateAccessException("Failed to write scrape snapshot to Valkey", e);
         }
     }
 
@@ -120,7 +120,7 @@ public class ValkeyScrapeStateStore implements ScrapeStateStore {
         try {
             dto = objectMapper.readValue(json, SnapshotDTO.class);
         } catch (JsonProcessingException e) {
-            throw new ScrapeStateUnavailableException("Failed to deserialise scrape snapshot", e);
+            throw new ScrapeStateAccessException("Failed to deserialise scrape snapshot", e);
         }
         List<VersionApplication> applications = dto.applications().stream()
                 .flatMap(this::toVersionApplicationOrSkip)
@@ -198,7 +198,7 @@ public class ValkeyScrapeStateStore implements ScrapeStateStore {
         try {
             return objectMapper.writeValueAsString(dto);
         } catch (JsonProcessingException e) {
-            throw new ScrapeStateUnavailableException("Failed to serialise scrape snapshot", e);
+            throw new ScrapeStateAccessException("Failed to serialise scrape snapshot", e);
         }
     }
 

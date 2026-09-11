@@ -3,7 +3,6 @@ package org.yardship.integration.adapters.in.http;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.scrapestate.ScrapeStateUnavailableException;
 import org.yardship.core.domain.primitives.ChangelogTemplate;
 import org.yardship.core.domain.primitives.ConfigError;
 import org.yardship.core.domain.primitives.ConfigErrorScope;
@@ -12,6 +11,7 @@ import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.ports.in.ApplicationVersionPort;
+import org.yardship.core.ports.in.ScrapeStateUnavailableException;
 import org.yardship.core.ports.out.ChangelogLinks;
 import org.yardship.core.ports.out.ConfigErrors;
 
