@@ -1,8 +1,8 @@
 package org.yardship.adapters.in.mcp;
 
 import io.quarkus.runtime.annotations.RegisterForReflection;
-import org.yardship.adapters.out.versionsource.configerror.ConfigError;
 import org.yardship.core.domain.primitives.ChangelogTemplate;
+import org.yardship.core.domain.primitives.ConfigError;
 import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.domain.primitives.VersionValue;
@@ -112,7 +112,7 @@ public record ApplicationView(
      * Wire shape for one recorded {@link ConfigError} (ADR-0032, issue 06). Deliberate sibling of
      * {@code ApplicationStatus.ConfigErrorEntry}: the app name is not repeated here — the enclosing
      * {@link ApplicationView} is already keyed by app. {@code scope} is the {@link
-     * org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope} name (e.g.
+     * org.yardship.core.domain.primitives.ConfigErrorScope} name (e.g.
      * {@code "CURRENT"}, {@code "APP"}, {@code "CHANGELOG"}); {@code message} is {@link
      * ConfigError#reason()}.
      */

@@ -1,10 +1,10 @@
 package org.yardship.unit.adapters.out.versionsource.configerror;
 
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.versionsource.configerror.ConfigError;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope;
+import org.yardship.adapters.out.versionsource.configerror.AggregatedConfigErrors;
 import org.yardship.adapters.out.versionsource.configerror.ConfigErrorSource;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
+import org.yardship.core.domain.primitives.ConfigError;
+import org.yardship.core.domain.primitives.ConfigErrorScope;
 
 import java.util.List;
 
@@ -12,16 +12,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ConfigErrors} — the single read model every Surface projects, built by
- * aggregating every discovered {@link ConfigErrorSource} (plan.md's CDI-discovery-by-mere-existence
- * idiom, mirroring how {@code VersionSourceResolver} discovers factories).
+ * Unit tests for {@link AggregatedConfigErrors} — the driven side of the {@code ConfigErrors}
+ * out-port, built by aggregating every discovered {@link ConfigErrorSource} (plan.md's
+ * CDI-discovery-by-mere-existence idiom, mirroring how {@code VersionSourceResolver} discovers
+ * factories).
  *
  * <p><b>Test seam:</b> the production constructor injects {@code Instance<ConfigErrorSource>}; to
- * unit-test without a CDI container, {@link ConfigErrors} exposes a test-visible constructor that
- * accepts a plain {@code Collection<ConfigErrorSource>} — driven entirely by fake sources here, no
- * Quarkus context.
+ * unit-test without a CDI container, {@link AggregatedConfigErrors} exposes a test-visible
+ * constructor that accepts a plain {@code Collection<ConfigErrorSource>} — driven entirely by fake
+ * sources here, no Quarkus context.
  */
-class ConfigErrorsTests {
+class AggregatedConfigErrorsTests {
 
     @Test
     void aggregatesErrorsAcrossMultipleSources() {
@@ -31,7 +32,7 @@ class ConfigErrorsTests {
         ConfigErrorSource parsersLike = fixed(
                 new ConfigError("gamma", ConfigErrorScope.APP, "invalid calver-format"));
 
-        ConfigErrors configErrors = new ConfigErrors(List.of(resolverLike, parsersLike));
+        AggregatedConfigErrors configErrors = new AggregatedConfigErrors(List.of(resolverLike, parsersLike));
 
         assertEquals(3, configErrors.all().size());
         assertTrue(configErrors.all().contains(new ConfigError("alpha", ConfigErrorScope.CURRENT, "blank url")));
@@ -48,7 +49,7 @@ class ConfigErrorsTests {
                 new ConfigError("alpha", ConfigErrorScope.LATEST, "unreachable host"),
                 new ConfigError("beta", ConfigErrorScope.CURRENT, "unknown type 'mystery'"));
 
-        ConfigErrors configErrors = new ConfigErrors(List.of(source));
+        AggregatedConfigErrors configErrors = new AggregatedConfigErrors(List.of(source));
 
         List<ConfigError> alphaErrors = configErrors.forApp("alpha");
         assertEquals(2, alphaErrors.size());
@@ -59,7 +60,7 @@ class ConfigErrorsTests {
     void lookupByApp_isEmpty_forAnUnaffectedApp() {
         ConfigErrorSource source = fixed(new ConfigError("alpha", ConfigErrorScope.CURRENT, "blank url"));
 
-        ConfigErrors configErrors = new ConfigErrors(List.of(source));
+        AggregatedConfigErrors configErrors = new AggregatedConfigErrors(List.of(source));
 
         assertTrue(configErrors.forApp("clean-app").isEmpty());
     }
@@ -71,7 +72,7 @@ class ConfigErrorsTests {
                 new ConfigError("beta", ConfigErrorScope.LATEST, "unreachable host"),
                 new ConfigError("gamma", ConfigErrorScope.CURRENT, "unknown type 'mystery'"));
 
-        ConfigErrors configErrors = new ConfigErrors(List.of(source));
+        AggregatedConfigErrors configErrors = new AggregatedConfigErrors(List.of(source));
 
         List<ConfigError> currentErrors = configErrors.forScope(ConfigErrorScope.CURRENT);
         assertEquals(2, currentErrors.size());
@@ -82,7 +83,7 @@ class ConfigErrorsTests {
     void lookupByScope_isEmpty_whenNoErrorOfThatScopeExists() {
         ConfigErrorSource source = fixed(new ConfigError("alpha", ConfigErrorScope.CURRENT, "blank url"));
 
-        ConfigErrors configErrors = new ConfigErrors(List.of(source));
+        AggregatedConfigErrors configErrors = new AggregatedConfigErrors(List.of(source));
 
         assertTrue(configErrors.forScope(ConfigErrorScope.CHANGELOG).isEmpty());
     }
@@ -92,7 +93,7 @@ class ConfigErrorsTests {
         ConfigErrorSource cleanResolver = fixed();
         ConfigErrorSource cleanParsers = fixed();
 
-        ConfigErrors configErrors = new ConfigErrors(List.of(cleanResolver, cleanParsers));
+        AggregatedConfigErrors configErrors = new AggregatedConfigErrors(List.of(cleanResolver, cleanParsers));
 
         assertTrue(configErrors.all().isEmpty());
         assertTrue(configErrors.forApp("anything").isEmpty());
@@ -101,7 +102,7 @@ class ConfigErrorsTests {
 
     @Test
     void isEmpty_whenNoSourcesAreDiscoveredAtAll() {
-        ConfigErrors configErrors = new ConfigErrors(List.of());
+        AggregatedConfigErrors configErrors = new AggregatedConfigErrors(List.of());
 
         assertTrue(configErrors.all().isEmpty());
     }
@@ -117,7 +118,7 @@ class ConfigErrorsTests {
         ConfigErrorSource resolverLike = withUnnamedApps(2);
         ConfigErrorSource anotherSource = withUnnamedApps(1);
 
-        ConfigErrors configErrors = new ConfigErrors(List.of(resolverLike, anotherSource));
+        AggregatedConfigErrors configErrors = new AggregatedConfigErrors(List.of(resolverLike, anotherSource));
 
         assertEquals(3, configErrors.unnamedAppCount());
     }
@@ -126,14 +127,14 @@ class ConfigErrorsTests {
     void unnamedAppCount_isZero_whenNoSourceDropsAnyApp() {
         ConfigErrorSource cleanSource = fixed();
 
-        ConfigErrors configErrors = new ConfigErrors(List.of(cleanSource));
+        AggregatedConfigErrors configErrors = new AggregatedConfigErrors(List.of(cleanSource));
 
         assertEquals(0, configErrors.unnamedAppCount());
     }
 
     @Test
     void unnamedAppCount_isZero_whenNoSourcesAreDiscoveredAtAll() {
-        ConfigErrors configErrors = new ConfigErrors(List.of());
+        AggregatedConfigErrors configErrors = new AggregatedConfigErrors(List.of());
 
         assertEquals(0, configErrors.unnamedAppCount());
     }

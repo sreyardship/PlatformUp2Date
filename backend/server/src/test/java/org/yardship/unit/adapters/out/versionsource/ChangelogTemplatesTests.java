@@ -3,9 +3,9 @@ package org.yardship.unit.adapters.out.versionsource;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.ChangelogTemplates;
-import org.yardship.adapters.out.versionsource.configerror.ConfigError;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope;
 import org.yardship.core.domain.primitives.ChangelogTemplate;
+import org.yardship.core.domain.primitives.ConfigError;
+import org.yardship.core.domain.primitives.ConfigErrorScope;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.VersionScheme;
 

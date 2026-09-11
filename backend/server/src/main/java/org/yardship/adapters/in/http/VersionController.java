@@ -4,9 +4,9 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.yardship.adapters.out.versionsource.ChangelogTemplates;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
 import org.yardship.core.ports.in.ApplicationVersionPort;
+import org.yardship.core.ports.in.ChangelogLinkPort;
+import org.yardship.core.ports.in.ConfigErrorPort;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -17,16 +17,16 @@ public class VersionController {
     Logger logger = LoggerFactory.getLogger(VersionController.class);
 
     private final ApplicationVersionPort applicationVersionPort;
-    private final ChangelogTemplates changelogTemplates;
-    private final ConfigErrors configErrors;
+    private final ChangelogLinkPort changelogLinkPort;
+    private final ConfigErrorPort configErrorPort;
 
     public VersionController(
             ApplicationVersionPort applicationVersionPort,
-            ChangelogTemplates changelogTemplates,
-            ConfigErrors configErrors) {
+            ChangelogLinkPort changelogLinkPort,
+            ConfigErrorPort configErrorPort) {
         this.applicationVersionPort = applicationVersionPort;
-        this.changelogTemplates = changelogTemplates;
-        this.configErrors = configErrors;
+        this.changelogLinkPort = changelogLinkPort;
+        this.configErrorPort = configErrorPort;
     }
 
     @GET
@@ -41,8 +41,8 @@ public class VersionController {
                 .forEach(app -> {
                             var status = ApplicationStatus.from(
                                     app,
-                                    changelogTemplates.forApp(app.name()),
-                                    configErrors.forApp(app.name()));
+                                    changelogLinkPort.changelogFor(app.name()),
+                                    configErrorPort.configErrorsFor(app.name()));
                             appStatusList.put(app.name(), status);
                         }
                 );

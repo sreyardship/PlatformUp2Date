@@ -14,7 +14,7 @@ public interface ApplicationVersionPort {
      * {@code SCRAPED} status with per-app counts; if lost, returns {@code IN_PROGRESS} without
      * scraping or touching the clock.
      *
-     * @throws RuntimeException if the backing store is unreachable (fail closed).
+     * @throws ScrapeStateUnavailableException if the Scrape state is unavailable (fail closed).
      */
     ScrapeStatus triggerScrape();
 
@@ -33,7 +33,7 @@ public interface ApplicationVersionPort {
      * org.yardship.core.domain.primitives.TargetResult} per target and budget telemetry — no version
      * data inline.
      *
-     * @throws RuntimeException if the backing store is unreachable (fail closed).
+     * @throws ScrapeStateUnavailableException if the Scrape state is unavailable (fail closed).
      */
     ScrapeStatus targetedScrape(List<ScrapeTarget> targets);
 }

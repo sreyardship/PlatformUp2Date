@@ -1,11 +1,12 @@
 package org.yardship.unit.adapters.out.versionsource.configerror;
 
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.versionsource.configerror.ConfigError;
+import org.yardship.adapters.out.versionsource.configerror.AggregatedConfigErrors;
 import org.yardship.adapters.out.versionsource.configerror.ConfigErrorBootReporter;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope;
 import org.yardship.adapters.out.versionsource.configerror.ConfigErrorSource;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
+import org.yardship.core.domain.primitives.ConfigError;
+import org.yardship.core.domain.primitives.ConfigErrorScope;
+import org.yardship.core.ports.out.ConfigErrors;
 import org.yardship.unit.adapters.out.versionsource.TestLogHandler;
 
 import java.util.List;
@@ -36,7 +37,7 @@ class ConfigErrorBootReporterTests {
                 new ConfigError("alpha", ConfigErrorScope.CURRENT, "blank url"),
                 new ConfigError("beta", ConfigErrorScope.LATEST, "unknown type 'mystery'"),
                 new ConfigError("gamma", ConfigErrorScope.CURRENT, "unreachable host"));
-        ConfigErrors configErrors = new ConfigErrors(List.of(source));
+        ConfigErrors configErrors = new AggregatedConfigErrors(List.of(source));
         ConfigErrorBootReporter reporter = new ConfigErrorBootReporter(configErrors, 12);
 
         try (TestLogHandler logs = new TestLogHandler(ConfigErrorBootReporter.class.getName())) {
@@ -60,7 +61,7 @@ class ConfigErrorBootReporterTests {
         ConfigErrorSource source = fixed(
                 new ConfigError("alpha", ConfigErrorScope.CURRENT, "blank url"),
                 new ConfigError("alpha", ConfigErrorScope.LATEST, "unreachable host"));
-        ConfigErrors configErrors = new ConfigErrors(List.of(source));
+        ConfigErrors configErrors = new AggregatedConfigErrors(List.of(source));
         ConfigErrorBootReporter reporter = new ConfigErrorBootReporter(configErrors, 5);
 
         try (TestLogHandler logs = new TestLogHandler(ConfigErrorBootReporter.class.getName())) {
@@ -74,7 +75,7 @@ class ConfigErrorBootReporterTests {
 
     @Test
     void logsNothing_whenTheConfigIsClean() {
-        ConfigErrors configErrors = new ConfigErrors(List.of(fixed()));
+        ConfigErrors configErrors = new AggregatedConfigErrors(List.of(fixed()));
         ConfigErrorBootReporter reporter = new ConfigErrorBootReporter(configErrors, 12);
 
         try (TestLogHandler logs = new TestLogHandler(ConfigErrorBootReporter.class.getName())) {
@@ -89,7 +90,7 @@ class ConfigErrorBootReporterTests {
     @Test
     void reportsUnnamedAppCount_asItsOwnLine_whenGreaterThanZero() {
         ConfigErrorSource source = withUnnamedApps(3);
-        ConfigErrors configErrors = new ConfigErrors(List.of(source));
+        ConfigErrors configErrors = new AggregatedConfigErrors(List.of(source));
         ConfigErrorBootReporter reporter = new ConfigErrorBootReporter(configErrors, 12);
 
         try (TestLogHandler logs = new TestLogHandler(ConfigErrorBootReporter.class.getName())) {
@@ -110,7 +111,7 @@ class ConfigErrorBootReporterTests {
         // The report must not stay silent just because ConfigErrors.all() is empty: an unnamed app
         // is real, alertable information even with zero per-app ConfigError entries.
         ConfigErrorSource source = withUnnamedApps(1);
-        ConfigErrors configErrors = new ConfigErrors(List.of(source));
+        ConfigErrors configErrors = new AggregatedConfigErrors(List.of(source));
         ConfigErrorBootReporter reporter = new ConfigErrorBootReporter(configErrors, 5);
 
         try (TestLogHandler logs = new TestLogHandler(ConfigErrorBootReporter.class.getName())) {
@@ -137,7 +138,7 @@ class ConfigErrorBootReporterTests {
         // that HAVE an identity to be counted under; the unnamed line is appended after the
         // per-error lines, because an unnamed app can never be one of them.
         ConfigErrorSource errors = fixed(new ConfigError("alpha", ConfigErrorScope.CURRENT, "blank url"));
-        ConfigErrors configErrors = new ConfigErrors(List.of(errors, withUnnamedApps(2)));
+        ConfigErrors configErrors = new AggregatedConfigErrors(List.of(errors, withUnnamedApps(2)));
         ConfigErrorBootReporter reporter = new ConfigErrorBootReporter(configErrors, 12);
 
         try (TestLogHandler logs = new TestLogHandler(ConfigErrorBootReporter.class.getName())) {
@@ -161,7 +162,7 @@ class ConfigErrorBootReporterTests {
     @Test
     void logsNothing_whenTheConfigIsClean_andThereAreNoUnnamedApps() {
         ConfigErrorSource source = withUnnamedApps(0);
-        ConfigErrors configErrors = new ConfigErrors(List.of(source));
+        ConfigErrors configErrors = new AggregatedConfigErrors(List.of(source));
         ConfigErrorBootReporter reporter = new ConfigErrorBootReporter(configErrors, 12);
 
         try (TestLogHandler logs = new TestLogHandler(ConfigErrorBootReporter.class.getName())) {

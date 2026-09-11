@@ -49,6 +49,10 @@ dependencies {
     // this dependency to import the realm configured in src/test/resources/mcp-oidc-test-realm.json.
     testImplementation 'io.quarkus:quarkus-test-oidc-server'
 
+    // Pins the hexagon's arrows (HexagonalArchitectureTests). Exact version: these rules replace a
+    // Gradle module edge, so a silent resolution bump must not silently change what they enforce.
+    testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.1'
+
     // Black-box integration tests (@QuarkusIntegrationTest) run via the `quarkusIntTest`
     // task against the built artifact (native in CI). Separate `integrationTest` source set.
     integrationTestImplementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")

@@ -3,17 +3,17 @@ package org.yardship.integration.adapters.in.http;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.scrapestate.ScrapeStateUnavailableException;
-import org.yardship.adapters.out.versionsource.ChangelogTemplates;
-import org.yardship.adapters.out.versionsource.configerror.ConfigError;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
 import org.yardship.core.domain.primitives.ChangelogTemplate;
+import org.yardship.core.domain.primitives.ConfigError;
+import org.yardship.core.domain.primitives.ConfigErrorScope;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.ports.in.ApplicationVersionPort;
+import org.yardship.core.ports.in.ScrapeStateUnavailableException;
+import org.yardship.core.ports.out.ChangelogLinks;
+import org.yardship.core.ports.out.ConfigErrors;
 
 import java.time.Instant;
 import java.util.List;
@@ -48,7 +48,7 @@ class VersionControllerIT {
     // Mocked here so each test controls which apps
     // carry a template, independent of the (untemplated) shared test 'platform-config'.
     @InjectMock
-    ChangelogTemplates changelogTemplates;
+    ChangelogLinks changelogTemplates;
 
     // Per-app config errors (ADR-0032, issue 04) are threaded into ApplicationStatus.from(...) the
     // same way changelog templates are: mocked here so each test controls which apps carry which

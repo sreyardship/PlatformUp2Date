@@ -2,8 +2,8 @@ package org.yardship.unit.adapters.in.http;
 
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.in.http.ApplicationStatus;
-import org.yardship.adapters.out.versionsource.configerror.ConfigError;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope;
+import org.yardship.core.domain.primitives.ConfigError;
+import org.yardship.core.domain.primitives.ConfigErrorScope;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.SideObservation;
 import org.yardship.core.domain.primitives.VersionApplication;

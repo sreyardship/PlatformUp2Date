@@ -5,9 +5,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.yardship.adapters.out.versionsource.configerror.ConfigError;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope;
 import org.yardship.adapters.out.versionsource.configerror.ConfigErrorSource;
+import org.yardship.core.domain.primitives.ConfigError;
+import org.yardship.core.domain.primitives.ConfigErrorScope;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 

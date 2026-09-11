@@ -5,12 +5,13 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.yardship.adapters.out.versionsource.configerror.ConfigError;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrorScope;
 import org.yardship.adapters.out.versionsource.configerror.ConfigErrorSource;
 import org.yardship.core.domain.primitives.CalverFormat;
 import org.yardship.core.domain.primitives.ChangelogTemplate;
+import org.yardship.core.domain.primitives.ConfigError;
+import org.yardship.core.domain.primitives.ConfigErrorScope;
 import org.yardship.core.domain.primitives.VersionScheme;
+import org.yardship.core.ports.out.ChangelogLinks;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -22,9 +23,10 @@ import java.util.Optional;
  * Per-app {@link ChangelogTemplate} lookup (ADR-0021), built eagerly at startup from
  * {@link ApplicationConfigLoader}'s {@code changelog-url} config.
  *
- * <p>This is the single lookup consumed by both the REST projection ({@code VersionController} /
- * {@code ApplicationStatus}) and the MCP adapter. The per-app template map is built exactly once
- * here and never duplicated into an adapter.
+ * <p>The driven side of the {@link ChangelogLinks} out-port: the single lookup behind both the REST
+ * projection ({@code VersionController} / {@code ApplicationStatus}) and the MCP adapter, reached
+ * through {@code ChangelogLinkPort}. The per-app template map is built exactly once here and never
+ * duplicated into an adapter.
  *
  * <p>Per ADR-0032, an illegal template does not fail boot: it records exactly one {@link
  * ConfigErrorScope#CHANGELOG}-scope {@link ConfigError} instead, and {@link #forApp} returns
@@ -34,7 +36,7 @@ import java.util.Optional;
  */
 @ApplicationScoped
 @Startup
-public class ChangelogTemplates implements ConfigErrorSource {
+public class ChangelogTemplates implements ChangelogLinks, ConfigErrorSource {
 
     private final Logger logger = LoggerFactory.getLogger(ChangelogTemplates.class);
 
@@ -91,6 +93,7 @@ public class ChangelogTemplates implements ConfigErrorSource {
     }
 
     /** The resolved template for {@code appName}, or {@link Optional#empty()} if unconfigured. */
+    @Override
     public Optional<ChangelogTemplate> forApp(String appName) {
         return Optional.ofNullable(templatesByApp.get(appName));
     }

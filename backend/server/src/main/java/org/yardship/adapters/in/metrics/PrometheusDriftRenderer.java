@@ -1,7 +1,7 @@
 package org.yardship.adapters.in.metrics;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import org.yardship.adapters.out.versionsource.configerror.ConfigError;
+import org.yardship.core.domain.primitives.ConfigError;
 import org.yardship.core.domain.primitives.VersionApplication;
 import org.yardship.core.domain.primitives.VersionValue;
 

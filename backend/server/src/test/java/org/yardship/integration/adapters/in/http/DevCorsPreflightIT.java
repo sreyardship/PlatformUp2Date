@@ -4,8 +4,8 @@ import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.versionsource.ChangelogTemplates;
 import org.yardship.core.ports.in.ApplicationVersionPort;
+import org.yardship.core.ports.out.ChangelogLinks;
 
 import java.util.List;
 
@@ -37,7 +37,7 @@ class DevCorsPreflightIT {
     ApplicationVersionPort applicationVersionPort;
 
     @InjectMock
-    ChangelogTemplates changelogTemplates;
+    ChangelogLinks changelogTemplates;
 
     @Test
     void preflight_fromDevOrigin_withAuthorizationHeader_isAllowed() {

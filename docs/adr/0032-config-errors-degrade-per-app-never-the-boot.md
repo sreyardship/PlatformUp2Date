@@ -7,6 +7,14 @@
 > was true when this ADR was written; the config-error rule itself is unchanged, and it is what
 > makes ADR-0034 affordable.
 
+> **Amended by [ADR-0035](0035-config-error-is-a-domain-primitive.md):** the rejected option below
+> reads "a substrate-bound rule stays in the server", and answers a question about Gradle modules,
+> asked while `conf-check` still forced every shared type across a module boundary. ADR-0035 asks
+> the *layer* question instead and moves `ConfigError` and `ConfigErrorScope` into
+> `core.domain.primitives`, where every *Surface* reads them through a driving port. The rule this
+> ADR decides — a *Config error* degrades only what it touches and never fails the boot — is
+> untouched by that move, as is what a *Config error* is and when it is known.
+
 Version-source factories and the startup wiring beans split configuration errors
 into two categories with two very different blast radii — a missing `url`,
 a malformed `version-key`, an uncompilable `regex`, a bad `calver-format` or an

@@ -3,7 +3,6 @@ package org.yardship.core.ports.in;
 import io.quarkus.runtime.annotations.RegisterForReflection;
 
 import org.yardship.core.domain.primitives.TargetResult;
-import org.yardship.core.ports.out.ScrapeResult;
 
 import java.util.List;
 
@@ -14,10 +13,10 @@ import static org.yardship.core.domain.primitives.DomainValidator.notNull;
  * verbatim over HTTP (and later MCP).
  *
  * <p>{@code outcome} says what happened; the {@code appsAttempted/appsSucceeded/appsFailed}
- * counts are populated from the {@link ScrapeResult} on a {@code SCRAPED} outcome (and are 0
- * otherwise). The budget fields — {@code triggersRemaining}, {@code windowResetsInSeconds}
- * (relevant on SCRAPED) and {@code retryAfterSeconds} (relevant on RATE_LIMITED) — report the
- * state of the manual-scrape rate limit.
+ * counts are populated by the use case on a {@code SCRAPED} outcome (and are 0 otherwise). The
+ * budget fields — {@code triggersRemaining}, {@code windowResetsInSeconds} (relevant on SCRAPED)
+ * and {@code retryAfterSeconds} (relevant on RATE_LIMITED) — report the state of the manual-scrape
+ * rate limit.
  *
  * <p>{@code targetResults} carries the per-target outcomes of a targeted scrape (one
  * {@link TargetResult} per requested {@code ScrapeTarget}); the full-fleet path passes an empty
@@ -42,7 +41,7 @@ public record ScrapeStatus(
     }
 
     /**
-     * A successful manual scrape with budget telemetry. Counts are mapped from the scrape result;
+     * A successful manual scrape with budget telemetry. Counts are supplied by the caller;
      * {@code triggersRemaining}/{@code windowResetsInSeconds} come from the budget decision spent for
      * this trigger. {@code retryAfterSeconds} is 0 (not rate-limited).
      */
@@ -71,8 +70,8 @@ public record ScrapeStatus(
      * A successful FULL scrape carrying both the app counts AND the per-app {@link TargetResult}s
      * (one per configured app, {@code side == BOTH} — see docs/adr/0006). Unlike the targeted-scrape
      * overload, the app counts here ARE meaningful and are taken verbatim from the caller (not
-     * re-derived from {@code targetResults}), so they stay byte-for-byte consistent with the
-     * {@link org.yardship.core.ports.out.ScrapeResult} the service computed.
+     * re-derived from {@code targetResults}), so they stay byte-for-byte consistent with what the
+     * use case computed for the scrape.
      */
     public static ScrapeStatus scraped(
             int appsAttempted,
