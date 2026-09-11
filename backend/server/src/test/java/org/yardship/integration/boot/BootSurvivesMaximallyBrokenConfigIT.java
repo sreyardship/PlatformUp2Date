@@ -9,7 +9,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
+import org.yardship.core.ports.out.ConfigErrors;
 import org.yardship.core.domain.primitives.ConfigError;
 import org.yardship.core.domain.primitives.ConfigErrorScope;
 import org.yardship.core.domain.primitives.VersionApplication;

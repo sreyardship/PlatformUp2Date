@@ -5,7 +5,7 @@ import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.ChangelogTemplates;
 import org.yardship.adapters.out.versionsource.VersionParsers;
 import org.yardship.adapters.out.versionsource.VersionSourceResolver;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
+import org.yardship.adapters.out.versionsource.configerror.AggregatedConfigErrors;
 import org.yardship.adapters.out.versionsource.current.CurrentVersionSourceFactory;
 import org.yardship.adapters.out.versionsource.current.FailedCurrentSource;
 import org.yardship.adapters.out.versionsource.latest.FailedLatestSource;
@@ -17,6 +17,7 @@ import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.ApplicationSources;
+import org.yardship.core.ports.out.ConfigErrors;
 import org.yardship.core.ports.out.CurrentVersionSource;
 import org.yardship.core.ports.out.LatestVersionSource;
 
@@ -638,7 +639,7 @@ class VersionSourceResolverTests {
                 versionParsers);
 
         ConfigErrors configErrors =
-                new ConfigErrors(List.of(versionParsers, changelogTemplates, resolver));
+                new AggregatedConfigErrors(List.of(versionParsers, changelogTemplates, resolver));
 
         assertEquals(1, configErrors.all().size(),
                 "one bad calver-format must appear exactly once across every discovered "

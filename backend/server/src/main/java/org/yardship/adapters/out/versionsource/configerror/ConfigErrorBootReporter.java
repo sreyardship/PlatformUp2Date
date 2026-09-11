@@ -7,6 +7,7 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yardship.core.domain.primitives.ConfigError;
+import org.yardship.core.ports.out.ConfigErrors;
 import org.yardship.core.ports.out.VersionSources;
 
 import java.util.List;

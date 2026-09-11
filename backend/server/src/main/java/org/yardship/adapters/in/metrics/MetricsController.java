@@ -3,28 +3,28 @@ package org.yardship.adapters.in.metrics;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
 import org.yardship.core.ports.in.ApplicationVersionPort;
+import org.yardship.core.ports.in.ConfigErrorPort;
 
 @Path("/metrics")
 public class MetricsController {
 
     private final ApplicationVersionPort applicationVersionPort;
     private final PrometheusDriftRenderer renderer;
-    private final ConfigErrors configErrors;
+    private final ConfigErrorPort configErrorPort;
 
     public MetricsController(ApplicationVersionPort applicationVersionPort,
                             PrometheusDriftRenderer renderer,
-                            ConfigErrors configErrors) {
+                            ConfigErrorPort configErrorPort) {
         this.applicationVersionPort = applicationVersionPort;
         this.renderer = renderer;
-        this.configErrors = configErrors;
+        this.configErrorPort = configErrorPort;
     }
 
     @GET
     @Produces("text/plain; version=0.0.4; charset=utf-8")
     public String getMetrics() {
-        return renderer.render(applicationVersionPort.getApplications(), configErrors.all(),
-                configErrors.unnamedAppCount());
+        return renderer.render(applicationVersionPort.getApplications(), configErrorPort.allConfigErrors(),
+                configErrorPort.unnamedAppCount());
     }
 }

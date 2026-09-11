@@ -5,8 +5,8 @@ import jakarta.ws.rs.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yardship.adapters.out.versionsource.ChangelogTemplates;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
 import org.yardship.core.ports.in.ApplicationVersionPort;
+import org.yardship.core.ports.in.ConfigErrorPort;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -18,15 +18,15 @@ public class VersionController {
 
     private final ApplicationVersionPort applicationVersionPort;
     private final ChangelogTemplates changelogTemplates;
-    private final ConfigErrors configErrors;
+    private final ConfigErrorPort configErrorPort;
 
     public VersionController(
             ApplicationVersionPort applicationVersionPort,
             ChangelogTemplates changelogTemplates,
-            ConfigErrors configErrors) {
+            ConfigErrorPort configErrorPort) {
         this.applicationVersionPort = applicationVersionPort;
         this.changelogTemplates = changelogTemplates;
-        this.configErrors = configErrors;
+        this.configErrorPort = configErrorPort;
     }
 
     @GET
@@ -42,7 +42,7 @@ public class VersionController {
                             var status = ApplicationStatus.from(
                                     app,
                                     changelogTemplates.forApp(app.name()),
-                                    configErrors.forApp(app.name()));
+                                    configErrorPort.configErrorsFor(app.name()));
                             appStatusList.put(app.name(), status);
                         }
                 );

@@ -9,7 +9,7 @@ import org.yardship.adapters.in.mcp.ApplicationMcpTools.ScrapeTargetArg;
 import org.yardship.adapters.in.mcp.ApplicationMcpTools;
 import org.yardship.adapters.in.mcp.ApplicationView;
 import org.yardship.adapters.out.versionsource.ChangelogTemplates;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
+import org.yardship.core.ports.out.ConfigErrors;
 import org.yardship.core.domain.primitives.ChangelogTemplate;
 import org.yardship.core.domain.primitives.ConfigError;
 import org.yardship.core.domain.primitives.ConfigErrorScope;

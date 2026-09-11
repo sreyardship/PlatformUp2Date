@@ -5,12 +5,12 @@ import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.yardship.adapters.out.versionsource.ChangelogTemplates;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
 import org.yardship.core.domain.primitives.ConfigError;
 import org.yardship.core.domain.primitives.ScrapeTarget;
 import org.yardship.core.domain.primitives.Side;
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.in.ApplicationVersionPort;
+import org.yardship.core.ports.in.ConfigErrorPort;
 import org.yardship.core.ports.in.ScrapeStatus;
 
 import java.util.List;
@@ -26,15 +26,15 @@ public class ApplicationMcpTools {
 
     private final ApplicationVersionPort applicationVersionPort;
     private final ChangelogTemplates changelogTemplates;
-    private final ConfigErrors configErrors;
+    private final ConfigErrorPort configErrorPort;
 
     public ApplicationMcpTools(
             ApplicationVersionPort applicationVersionPort,
             ChangelogTemplates changelogTemplates,
-            ConfigErrors configErrors) {
+            ConfigErrorPort configErrorPort) {
         this.applicationVersionPort = applicationVersionPort;
         this.changelogTemplates = changelogTemplates;
-        this.configErrors = configErrors;
+        this.configErrorPort = configErrorPort;
     }
 
     @Tool(
@@ -57,7 +57,7 @@ public class ApplicationMcpTools {
         return applicationVersionPort.getApplications().stream()
                 .filter(app -> app.isResolved() && app.hasDriftAtLeast(threshold))
                 .map(app -> ApplicationView.from(
-                        app, changelogTemplates.forApp(app.name()), configErrors.forApp(app.name())))
+                        app, changelogTemplates.forApp(app.name()), configErrorPort.configErrorsFor(app.name())))
                 .toList();
     }
 
@@ -73,7 +73,7 @@ public class ApplicationMcpTools {
                 .filter(app -> app.name().equals(name))
                 .findFirst()
                 .map(app -> ApplicationView.from(
-                        app, changelogTemplates.forApp(app.name()), configErrors.forApp(app.name())))
+                        app, changelogTemplates.forApp(app.name()), configErrorPort.configErrorsFor(app.name())))
                 .orElse(null);
     }
 
@@ -88,7 +88,7 @@ public class ApplicationMcpTools {
         return applicationVersionPort.getApplications().stream()
                 .filter(app -> app.hasFailedScrape())
                 .map(app -> ApplicationView.from(
-                        app, changelogTemplates.forApp(app.name()), configErrors.forApp(app.name())))
+                        app, changelogTemplates.forApp(app.name()), configErrorPort.configErrorsFor(app.name())))
                 .toList();
     }
 
@@ -109,7 +109,7 @@ public class ApplicationMcpTools {
                     + "list_applications_with_failed_scrapes. Use this tool to diagnose 'why is this "
                     + "app not configured correctly' as distinct from 'why did the last read fail'.")
     public List<ConfigErrorView> list_misconfigured_applications() {
-        return configErrors.all().stream()
+        return configErrorPort.allConfigErrors().stream()
                 .map(error -> new ConfigErrorView(
                         error.application(), error.scope().name(), error.reason()))
                 .toList();

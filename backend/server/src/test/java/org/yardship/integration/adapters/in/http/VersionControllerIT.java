@@ -5,7 +5,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.scrapestate.ScrapeStateUnavailableException;
 import org.yardship.adapters.out.versionsource.ChangelogTemplates;
-import org.yardship.adapters.out.versionsource.configerror.ConfigErrors;
+import org.yardship.core.ports.out.ConfigErrors;
 import org.yardship.core.domain.primitives.ChangelogTemplate;
 import org.yardship.core.domain.primitives.ConfigError;
 import org.yardship.core.domain.primitives.ConfigErrorScope;
