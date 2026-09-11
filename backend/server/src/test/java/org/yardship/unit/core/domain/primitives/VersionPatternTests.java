@@ -1,6 +1,8 @@
-package org.yardship.core.domain.primitives;
+package org.yardship.unit.core.domain.primitives;
 
 import org.junit.jupiter.api.Test;
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionPattern;
 
 import java.util.List;
 import java.util.regex.PatternSyntaxException;

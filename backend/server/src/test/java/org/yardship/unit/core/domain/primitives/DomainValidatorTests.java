@@ -1,4 +1,4 @@
-package org.yardship.core.domain.primitives;
+package org.yardship.unit.core.domain.primitives;
 
 import org.yardship.core.domain.exceptions.InvalidDomainObjectException;
 import org.junit.jupiter.api.Test;

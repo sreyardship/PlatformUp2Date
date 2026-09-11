@@ -32,15 +32,12 @@ as the pipeline. Note there is no Gradle wrapper checked in.
 
 ## Backend (Quarkus + Gradle, Java 21)
 
-The backend is a Quarkus 3.33.2 application on Java 21, split into two Gradle
-modules nested under `backend/`: `:backend:domain` (plain `java-library`, the
-domain primitives, zero Quarkus runtime dependency) and `:backend:server`
-(the Quarkus app itself, depends on `:backend:domain`). The Gradle root is
-the repo root — run these from there, not from `backend/server/`.
+The backend is a Quarkus 3.33.2 application on Java 21, in a single Gradle
+module nested under `backend/`: `:backend:server`. The Gradle root is the
+repo root — run these from there, not from `backend/server/`.
 
 ```bash
 gradle :backend:server:quarkusDev   # dev mode with live reload, localhost:8080
-gradle :backend:domain:test         # :backend:domain's own unit tests
 gradle :backend:server:test         # backend unit + JVM integration tests
 gradle :backend:server:build        # build the JAR
 ```
@@ -86,7 +83,7 @@ yarn build   # production build
 
 Every pull request must pass **both** required checks before it can merge:
 
-- **`fast`** — backend unit/integration tests (`gradle :backend:domain:test :backend:server:test`) plus the
+- **`fast`** — backend unit/integration tests (`gradle :backend:server:test`) plus the
   frontend test suite. A few minutes.
 - **`native`** — a full GraalVM native build plus the native integration
   test suite run against the built binary. This is the slow one: expect
