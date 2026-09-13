@@ -133,7 +133,7 @@ test {
     // One-off GraalVM reachability-metadata capture: run a focused test class under the
     // native-image tracing agent to (re)generate META-INF/native-image config for the SSH path.
     //   gradle test --tests '*SshOsReleaseCurrentSourceIT' -PnativeAgentDir=<abs-dir> --rerun-tasks
-    // See docs/adr/0018 for when to regenerate (MINA SSHD upgrades).
+    // See docs/adr/0025 for when to regenerate (MINA SSHD upgrades).
     if (project.hasProperty('nativeAgentDir')) {
         def graalHome = System.getenv('GRAALVM_HOME') ?: System.getProperty('java.home')
         // The tracing agent must run on a JVM matching its major version (the GraalVM JDK), so fork

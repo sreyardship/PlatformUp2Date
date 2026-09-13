@@ -1,5 +1,10 @@
 # The MCP endpoint lives at /api/mcp, a sibling of /api/v1 — not a child
 
+> **Amended by [ADR-0004](0004-mcp-transport-stateless-for-ha.md):** MCP now uses
+> stateless Streamable HTTP at `/api/mcp`. The SSE path, client setup, and
+> ingress consequences below describe the earlier transport. The decision to
+> keep MCP at `/api/mcp`, outside the versioned REST path, still applies.
+
 The MCP transport is served at `/api/mcp/sse` (via
 `quarkus.mcp.server.http.root-path: api/mcp`), relocated from the extension's
 default `/mcp`. It sits *beside* the versioned REST API, not underneath it: the

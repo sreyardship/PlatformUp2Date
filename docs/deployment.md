@@ -397,7 +397,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: '{{ $value }} application(s) have a configuration defect — check the board or list_misconfigured_applications for the reason'
+          summary: '{{ $value }} configuration defect(s) detected; check the board or list_misconfigured_applications for the reason'
 
       - alert: AppScrapeStale
         expr: time() - pu2d_scrape_last_success_timestamp_seconds > 6 * 3600

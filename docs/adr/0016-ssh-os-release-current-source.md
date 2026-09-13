@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # A VM's current version is read over SSH from /etc/os-release, with mandatory host-key verification

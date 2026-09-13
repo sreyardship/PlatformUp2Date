@@ -17,7 +17,7 @@ import java.security.Security;
  * provider: BC} — isolated to that app by the per-call lifecycle, but still a scrape failure.
  *
  * <p>Registering BouncyCastle once at boot (GraalVM supports runtime {@code Security.addProvider})
- * makes the named lookups resolve in native. See {@code docs/adr/0018}. This path retains
+ * makes the named lookups resolve in native. See {@code docs/adr/0025}. This path retains
  * BouncyCastle because MINA's provider registrar requires it.
  */
 @ApplicationScoped

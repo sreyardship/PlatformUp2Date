@@ -4,6 +4,12 @@ status: accepted
 
 # Every HTTP source kind names its extraction, not its transport: `http` becomes `http-json`
 
+> **Amended by [ADR-0032](0032-config-errors-degrade-per-app-never-the-boot.md):**
+> retired `type: http` entries are still rejected with a message naming
+> `http-json`, but they no longer fail the whole boot. The resolver records a
+> current-scope Config error and degrades that Application's current side. The
+> fail-fast statements below describe the behavior before ADR-0032.
+
 > **Amended by [ADR-0034](0034-conf-check-removed-the-backend-proves-the-config.md):** the `conf-check` CLI has been removed. The
 > consequence below about its `config` gate dispatching on the literal kind name is a record of
 > what was true when this ADR was written; there is no longer a pre-deploy gate that could

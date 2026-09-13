@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Calendar versions are a first-class scheme, not coerced semver

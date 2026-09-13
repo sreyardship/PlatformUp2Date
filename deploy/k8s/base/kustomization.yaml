@@ -32,8 +32,8 @@ configMapGenerator:
       - platform-config.yaml
 
 # Image tags live here and only here (the Deployments reference the bare
-# image names). Bumped by release CI alongside compose.quickstart.yml; the
-# two images version independently.
+# image names). Release CI bumps both tags in lockstep alongside
+# compose.quickstart.yml. Legacy pins may differ until the next release.
 images:
   - name: ghcr.io/sreyardship/platformup2date/backend
     newTag: "0.0.48"
