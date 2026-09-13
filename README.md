@@ -154,6 +154,18 @@ behind multiple replicas with no session affinity.
   app with any drift.
 - **`get_application(name)`** — returns the status of a single application by exact name,
   or nothing if it isn't monitored.
+- **`list_applications_with_failed_scrapes()`** — returns applications whose most recent
+  scrape of either the current or latest side failed. It excludes sides that have never
+  been attempted; a failed scrape describes the read, not the health of the application.
+- **`list_misconfigured_applications()`** — returns recorded configuration defects as
+  `{ application, scope, message }` entries. The scope is `CURRENT`, `LATEST`, `APP`, or
+  `CHANGELOG`; this is distinct from a transient failed scrape.
+- **`trigger_scrape()`** — requests an immediate full scrape. It returns scrape telemetry,
+  including an `outcome` of `SCRAPED`, `RATE_LIMITED`, or `IN_PROGRESS`, rather than
+  application versions.
+- **`scrape_applications(targets)`** — requests a targeted scrape for a list of
+  `{ name, side }` entries, where `side` is `current`, `latest`, or `both`. It uses a
+  separate targeted-scrape budget and returns per-target results when the scrape runs.
 
 `changelogUrl` links the release notes of the latest upstream release (if the app has a
 [changelog-link template](docs/configuration.md#changelog-link-templates) configured,
