@@ -121,7 +121,7 @@ class SshOsReleaseCurrentSourceIT {
     static String serverPublicKeyLine;   // host-key config value (correct pinned key)
     static String wrongPublicKeyLine;    // host-key config value (wrong key — mismatch test)
 
-    // ed25519 variants — the PRODUCTION host-key type (ADR-0018). A second embedded server presents
+    // ed25519 variants — the PRODUCTION host-key type (ADR-0025). A second embedded server presents
     // an ed25519 host key and accepts an ed25519 client key, so the SSH client path is exercised
     // against the prod key type in addition to RSA. Real ssh-keygen ed25519 keys are embedded as
     // constants and only ever PARSED (never re-serialized): this goes through the exact production
@@ -214,7 +214,7 @@ class SshOsReleaseCurrentSourceIT {
         server.start();
         // server.getPort() is now the bound ephemeral port
 
-        // --- ed25519 server + client (production host-key type, ADR-0018) ---
+        // --- ed25519 server + client (production host-key type, ADR-0025) ---
         // Parse the embedded ssh-keygen keys via the same loader the production source uses.
         KeyPair ed25519ServerKeyPair = parseOpenSshKeyPair(ED25519_SERVER_PRIVATE_KEY);
         KeyPair ed25519ClientKeyPair = parseOpenSshKeyPair(ED25519_CLIENT_PRIVATE_KEY);
@@ -408,7 +408,7 @@ class SshOsReleaseCurrentSourceIT {
     }
 
     // -----------------------------------------------------------------------
-    // ed25519 smoke (production host-key type, ADR-0018)
+    // ed25519 smoke (production host-key type, ADR-0025)
     // -----------------------------------------------------------------------
 
     /**
@@ -446,7 +446,7 @@ class SshOsReleaseCurrentSourceIT {
 
     /**
      * Like {@link #sourceBuilder()} but pointing at the ed25519 embedded server with the ed25519
-     * client key and pinned ed25519 host-key — the production key type (ADR-0018).
+     * client key and pinned ed25519 host-key — the production key type (ADR-0025).
      */
     private VersionSourceBuilder ed25519SourceBuilder() {
         return new VersionSourceBuilder()

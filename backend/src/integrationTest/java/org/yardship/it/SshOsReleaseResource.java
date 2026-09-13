@@ -30,7 +30,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 
 /**
- * Boots an embedded <b>ed25519</b> Apache MINA SSH server (the production host-key type, ADR-0018)
+ * Boots an embedded <b>ed25519</b> Apache MINA SSH server (the production host-key type, ADR-0025)
  * in the test JVM and points a launched {@code ssh-os-release} app at it, so the SSH
  * connect/auth/exec path is exercised end-to-end against the <em>built artifact</em> — in CI's
  * native pipeline that is the GraalVM native binary. This is the guard that catches native-image

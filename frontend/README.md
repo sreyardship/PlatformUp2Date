@@ -28,7 +28,19 @@ before deployment.
 
 ## Runtime configuration
 
-The API base URL is provided at runtime via `public/env-config.js`, which sets
-`window._env_`. In containers this file is regenerated from environment variables
-by `docker-entrypoint.d/40-env-config.sh` before nginx starts, so the same image
-can target different backends without rebuilding.
+Runtime settings come from `public/env-config.js`, which sets `window._env_`.
+In containers, `docker-entrypoint.d/40-env-config.sh` regenerates that file from
+these environment variables before nginx starts:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `API_BASE_URL` | empty (same origin) | Base URL for backend requests. Local development uses `http://localhost:8080`. |
+| `OIDC_AUTHORITY` | empty | OIDC issuer URL for web login. |
+| `OIDC_CLIENT_ID` | empty | Public client ID registered for the SPA. |
+| `OIDC_SCOPE` | `openid profile` | Space-separated scopes sent with the authorization request. |
+
+Web login is enabled only when both `OIDC_AUTHORITY` and `OIDC_CLIENT_ID` are
+non-blank. The settings are injected at container startup, so changing them does
+not require rebuilding the image. See
+[`docs/configuration.md`](../docs/configuration.md#frontend-runtime-configuration)
+for the full contract.

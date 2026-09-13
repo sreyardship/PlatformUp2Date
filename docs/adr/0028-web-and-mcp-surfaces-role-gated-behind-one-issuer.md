@@ -60,17 +60,19 @@ per-user *authorization* decision, which is what roles/groups are for.
   establishes token validation for the whole app. Absent = today's fully open
   behavior, unchanged.
 - **`WEB_OIDC_ROLE` / `MCP_OIDC_ROLE`** — the presence of each *is* the
-  per-surface switch, and its value is the required role string (default
-  `pu2d-web` / `pu2d-mcp`). Set = that surface demands that role; unset = that
-  surface stays open. This is how "web on, MCP off" (or the reverse) is expressed
-  now that the issuer is shared and can no longer toggle a single surface.
+  per-surface switch, and its value is the required role string. Neither has a
+  default: set = that surface demands the configured role; unset = that surface
+  stays open. `pu2d-web` / `pu2d-mcp` are conventional values only. This is how
+  "web on, MCP off" (or the reverse) is expressed now that the issuer is shared
+  and can no longer toggle a single surface.
 - **Half-states stay unrepresentable.** A role variable set with no `OIDC_ISSUER`
   is a boot failure — a role to enforce with nothing to validate against. No
   `_ENABLED` booleans: they would reintroduce exactly the enabled-but-no-issuer
   state ADR 0026 rejected the boolean to avoid.
 - **Role names are operator-chosen** so they match an existing realm taxonomy and
-  do not collide with a generic role in a realm shared with other apps; the
-  namespaced defaults keep the zero-config case safe.
+  do not collide with a generic role in a realm shared with other apps. The
+  conventional `pu2d-web` / `pu2d-mcp` names are namespaced for operators who
+  choose to use them; with no role variables configured, both surfaces stay open.
 - **Claim source is Quarkus's default role extraction, extended with the token's
   own client's Keycloak client roles.** The default extraction covers a top-level
   `groups` claim and Keycloak realm roles (`realm_access/roles`), but it only

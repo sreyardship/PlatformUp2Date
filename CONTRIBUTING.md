@@ -44,10 +44,10 @@ gradle :backend:build        # build the JAR
 
 `gradle test` includes integration tests (e.g. `ValkeyScrapeStateStoreIT`)
 that lean on Quarkus Dev Services to provide a throwaway Valkey instance.
-With Docker available, Dev Services spins up a container automatically;
-inside the Nix dev shell you also have a native `valkey` binary, so the
-tests can run against a locally started Valkey without Docker (this is how
-CI runs them).
+With Docker available, Dev Services starts a container automatically. GitHub
+CI uses this path. For Docker-free local runs, the Nix dev shell includes a
+native `valkey` binary; start it yourself and point the tests at it with
+`QUARKUS_REDIS_HOSTS`.
 
 ### Native build
 
@@ -81,20 +81,19 @@ yarn build   # production build
 
 ## The merge gate
 
-Every pull request must pass **both** required checks before it can merge:
+Every pull request must pass three required checks before it can merge:
 
-- **`fast`** — backend unit/integration tests (`gradle :backend:test`) plus the
-  frontend test suite. A few minutes.
-- **`native`** — a full GraalVM native build plus the native integration
-  test suite run against the built binary. This is the slow one: expect
-  roughly **20–30 minutes**. It exists because native-image behavior can
-  diverge from JVM-mode behavior in ways the fast job cannot see (see
-  `docs/adr/0025-ssh-os-release-native-image-reachability.md` for a
-  concrete example), so it is not optional or skippable — plan your PR
-  timeline around it.
+- **`fast`** runs the backend unit and JVM integration tests
+  (`gradle :backend:test`) plus the frontend test suite.
+- **`native`** performs a full GraalVM native build and runs the native
+  integration tests against the built image. Expect roughly 20–30 minutes.
+  Native-image behavior can diverge from JVM behavior in ways the fast job
+  cannot see; `docs/adr/0025-ssh-os-release-native-image-reachability.md`
+  records one example.
+- **`manifests`** builds every shipped Kubernetes composition and validates
+  the rendered resources with kubeconform.
 
-Both jobs are defined in `.github/workflows/pr.yml` if you want to see
-exactly what runs.
+All three jobs are defined in `.github/workflows/pr.yml`.
 
 ## Conventions
 

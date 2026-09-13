@@ -6,7 +6,7 @@ quarkus:
     #  - Ed25519PublicKeyDecoder: its static initializer references the i2p-eddsa backend we do not
     #    bundle (ed25519 flows through the JDK/BouncyCastle providers instead).
     # Scoped narrowly (not the whole org.apache.sshd package) so build-time-instantiated singletons
-    # like RootedFileSystemProvider keep their default init and do not conflict. See docs/adr/0018.
+    # like RootedFileSystemProvider keep their default init and do not conflict. See docs/adr/0025.
     additional-build-args:
       - --initialize-at-run-time=org.apache.sshd.common.random
       - --initialize-at-run-time=org.apache.sshd.common.util.security.eddsa.Ed25519PublicKeyDecoder
@@ -14,7 +14,7 @@ quarkus:
       # (getInstance(algorithm, "BC")). GraalVM requires JCA providers to be registered AND verified
       # at build time, so register BouncyCastle here; BouncyCastleProviderInstaller then ensures it is
       # in the runtime provider list by name. Without this the native scrape fails with
-      # "no such provider: BC" / "provider ... not registered at build time". See docs/adr/0018.
+      # "no such provider: BC" / "provider ... not registered at build time". See docs/adr/0025.
       - -H:AdditionalSecurityProviders=org.bouncycastle.jce.provider.BouncyCastleProvider
   # Only takes effect when quarkus.container-image.build=true is passed on the CLI (the `native`
   # PR job's quarkusIntTest run). Points at the one Dockerfile that actually ships

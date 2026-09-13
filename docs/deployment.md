@@ -51,8 +51,10 @@ same-origin (no CORS).
 
 ### Run it for real: write an overlay
 
-Reference the base as a remote base, pinned to a release tag so the image pins
-inside it match:
+Reference the base as a remote base, pinned to an immutable release tag. No
+stable release exists yet, so this example explicitly uses the current release
+candidate, `v1.0.0-rc.4`. Replace it with a stable release tag when one is
+available (and review prerelease changes before using it in production):
 
 ```yaml
 # kustomization.yaml
@@ -61,7 +63,7 @@ kind: Kustomization
 namespace: my-namespace
 
 resources:
-  - https://github.com/sreyardship/PlatformUp2Date//deploy/k8s/base?ref=v0.0.48
+  - https://github.com/sreyardship/PlatformUp2Date//deploy/k8s/base?ref=v1.0.0-rc.4
   - namespace.yaml
 
 # Your real monitoring config, replacing the sample wholesale. The generated
@@ -139,7 +141,7 @@ Only if an app in your config uses the `k8s-image` current source, add
 
 ```yaml
 components:
-  - https://github.com/sreyardship/PlatformUp2Date//deploy/k8s/components/rbac?ref=v0.0.48
+  - https://github.com/sreyardship/PlatformUp2Date//deploy/k8s/components/rbac?ref=v1.0.0-rc.4
 ```
 
 It grants cluster-wide read-only `get` on Deployments/StatefulSets/DaemonSets
@@ -252,9 +254,11 @@ neither change applies and the endpoint behaves exactly as described in
 ## Web UI authentication
 
 The web UI and REST API (`/api/v1`) authenticate against the same shared
-issuer as MCP, gated by their own role var (`WEB_OIDC_ROLE`, default
-`pu2d-web` — see [`configuration.md`](configuration.md#surface-authentication-mcp--web)).
-Turning it on has different cluster-level consequences than MCP:
+issuer as MCP, gated by their own role var (`WEB_OIDC_ROLE`; it has no default,
+and `pu2d-web` is the conventional value — see
+[`configuration.md`](configuration.md#surface-authentication-mcp--web)). Leaving
+that variable unset keeps the surface open. Turning it on has different
+cluster-level consequences than MCP:
 
 - **No ingress change is needed.** Unlike MCP's
   `/.well-known/oauth-protected-resource` HTTPRoute rule above, the SPA
@@ -393,7 +397,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: '{{ $value }} application(s) have a configuration defect — check the board or list_misconfigured_applications for the reason'
+          summary: '{{ $value }} configuration defect(s) detected; check the board or list_misconfigured_applications for the reason'
 
       - alert: AppScrapeStale
         expr: time() - pu2d_scrape_last_success_timestamp_seconds > 6 * 3600

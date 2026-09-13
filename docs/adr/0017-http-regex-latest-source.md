@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Upstream versions without a release API are read by a generic http-regex source
