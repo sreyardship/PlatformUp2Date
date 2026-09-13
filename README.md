@@ -7,10 +7,8 @@
 You run a platform, a home lab or just a pile of apps. They're all out of date... let's change that!
 
 If an app exposes its version anywhere (an HTTP endpoint, a container image
-tag, `ssh`/`os-release`, someday even a Prometheus metric[^prom-source]), its
+tag, `ssh`/`os-release`, or even a Prometheus metric), its
 version drift can be monitored.
-
-[^prom-source]: Reading `current` from a Prometheus metric is not implemented yet. But just you wait! It was a great idea, i just don't see where it would be used, so ehrm... Make an issue if you have a real world use for it? Or a PR <3.
 
 PlatformUp2Date monitors deployed applications against their latest upstream
 releases and shows, per app, whether it's up-to-date or behind. "Current" is
@@ -129,7 +127,7 @@ covers every configured app, including ones that haven't resolved yet.
 
 For more detail than the gauges carry, use the frontend or the
 `GET /api/v1/version` endpoint. For scraping setup, example alert rules, and
-the bundled Grafana dashboard on a real cluster, see
+the bundled Grafana dashboard on a k8s cluster, see
 [`docs/deployment.md`](docs/deployment.md).
 
 ![The bundled Grafana dashboard: fleet stats and a per-app drift table](docs/img/grafana-dashboard.png)
