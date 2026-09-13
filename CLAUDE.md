@@ -1,59 +1,20 @@
-# CLAUDE.md
+# Agent guide
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Context pointers
 
-## Project Overview
+Load the reference for the branch being changed:
 
-PlatformUp2Date is a version monitoring application that tracks deployed platform applications against their latest upstream releases. It shows whether each app is up-to-date (green) or outdated (red).
+- **Domain:** read [`CONTEXT.md`](CONTEXT.md) when changing terminology or behavior shared by REST, MCP, metrics, and the UI. Preserve its canonical distinctions across code, tests, commits, and docs.
+- **Version sources:** read [`ARCHITECTURE.md`](ARCHITECTURE.md) when changing current/latest discovery or scrape behavior.
+- **Configuration:** read [`docs/configuration.md`](docs/configuration.md) when changing monitoring config, version schemes, changelog templates, or Surface authentication.
+- **Deployment:** read [`docs/deployment.md`](docs/deployment.md) when changing Kubernetes manifests, Valkey, metrics, Grafana, or production authentication.
+- **Workflow:** read [`CONTRIBUTING.md`](CONTRIBUTING.md) for build and test guidance; use the build files and [PR workflow](.github/workflows/pr.yml) as the executable source of truth.
+- **Decisions:** search [`docs/adr/`](docs/adr/) before changing non-obvious behavior. Add an ADR when a new trade-off would otherwise have to be rediscovered from the diff.
 
-## Build & Run Commands
+## Invariants
 
-### Full stack (Docker Compose)
-```bash
-# Build backend first (required before compose)
-gradle :backend:build
-docker compose up -d
-# Frontend: localhost:3000, Backend: localhost:8080
-```
-
-### Backend (Quarkus + Gradle)
-The Gradle root is the repo root (one backend module, `:backend`); run these from the repo root, not `backend/`.
-```bash
-gradle :backend:quarkusDev          # Dev mode with live reload (localhost:8080)
-gradle :backend:build               # Build JAR
-gradle :backend:test                # Run all backend tests
-gradle :backend:test --tests '*VersionTests'  # Run a single test class
-```
-
-### Frontend (Vite + Yarn)
-```bash
-cd frontend
-yarn install
-yarn dev      # Dev server on localhost:3000
-yarn test     # Run tests (Vitest)
-yarn build    # Production build
-```
-
-## Architecture
-
-### Code-First API
-The API is code-first: the JAX-RS controllers (e.g., `VersionController`) are the source of truth. The `quarkus-smallrye-openapi` extension generates the OpenAPI spec from them at runtime, served at `/q/openapi` (with Swagger UI available in dev mode). See `docs/adr/0020-api-is-code-first.md` for the rationale.
-
-### Backend — Hexagonal Architecture
-The backend is a Quarkus 3.33.2 (Java 21) application structured as ports & adapters:
-
-- **`core/ports/in/`** — Use case interfaces (e.g., `ApplicationVersionPort`)
-- **`core/ports/out/`** — Repository interfaces (e.g., `VersionRepository`)
-- **`core/services/`** — Business logic (`ApplicationVersionService`)
-- **`core/domain/`** — Domain primitives (`Version` wraps semver validation, `VersionApplication`)
-- **`adapters/in/`** — REST controller (`VersionController` at `/api/v1/version`)
-- **`adapters/out/`** — Repository implementation using Quarkus REST clients to fetch current versions from deployed apps and latest versions from GitHub Releases API
-
-Application monitoring targets are configured in `backend/src/main/resources/application.yml`.
-
-### Frontend — React
-Vite + React with Material-UI. Component flow: `App` (data fetching) → `Display` (container) → `VersionList` → `Version` (card with color-coded status). API calls go through a centralized Axios client in `src/api/` configured via the runtime `window._env_.API_BASE_URL` value.
-
-## Dev Environment
-
-A Nix flake in `project-environment/` provides a reproducible dev shell with `quarkus`, `gradle`, and GraalVM CE pre-installed.
+- **Hexagon:** treat [`HexagonalArchitectureTests`](backend/src/test/java/org/yardship/unit/architecture/HexagonalArchitectureTests.java) as the exact dependency rule. Route cross-layer collaboration through `core/ports`; keep adapters isolated and the core independent of adapters.
+- **Build roots:** run Gradle from the repository root against `:backend`; no Gradle wrapper is checked in. Run frontend scripts from `frontend/`.
+- **Code-first API:** JAX-RS controllers and DTOs are the contract; SmallRye generates `/q/openapi`. REST shape changes update controller tests and the hand-written client under `frontend/src/api/`, not an authored OpenAPI file. See [ADR-0020](docs/adr/0020-api-is-code-first.md).
+- **Configuration ownership:** production monitoring config is mounted at runtime. Local defaults live under `%dev` in `backend/src/main/resources/application.yml`; tests supply their own config. Keep `docs/configuration.md` and `deploy/k8s/base/platform-config.yaml` aligned with configuration code.
+- **Completion:** cover changed behavior at the narrowest useful level and run every directly affected suite. Preserve native integration coverage for GraalVM reachability, packaged native resources, and shipped-image behavior. Verify every affected Surface and source-of-truth document agrees with the code.
