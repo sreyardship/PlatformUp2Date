@@ -13,7 +13,7 @@ services:
     restart: unless-stopped
 
   backend:
-    image: ghcr.io/sreyardship/platformup2date/backend:0.0.48
+    image: ghcr.io/sreyardship/platformup2date/backend:1.0.0-rc.6
     restart: unless-stopped
     environment:
       QUARKUS_REDIS_HOSTS: redis://valkey:6379
@@ -29,7 +29,7 @@ services:
       - valkey
 
   frontend:
-    image: ghcr.io/sreyardship/platformup2date/frontend:0.0.46
+    image: ghcr.io/sreyardship/platformup2date/frontend:1.0.0-rc.6
     restart: unless-stopped
     environment:
       # Empty = same-origin
