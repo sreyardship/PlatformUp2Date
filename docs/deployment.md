@@ -254,9 +254,11 @@ neither change applies and the endpoint behaves exactly as described in
 ## Web UI authentication
 
 The web UI and REST API (`/api/v1`) authenticate against the same shared
-issuer as MCP, gated by their own role var (`WEB_OIDC_ROLE`, default
-`pu2d-web` — see [`configuration.md`](configuration.md#surface-authentication-mcp--web)).
-Turning it on has different cluster-level consequences than MCP:
+issuer as MCP, gated by their own role var (`WEB_OIDC_ROLE`; it has no default,
+and `pu2d-web` is the conventional value — see
+[`configuration.md`](configuration.md#surface-authentication-mcp--web)). Leaving
+that variable unset keeps the surface open. Turning it on has different
+cluster-level consequences than MCP:
 
 - **No ingress change is needed.** Unlike MCP's
   `/.well-known/oauth-protected-resource` HTTPRoute rule above, the SPA

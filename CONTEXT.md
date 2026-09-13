@@ -233,7 +233,8 @@ required-role variable — `WEB_OIDC_ROLE` guards the REST API (`/api/v1`) and t
 web UI that consumes it, `MCP_OIDC_ROLE` guards the MCP Surface (`/api/mcp`). The
 variable's presence *is* the switch (set = that Surface demands that role, unset =
 that Surface stays open), and its value is the role string granted in the
-operator's IdP (default `pu2d-web` / `pu2d-mcp`). A caller is admitted only when
+operator's IdP (`pu2d-web` / `pu2d-mcp` are conventional names, not defaults).
+A caller is admitted only when
 its token both validates and carries the Surface's role — so an operator can mint
 identities that reach the web Surface only, the MCP Surface only, or both. Both
 Surfaces share one issuer and audience (one tenant) and differ only by required
