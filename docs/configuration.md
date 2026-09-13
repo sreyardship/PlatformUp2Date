@@ -11,19 +11,25 @@ credentials on either side.
 
 The harder keys to get right by hand (an `http-regex` regex, a `version-key`
 JSON Pointer, a `calver-format`, a `changelog-url` template) are proven by
-the running backend. A value it cannot use at all is recorded as a config
-error against the scope it breaks, and that side then fails every scrape
-carrying its reason; a value it accepts but cannot pull a version out of
-only fails the scrape. See
+the running backend. Once `platform-config` binds, a per-Application value
+the backend cannot use is recorded as a config error against the scope it
+breaks. The scope determines whether one side, both sides, or only the
+Changelog link degrades. A value the backend accepts but cannot pull a version
+out of only fails the scrape. See
 [When configuration is wrong](#when-configuration-is-wrong) below for how a
 config error reaches every surface and what to change when one appears.
 
 ## When configuration is wrong
 
-A defect in one Application's configuration degrades only what that defect
-touches; it never stops the backend from starting (ADR-0032). The only
-configuration failure that stops the application is one that makes the config
-document unbindable — un-tokenizable YAML.
+SmallRye loads and binds `platform-config` before per-Application validation
+runs. Binding is all or nothing: invalid YAML, a missing required mapped
+property, or a value that cannot be converted to its declared type stops
+startup before any scoped config errors can be recorded. For example,
+`page-size: many` is valid YAML, but `page-size` is mapped as an integer.
+
+Once binding succeeds, a defect in one Application's configuration degrades
+only what that defect touches; it does not stop the backend from starting
+(ADR-0032).
 
 Because a typo now reaches production rather than being caught by a crash-loop,
 the board says precisely what is wrong. A `current`/`latest` defect shows its
@@ -72,7 +78,7 @@ One entry per monitored Application under `apps[]`:
 | `current` | [VersionSource](#version-source-keys-shared) | yes | — | The `current`-side source (`type` selects the kind). |
 | `latest` | [VersionSource](#version-source-keys-shared) | yes | — | The `latest`-side source (`type` selects the kind). |
 | `version-scheme` | `semver` \| `calver` | no | `semver` | Shared by both legs so they are always commensurable. Case-insensitive. |
-| `calver-format` | string (calver.org grammar) | required if `version-scheme: calver`, else ignored | — | e.g. `YY.0M.MICRO`. See [Calver format](#calver-format) below. Validated fail-fast at startup, not by config binding, when calver is declared without one. |
+| `calver-format` | string (calver.org grammar) | required if `version-scheme: calver`, else ignored | — | e.g. `YY.0M.MICRO`. See [Calver format](#calver-format) below. Checked during startup after config binding. A missing or invalid format records an `APP` config error and degrades both sides; the backend continues running. |
 | `changelog-url` | string (template) | no | absent → no changelog link | App-level, sibling of `version-scheme` — not a `VersionSource` field. See [Changelog link templates](#changelog-link-templates). |
 
 ## Version source keys (shared)
@@ -394,5 +400,6 @@ placeholders:
   preserved), never re-rendered numbers.
 
 An illegal placeholder (wrong scheme, or a calver token absent from the app's
-declared format) fails boot with a message naming the offending app and
-placeholder. A token-free template (a constant URL) is legal.
+declared format) records a `CHANGELOG` config error naming the offending app
+and placeholder. The backend still starts, both sides scrape normally, and the
+Changelog link is omitted. A token-free template (a constant URL) is legal.
