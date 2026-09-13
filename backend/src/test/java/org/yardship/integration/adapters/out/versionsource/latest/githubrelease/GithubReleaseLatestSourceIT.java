@@ -129,6 +129,26 @@ class GithubReleaseLatestSourceIT {
     }
 
     @Test
+    void read_ignoresUnmodelledFieldsFromGithubsReleaseResponse() {
+        wireMockServer.stubFor(get(urlPathEqualTo("/releases"))
+                .willReturn(jsonResponse(200, """
+                        [{
+                          "url":"https://api.github.com/repos/mastodon/mastodon/releases/1",
+                          "html_url":"https://github.com/mastodon/mastodon/releases/tag/v4.6.0",
+                          "tag_name":"v4.6.0",
+                          "name":"v4.6.0",
+                          "prerelease":false,
+                          "draft":false
+                        }]
+                        """)));
+
+        GithubReleaseLatestSource source =
+                new GithubReleaseLatestSource("http://localhost:8089", Optional.empty(), SEMVER_PARSER);
+
+        assertEquals("4.6.0", source.version().value());
+    }
+
+    @Test
     void read_excludesPrereleaseAndDraftReleases_evenIfNumericallyLarger() {
         wireMockServer.stubFor(get(urlPathEqualTo("/releases"))
                 .willReturn(jsonResponse(200, """
