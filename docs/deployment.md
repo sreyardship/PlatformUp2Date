@@ -51,8 +51,10 @@ same-origin (no CORS).
 
 ### Run it for real: write an overlay
 
-Reference the base as a remote base, pinned to a release tag so the image pins
-inside it match:
+Reference the base as a remote base, pinned to an immutable release tag. No
+stable release exists yet, so this example explicitly uses the current release
+candidate, `v1.0.0-rc.4`. Replace it with a stable release tag when one is
+available (and review prerelease changes before using it in production):
 
 ```yaml
 # kustomization.yaml
@@ -61,7 +63,7 @@ kind: Kustomization
 namespace: my-namespace
 
 resources:
-  - https://github.com/sreyardship/PlatformUp2Date//deploy/k8s/base?ref=v0.0.48
+  - https://github.com/sreyardship/PlatformUp2Date//deploy/k8s/base?ref=v1.0.0-rc.4
   - namespace.yaml
 
 # Your real monitoring config, replacing the sample wholesale. The generated
@@ -139,7 +141,7 @@ Only if an app in your config uses the `k8s-image` current source, add
 
 ```yaml
 components:
-  - https://github.com/sreyardship/PlatformUp2Date//deploy/k8s/components/rbac?ref=v0.0.48
+  - https://github.com/sreyardship/PlatformUp2Date//deploy/k8s/components/rbac?ref=v1.0.0-rc.4
 ```
 
 It grants cluster-wide read-only `get` on Deployments/StatefulSets/DaemonSets
