@@ -35,8 +35,7 @@ can ask what's outdated and read the changelogs while helping you upgrade.
 
 ## Quick taste (no toolchain required)
 
-All you need is Docker. This pulls the published images from GHCR instead of
-building anything locally:
+All you need is Docker:
 
 ```bash
 git clone https://github.com/sreyardship/PlatformUp2Date.git
