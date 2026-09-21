@@ -12,10 +12,10 @@ version drift can be monitored.
 
 PlatformUp2Date monitors deployed applications against their latest upstream
 releases and shows, per app, whether it's up-to-date or behind. "Current" is
-always the app's actually-observed running state, never a declared value
+always as close as we can get to the app's actually-observed running state, never a declared value
 like a GitOps repo pin. "Latest" comes from an independent upstream source
 such as GitHub Releases or a container registry's tag list. (See
-[`ARCHITECTURE.md`](ARCHITECTURE.md) for why that distinction matters.)
+[`ARCHITECTURE.md`](ARCHITECTURE.md) about how we reason here.)
 
 Monitor version drift for
 
@@ -44,17 +44,17 @@ cd PlatformUp2Date
 docker compose -f compose.quickstart.yml up
 ```
 
-Then open [localhost:3000](http://localhost:3000). Within a few seconds you
+Then open [localhost:3000](http://localhost:3000). You
 should see two application rows:
 
-- **mastodon** — `current` is read from the public
+- **mastodon** `current` is read from the public
   [chaos.social](https://chaos.social) instance's API (an observed running
   version, not a repo pin); `latest` comes from GitHub Releases.
   chaos.social upgrades conservatively, so this card is usually *behind*,
   showing what drift detection looks like: a red/orange card with the
   current and latest versions side by side, and a changelog link to the
   release it's missing.
-- **gitea** — `current` is read from the public
+- **gitea** `current` is read from the public
   [gitea.com](https://gitea.com) SaaS instance's version API; `latest` comes
   from Gitea's official image tags on Docker Hub. gitea.com tracks upstream
   closely, so this card is usually *green* (up to date).
@@ -146,24 +146,24 @@ behind multiple replicas with no session affinity.
 
 ### Tools
 
-- **`list_outdated_applications(minSeverity?)`** — returns the applications running behind
+- **`list_outdated_applications(minSeverity?)`** returns the applications running behind
   their latest upstream release, each as
   `{ name, current, latest, outdated, drift, changelogUrl, … }` where `drift` is
   `PATCH` / `MINOR` / `MAJOR`. The optional `minSeverity` argument
   (`PATCH` | `MINOR` | `MAJOR`) filters by how far behind an app is; omit it to get every
   app with any drift.
-- **`get_application(name)`** — returns the status of a single application by exact name,
+- **`get_application(name)`** returns the status of a single application by exact name,
   or nothing if it isn't monitored.
-- **`list_applications_with_failed_scrapes()`** — returns applications whose most recent
+- **`list_applications_with_failed_scrapes()`** returns applications whose most recent
   scrape of either the current or latest side failed. It excludes sides that have never
   been attempted; a failed scrape describes the read, not the health of the application.
-- **`list_misconfigured_applications()`** — returns recorded configuration defects as
+- **`list_misconfigured_applications()`** returns recorded configuration defects as
   `{ application, scope, message }` entries. The scope is `CURRENT`, `LATEST`, `APP`, or
   `CHANGELOG`; this is distinct from a transient failed scrape.
-- **`trigger_scrape()`** — requests an immediate full scrape. It returns scrape telemetry,
+- **`trigger_scrape()`**: requests an immediate full scrape. It returns scrape telemetry,
   including an `outcome` of `SCRAPED`, `RATE_LIMITED`, or `IN_PROGRESS`, rather than
   application versions.
-- **`scrape_applications(targets)`** — requests a targeted scrape for a list of
+- **`scrape_applications(targets)`** requests a targeted scrape for a list of
   `{ name, side }` entries, where `side` is `current`, `latest`, or `both`. It uses a
   separate targeted-scrape budget and returns per-target results when the scrape runs.
 
