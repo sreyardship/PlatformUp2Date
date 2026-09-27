@@ -17,15 +17,16 @@ public class DegradedSchemeAppTestProfile implements QuarkusTestProfile {
 
     @Override
     public Map<String, String> getConfigOverrides() {
+        // Index 3: src/test/resources/application.properties already configures apps[0..2].
         Map<String, String> props = new HashMap<>();
-        props.put("platform-config.apps[2].name", "scheme-broken-app");
-        props.put("platform-config.apps[2].version-scheme", "calver");
+        props.put("platform-config.apps[3].name", "scheme-broken-app");
+        props.put("platform-config.apps[3].version-scheme", "calver");
         // calver-format deliberately absent: this is the defect under test.
-        props.put("platform-config.apps[2].current.type", "http-json");
-        props.put("platform-config.apps[2].current.url", "http://localhost:8089/filler/current");
-        props.put("platform-config.apps[2].current.version-key", "/version");
-        props.put("platform-config.apps[2].latest.type", "github-release");
-        props.put("platform-config.apps[2].latest.repo", "example/scheme-broken-app");
+        props.put("platform-config.apps[3].current.type", "http-json");
+        props.put("platform-config.apps[3].current.url", "http://localhost:8089/filler/current");
+        props.put("platform-config.apps[3].current.version-key", "/version");
+        props.put("platform-config.apps[3].latest.type", "github-release");
+        props.put("platform-config.apps[3].latest.repo", "example/scheme-broken-app");
         return props;
     }
 }

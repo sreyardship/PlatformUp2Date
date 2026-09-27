@@ -309,6 +309,36 @@ quarkus:
       #     url: https://changelogs.ubuntu.com/meta-release-lts
       #     regex: 'Version: (\d+\.\d+)'
       #
+      # --- Sonarr (dotnet + http-json + github-release) — DO NOT enable under %dev ---
+      #
+      # This block documents the shape an operator copies into the PRODUCTION ConfigMap
+      # (apps/service-spaces/platformup2date/app/ in the jumziCluster repo) to monitor a
+      # *arr app. Commented out for the same reason as the examples above: local dev has no
+      # reachable Sonarr, so every scrape would produce a FailedCurrentSource. The same shape
+      # fits Radarr and Prowlarr — only the URL and repo change.
+      #
+      # Sonarr reports 4.0.20.3014 and tags releases v4.0.20.3014: four numeric components, which
+      # is System.Version, not semver. version-scheme: dotnet parses it (see docs/adr/0036).
+      # - dotnet-compare-build defaults to true, so 4.0.17 -> 4.0.20 reads as PATCH drift; set it
+      #   false to hear only about major/minor releases.
+      # - The revision (3014) is displayed but never compared: builds differing only in revision
+      #   are interchangeable, so 4.0.20.3012 is up to date against 4.0.20.3014.
+      # - changelog-url may address {major}/{minor}/{build}/{revision}; {patch} is illegal for the
+      #   scheme (System.Version has no patch component).
+      # - api-key auth is not modelled: Sonarr's /api/v3/system/status needs an X-Api-Key header,
+      #   which no current source sends today. Use it only where the endpoint is reachable
+      #   unauthenticated, or monitor the container image with oci-registry instead.
+      # - name: sonarr
+      #   version-scheme: dotnet
+      #   changelog-url: https://github.com/Sonarr/Sonarr/releases/tag/v{version}
+      #   current:
+      #     type: http-json
+      #     url: http://sonarr.media.svc:8989/api/v3/system/status
+      #     version-key: /version
+      #   latest:
+      #     type: github-release
+      #     repo: Sonarr/Sonarr
+      #
       # --- Jenkins (http-header + http-regex) — DO NOT enable under %dev ---
       #
       # This block documents the shape an operator copies into the PRODUCTION ConfigMap

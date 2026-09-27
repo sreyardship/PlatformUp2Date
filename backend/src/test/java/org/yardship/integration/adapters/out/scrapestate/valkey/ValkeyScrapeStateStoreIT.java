@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.yardship.core.domain.primitives.CalverFormat;
 import org.yardship.core.domain.primitives.CalverVersion;
 import org.yardship.core.domain.primitives.ChangelogTemplate;
+import org.yardship.core.domain.primitives.DotnetVersion;
 import org.yardship.core.domain.primitives.ScrapeSnapshot;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.SideObservation;
@@ -30,12 +31,13 @@ import static org.junit.jupiter.api.Assertions.fail;
  * adapter against a Valkey container started by Quarkus Dev Services (the {@code quarkus-redis-client}
  * extension auto-starts one for tests — no manual {@code quarkus.redis.hosts} needed).
  *
- * <p>Fixtures use the two apps configured in {@code src/test/resources/application.properties}:
- * {@code test-app} (semver, defaults) and {@code test-calver-app} (calver, format
- * {@code YYYY.MM.MICRO}) — see {@link org.yardship.adapters.out.versionsource.VersionParsers}.
+ * <p>Fixtures use the three apps configured in {@code src/test/resources/application.properties}:
+ * {@code test-app} (semver, defaults), {@code test-calver-app} (calver, format
+ * {@code YYYY.MM.MICRO}) and {@code test-dotnet-app} (dotnet, defaults) — see
+ * {@link org.yardship.adapters.out.versionsource.VersionParsers}.
  * {@code ValkeyScrapeStateStore} retypes every stored value using the app's configured
  * parser rather than any scheme information persisted in the snapshot (ADR-0022), so every fixture
- * app name here must be one of these two configured names.
+ * app name here must be one of these three configured names.
  *
  * <p>Verifies:
  * <ul>
@@ -332,6 +334,46 @@ class ValkeyScrapeStateStoreIT {
                 "2024.4.1 must remain older than 2024.5.2 after the round-trip");
         assertEquals(originalCurrent.diff(originalLatest), rehydratedCurrent.diff(rehydratedLatest),
                 "diff severity must behave the same before and after the round-trip");
+    }
+
+    @Test
+    void writeThenRead_roundTripsDotnetVersion() {
+        // Config-driven, like the calver and semver cases: test-dotnet-app is configured as dotnet,
+        // so its stored strings must retype as DotnetVersion — including the four-component shape
+        // that no other scheme can parse (ADR-0036).
+        Instant successAt = Instant.parse("2026-07-01T10:00:00Z");
+        DotnetVersion originalCurrent = new DotnetVersion("4.0.17.2952");
+        DotnetVersion originalLatest = new DotnetVersion("4.0.20.3014");
+
+        VersionApplication app = new VersionApplication(
+                "test-dotnet-app",
+                SideObservation.resolved(originalCurrent, successAt),
+                SideObservation.resolved(originalLatest, successAt));
+        Instant attemptAt = Instant.parse("2026-07-01T10:00:05Z");
+
+        sut.write(List.of(app), attemptAt);
+
+        Optional<ScrapeSnapshot> read = sut.read();
+        assertTrue(read.isPresent());
+        VersionApplication roundTripped = read.get().applications().getFirst();
+
+        VersionValue rehydratedCurrent = roundTripped.current().value().orElseThrow();
+        VersionValue rehydratedLatest = roundTripped.latest().value().orElseThrow();
+
+        assertInstanceOf(DotnetVersion.class, rehydratedCurrent,
+                "a dotnet-scheme app must rehydrate as DotnetVersion");
+        assertInstanceOf(DotnetVersion.class, rehydratedLatest,
+                "a dotnet-scheme app must rehydrate as DotnetVersion");
+        assertEquals(VersionScheme.DOTNET, rehydratedCurrent.scheme());
+        assertEquals("4.0.17.2952", rehydratedCurrent.value());
+        assertEquals("4.0.20.3014", rehydratedLatest.value());
+
+        assertTrue(rehydratedCurrent.isOlderThan(rehydratedLatest),
+                "4.0.17.2952 must remain older than 4.0.20.3014 after the round-trip");
+        assertEquals(originalCurrent.diff(originalLatest), rehydratedCurrent.diff(rehydratedLatest),
+                "diff severity must behave the same before and after the round-trip");
+        assertEquals(originalCurrent, rehydratedCurrent,
+                "a rehydrated DotnetVersion equals the original — no format identity to differ on");
     }
 
     @Test

@@ -6,6 +6,7 @@ import org.yardship.adapters.out.versionsource.ChangelogTemplates;
 import org.yardship.core.domain.primitives.ChangelogTemplate;
 import org.yardship.core.domain.primitives.ConfigError;
 import org.yardship.core.domain.primitives.ConfigErrorScope;
+import org.yardship.core.domain.primitives.DotnetVersion;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.VersionScheme;
 
@@ -217,6 +218,11 @@ class ChangelogTemplatesTests {
             }
 
             @Override
+            public Optional<Boolean> dotnetCompareBuild() {
+                return Optional.empty();
+            }
+
+            @Override
             public Optional<String> changelogUrl() {
                 return Optional.of("https://example.test/{version}");
             }
@@ -234,6 +240,39 @@ class ChangelogTemplatesTests {
             assertFalse(logs.recordsAtLevel(Level.SEVERE).isEmpty(),
                     "an exception we did not declare is a defect in our own code and logs at ERROR");
         }
+    }
+
+    @Test
+    void dotnetAppWithAPatchToken_recordsOneChangelogScopeConfigError_namingAppAndPlaceholder() {
+        // {patch} has no counterpart in System.Version (ADR-0036). The app itself stays fully
+        // monitored — only the link is lost, exactly as for any other illegal template.
+        ApplicationConfigLoader.AppConfig app = app("sonarr", VersionScheme.DOTNET, null,
+                Optional.of("https://example.com/changelog/{patch}"));
+
+        ChangelogTemplates templates = new ChangelogTemplates(List.of(app));
+
+        assertEquals(1, templates.configErrors().size());
+        ConfigError error = templates.configErrors().get(0);
+        assertEquals("sonarr", error.application());
+        assertEquals(ConfigErrorScope.CHANGELOG, error.scope(),
+                "an illegal dotnet placeholder degrades the link only, never a scrape leg");
+        assertTrue(error.reason().contains("sonarr"),
+                "the recorded reason must name the offending app; was: " + error.reason());
+        assertTrue(error.reason().contains("patch"),
+                "the recorded reason must name the offending placeholder; was: " + error.reason());
+        assertTrue(templates.forApp("sonarr").isEmpty(), "the link is omitted for that app");
+    }
+
+    @Test
+    void dotnetAppWithComponentTokens_registersATemplate_andRecordsNoConfigError() {
+        ApplicationConfigLoader.AppConfig app = app("sonarr", VersionScheme.DOTNET, null,
+                Optional.of("https://example.com/{major}.{minor}.{build}.{revision}"));
+
+        ChangelogTemplates templates = new ChangelogTemplates(List.of(app));
+
+        assertTrue(templates.configErrors().isEmpty());
+        assertEquals("https://example.com/4.0.20.3014",
+                templates.forApp("sonarr").orElseThrow().resolve(new DotnetVersion("4.0.20.3014")));
     }
 
     private static ApplicationConfigLoader.AppConfig app(
@@ -268,6 +307,11 @@ class ChangelogTemplatesTests {
             @Override
             public Optional<String> calverFormat() {
                 return Optional.ofNullable(calverFormat);
+            }
+
+            @Override
+            public Optional<Boolean> dotnetCompareBuild() {
+                return Optional.empty();
             }
 
             @Override

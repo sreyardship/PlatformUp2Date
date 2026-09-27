@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.yardship.core.domain.primitives.CalverFormat;
 import org.yardship.core.domain.primitives.CalverVersion;
 import org.yardship.core.domain.primitives.ChangelogTemplate;
+import org.yardship.core.domain.primitives.DotnetVersion;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.VersionScheme;
 
@@ -11,6 +12,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Behavior suite for {@link ChangelogTemplate} (ADR-0021: the changelog link is a read-time
@@ -36,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class ChangelogTemplateTests {
 
     // -----------------------------------------------------------------------
-    // {version} — both schemes
+    // {version} — every scheme
     // -----------------------------------------------------------------------
 
     @Test
@@ -64,6 +66,18 @@ class ChangelogTemplateTests {
         assertEquals("https://documentation.ubuntu.com/release-notes/24.04/", resolved);
     }
 
+    @Test
+    void resolve_substitutesVersionToken_forDotnetApp() {
+        ChangelogTemplate template = new ChangelogTemplate(
+                "https://github.com/Sonarr/Sonarr/releases/tag/v{version}",
+                VersionScheme.DOTNET,
+                Optional.empty());
+
+        String resolved = template.resolve(new DotnetVersion("4.0.20.3014"));
+
+        assertEquals("https://github.com/Sonarr/Sonarr/releases/tag/v4.0.20.3014", resolved);
+    }
+
     // -----------------------------------------------------------------------
     // Semver component tokens
     // -----------------------------------------------------------------------
@@ -78,6 +92,50 @@ class ChangelogTemplateTests {
         String resolved = template.resolve(new SemverVersion("3.10.5"));
 
         assertEquals("https://example.test/3/10/5", resolved);
+    }
+
+    // -----------------------------------------------------------------------
+    // Dotnet component tokens — .NET's own component names
+    // -----------------------------------------------------------------------
+
+    @Test
+    void resolve_substitutesMajorMinorBuildRevision_forDotnetApp() {
+        ChangelogTemplate template = new ChangelogTemplate(
+                "https://example.test/{major}/{minor}/{build}/{revision}",
+                VersionScheme.DOTNET,
+                Optional.empty());
+
+        String resolved = template.resolve(new DotnetVersion("4.0.17.2952"));
+
+        assertEquals("https://example.test/4/0/17/2952", resolved);
+    }
+
+    @Test
+    void resolve_dotnetAbsentTrailingComponents_renderAsZero() {
+        // 6.2 omits build and revision; both render as 0, consistent with the absent-as-zero rule
+        // the comparison uses (ADR-0036).
+        ChangelogTemplate template = new ChangelogTemplate(
+                "https://example.test/{major}/{minor}/{build}/{revision}",
+                VersionScheme.DOTNET,
+                Optional.empty());
+
+        String resolved = template.resolve(new DotnetVersion("6.2"));
+
+        assertEquals("https://example.test/6/2/0/0", resolved);
+    }
+
+    @Test
+    void resolve_dotnetRevisionToken_rendersEvenThoughItIsNeverCompared() {
+        // The revision carries no drift signal, but a changelog URL frequently needs the full
+        // build identifier — so the component is addressable.
+        ChangelogTemplate template = new ChangelogTemplate(
+                "https://github.com/Sonarr/Sonarr/releases/tag/v{major}.{minor}.{build}.{revision}",
+                VersionScheme.DOTNET,
+                Optional.empty());
+
+        assertEquals(
+                "https://github.com/Sonarr/Sonarr/releases/tag/v4.0.20.3014",
+                template.resolve(new DotnetVersion("4.0.20.3014")));
     }
 
     // -----------------------------------------------------------------------
@@ -207,6 +265,61 @@ class ChangelogTemplateTests {
                         VersionScheme.SEMVER,
                         Optional.empty()),
                 "A calver-format-symbol token must be illegal on a semver app");
+    }
+
+    @Test
+    void construction_throwsIllegalArgumentException_forPatchTokenOnDotnetApp() {
+        // System.Version has no patch component; aliasing {patch} to build or revision would be a
+        // guess, so it is rejected outright (ADR-0036).
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+                () -> new ChangelogTemplate(
+                        "https://example.test/{patch}",
+                        VersionScheme.DOTNET,
+                        Optional.empty()),
+                "{patch} must be illegal on a dotnet app");
+
+        assertTrue(thrown.getMessage().contains("{patch}"),
+                "the reason must name the offending placeholder: " + thrown.getMessage());
+    }
+
+    @Test
+    void construction_throwsIllegalArgumentException_forCalverTokenOnDotnetApp() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new ChangelogTemplate(
+                        "https://example.test/{YY}",
+                        VersionScheme.DOTNET,
+                        Optional.empty()),
+                "A calver-format-symbol token must be illegal on a dotnet app");
+    }
+
+    @Test
+    void construction_throwsIllegalArgumentException_forDotnetTokensOnSemverAndCalverApps() {
+        // The per-scheme vocabularies stay disjoint in both directions.
+        assertThrows(IllegalArgumentException.class,
+                () -> new ChangelogTemplate(
+                        "https://example.test/{build}",
+                        VersionScheme.SEMVER,
+                        Optional.empty()),
+                "{build} is a dotnet-only token and must be illegal on a semver app");
+
+        CalverFormat format = new CalverFormat("YY.0M.MICRO");
+        assertThrows(IllegalArgumentException.class,
+                () -> new ChangelogTemplate(
+                        "https://example.test/{revision}",
+                        VersionScheme.CALVER,
+                        Optional.of(format)),
+                "{revision} is a dotnet-only token and must be illegal on a calver app");
+    }
+
+    @Test
+    void construction_acceptsATokenFreeConstantUrl_forADotnetApp() {
+        ChangelogTemplate template = new ChangelogTemplate(
+                "https://wiki.servarr.com/sonarr/release-notes",
+                VersionScheme.DOTNET,
+                Optional.empty());
+
+        assertEquals("https://wiki.servarr.com/sonarr/release-notes",
+                template.resolve(new DotnetVersion("4.0.20.3014")));
     }
 
     // -----------------------------------------------------------------------

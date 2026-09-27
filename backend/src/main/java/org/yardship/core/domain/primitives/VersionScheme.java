@@ -12,5 +12,6 @@ package org.yardship.core.domain.primitives;
  */
 public enum VersionScheme {
     SEMVER,
-    CALVER
+    CALVER,
+    DOTNET
 }

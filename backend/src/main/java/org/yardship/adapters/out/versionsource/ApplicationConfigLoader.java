@@ -67,6 +67,18 @@ public interface ApplicationConfigLoader {
         Optional<String> calverFormat();
 
         /**
+         * Whether the {@code build} component is compared for a {@code dotnet} app — the third
+         * component of {@code major.minor.build.revision}. Read only when {@link #versionScheme()}
+         * is {@code dotnet}; absent (and ignored) for every other scheme, as {@link #calverFormat()}
+         * is outside calver. Defaults FACTORY-SIDE to {@code true} in {@code VersionParsers}, so the
+         * default lives beside the code that reads it: Sonarr's {@code 4.0.17} -> {@code 4.0.20} is a
+         * same-major, same-minor upgrade that must read as drift. Setting it {@code false} leaves a
+         * major.minor comparison, under which the app can never grade {@code PATCH}. The
+         * {@code revision} is never compared under any setting (ADR-0036).
+         */
+        Optional<Boolean> dotnetCompareBuild();
+
+        /**
          * Optional app-level changelog URL template (ADR-0021), sibling of {@link #versionScheme()}
          * — NOT a {@link VersionSource} field, since the changelog link is a property of the app,
          * not of either version-source leg. Absent leaves {@code changelogUrl} {@code null} on the

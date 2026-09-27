@@ -4,7 +4,8 @@ package org.yardship.core.domain.primitives;
  * Domain service that turns a raw version string into a {@link VersionValue}.
  *
  * <p>One instance is built per monitored app (from its configured {@link VersionScheme}, plus a
- * {@code calver-format} when the scheme is {@link VersionScheme#CALVER}) and shared by both the
+ * {@code calver-format} when the scheme is {@link VersionScheme#CALVER} or a
+ * {@code dotnet-compare-build} flag when it is {@link VersionScheme#DOTNET}) and shared by both the
  * current and latest legs. Sharing ensures the two sides always produce commensurable values that
  * can be compared with each other.
  *
@@ -17,20 +18,36 @@ public class VersionParser {
 
     private final VersionScheme scheme;
     private final CalverFormat calverFormat; // non-null only for CALVER
+    private final boolean dotnetCompareBuild; // read only for DOTNET
 
     /**
-     * Builds a parser for a scheme that needs no extra configuration.
+     * Builds a parser for a scheme that needs no REQUIRED extra configuration. A {@code DOTNET}
+     * parser built this way compares the build component, the documented default.
      *
      * @throws IllegalArgumentException if {@code scheme} is {@link VersionScheme#CALVER} — calver
-     *                                  requires a {@code calver-format}; use the two-arg constructor.
+     *                                  requires a {@code calver-format}; use
+     *                                  {@link #VersionParser(VersionScheme, String)}.
      */
     public VersionParser(VersionScheme scheme) {
+        this(scheme, true);
+    }
+
+    /**
+     * Builds a parser, supplying the {@code dotnet-compare-build} flag used when {@code scheme} is
+     * {@link VersionScheme#DOTNET}. For other schemes the flag is ignored.
+     *
+     * @throws IllegalArgumentException if {@code scheme} is {@link VersionScheme#CALVER} — calver
+     *                                  requires a {@code calver-format}, which this constructor
+     *                                  cannot supply.
+     */
+    public VersionParser(VersionScheme scheme, boolean dotnetCompareBuild) {
         if (scheme == VersionScheme.CALVER) {
             throw new IllegalArgumentException(
                     "A CALVER VersionParser requires a calver-format; none was supplied.");
         }
         this.scheme = scheme;
         this.calverFormat = null;
+        this.dotnetCompareBuild = dotnetCompareBuild;
     }
 
     /**
@@ -43,6 +60,7 @@ public class VersionParser {
      */
     public VersionParser(VersionScheme scheme, String calverFormat) {
         this.scheme = scheme;
+        this.dotnetCompareBuild = true;
         if (scheme == VersionScheme.CALVER) {
             // CalverFormat fail-fasts on null/blank/unknown-token formats — let that surface here.
             this.calverFormat = new CalverFormat(calverFormat);
@@ -61,6 +79,7 @@ public class VersionParser {
         return switch (scheme) {
             case SEMVER -> new SemverVersion(raw);
             case CALVER -> new CalverVersion(raw, calverFormat);
+            case DOTNET -> new DotnetVersion(raw, dotnetCompareBuild);
         };
     }
 
