@@ -327,7 +327,10 @@ families are exported:
   reports as `1`, while a difference in build metadata only is ignored and
   reports as `0`). Calver apps grade by the category of the changed token:
   year → `3`, month/week/day → `2`, micro/modifier → `1` (see
-  [`configuration.md`](configuration.md#calver-format)).
+  [`configuration.md`](configuration.md#calver-format)). Dotnet apps grade by
+  changed component: major → `3`, minor → `2`, build → `1`; a difference in the
+  revision only is ignored and reports as `0` (see
+  [`configuration.md`](configuration.md#dotnet-versions)).
 - `pu2d_scrape_last_success_timestamp_seconds` — per-(app, side) freshness.
 - `pu2d_scrape_last_failure_timestamp_seconds` — per-(app, side) failures.
 - `pu2d_config_error` — one series per recorded configuration defect

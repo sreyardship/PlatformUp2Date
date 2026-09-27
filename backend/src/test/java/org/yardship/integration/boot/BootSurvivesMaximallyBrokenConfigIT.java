@@ -148,6 +148,11 @@ class BootSurvivesMaximallyBrokenConfigIT {
                 new ConfigError("uncompilable-regex-app", ConfigErrorScope.LATEST,
                         "The 'http-regex' latest source's 'regex' does not compile: "
                                 + "Unclosed group near index 5\nv(\\d+"),
+                new ConfigError("dotnet-prerelease-filter-app", ConfigErrorScope.APP,
+                        "App 'dotnet-prerelease-filter-app' combines 'version-scheme: dotnet' with "
+                                + "a 'prerelease-filter' (alpine). A dotnet version has no "
+                                + "pre-release segment, so no tag could ever match the filter. "
+                                + "Remove the filter, or use a scheme with pre-release segments."),
                 new ConfigError("illegal-changelog-app", ConfigErrorScope.CHANGELOG,
                         "Invalid 'changelog-url' template for app 'illegal-changelog-app': "
                                 + "Changelog template placeholder '{bogus}' is not a legal token for "
@@ -181,19 +186,20 @@ class BootSurvivesMaximallyBrokenConfigIT {
         // has an APP-scope config error" -- silently dropping the latter from EVERY Surface, since
         // REST, MCP and metrics all read through ApplicationVersionPort. It now gates on whether
         // the app is still CONFIGURED, so an APP-scope-broken app stays in the fleet, unresolved,
-        // with its reason carried by the configErrors projection. Keep this assertion at 10.
+        // with its reason carried by the configErrors projection. Keep this assertion at the
+        // count of NAMED apps in the fixture.
         List<VersionApplication> applications = applicationVersionPort.getApplications();
         Set<String> fleetAppNames =
                 applications.stream().map(VersionApplication::name).collect(Collectors.toSet());
-        assertEquals(11, fleetAppNames.size(),
-                "only the eleven NAMED apps may reach the core fleet (ApplicationVersionPort)");
+        assertEquals(12, fleetAppNames.size(),
+                "only the twelve NAMED apps may reach the core fleet (ApplicationVersionPort)");
 
         // REST Surface: same omission, through the real HTTP endpoint every replica serves.
         given()
                 .when().get("/api/v1/version")
                 .then()
                 .statusCode(200)
-                .body("size()", equalTo(11))
+                .body("size()", equalTo(12))
                 .body("'healthy-app'.current.version", equalTo("1.2.3"));
 
         // Metrics Surface: the unnamed app has no identity to label a series with, so it is never

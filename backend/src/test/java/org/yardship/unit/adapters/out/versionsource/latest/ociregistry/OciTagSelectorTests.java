@@ -32,6 +32,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *   <li>Filter — no matching tag throws.</li>
  *   <li>Filter + strip — selection ranks by full tag value; reported result has prerelease stripped.</li>
  *   <li>Filter + strip — ranking uses full tag, so the largest full tag wins before stripping.</li>
+ *   <li>Dotnet parser — the selector is scheme-agnostic: it selects the largest tag under the
+ *       injected parser's own comparison, and {@code strip-prerelease} is a harmless no-op there
+ *       (ADR-0036). A dotnet app can never reach the filter path — that combination is refused at
+ *       startup by {@code VersionParsers}, covered in {@code VersionParsersTests}.</li>
  * </ul>
  */
 class OciTagSelectorTests {
@@ -52,6 +56,15 @@ class OciTagSelectorTests {
 
     private static OciTagSelector selectorWithFilterAndStrip(String filter) {
         return new OciTagSelector(new TagSelection(100, 1000, Optional.of(filter), true), PARSER, REGISTRY_CONTEXT);
+    }
+
+    private static final VersionParser DOTNET_PARSER = new VersionParser(VersionScheme.DOTNET);
+
+    private static OciTagSelector dotnetSelectorNoFilter(boolean stripPrerelease) {
+        return new OciTagSelector(
+                new TagSelection(100, 1000, Optional.empty(), stripPrerelease),
+                DOTNET_PARSER,
+                REGISTRY_CONTEXT);
     }
 
     // --- no-filter: clean semver selection ----------------------------------------------------
@@ -203,5 +216,29 @@ class OciTagSelectorTests {
         // Assert
         assertEquals("1.24.0", result.value(),
                 "filter=alpine strip=true: 1.24.0-alpine is the largest, reported stripped as 1.24.0");
+    }
+
+    // --- dotnet scheme (ADR-0036) --------------------------------------------------------------
+
+    @Test
+    void select_noFilter_dotnetParser_largestTagWins() {
+        // Four-component tags no semver parser could read; unparseable tags are skipped as ever.
+        List<String> tags = List.of("v4.0.17.2952", "v4.0.20.3014", "v4.0.9.2100", "latest");
+
+        VersionValue result = dotnetSelectorNoFilter(false).select(tags);
+
+        assertEquals("4.0.20.3014", result.value(),
+                "largest tag under the dotnet comparison must win, with the leading v stripped");
+    }
+
+    @Test
+    void select_noFilter_dotnetParser_stripPrereleaseIsASilentNoOp() {
+        // A dotnet version has no pre-release segment to clear, so strip-prerelease changes nothing
+        // and must not error.
+        List<String> tags = List.of("v4.0.17.2952", "v4.0.20.3014");
+
+        VersionValue result = dotnetSelectorNoFilter(true).select(tags);
+
+        assertEquals("4.0.20.3014", result.value());
     }
 }

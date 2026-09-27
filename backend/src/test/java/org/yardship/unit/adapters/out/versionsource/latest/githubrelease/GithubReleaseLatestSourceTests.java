@@ -5,6 +5,8 @@ import org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleas
 import org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleaseResponseDTO;
 import org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleaseLatestSource;
 import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.domain.primitives.VersionValue;
 
 import java.util.List;
@@ -155,7 +157,8 @@ class GithubReleaseLatestSourceTests {
         // parameters via injection — see GithubReleaseClient's single abstract method `releases(int)`,
         // which makes it a valid lambda target despite taking an argument). Ignores `perPage` —
         // pagination/per_page-wiring is an integration-level concern (GithubReleaseLatestSourceIT).
-        return new GithubReleaseLatestSource(perPage -> fixed);
+        // The parser is supplied here, not defaulted by the source: these cases are all semver.
+        return new GithubReleaseLatestSource(perPage -> fixed, new VersionParser(VersionScheme.SEMVER));
     }
 
     private static GithubReleaseResponseDTO release(

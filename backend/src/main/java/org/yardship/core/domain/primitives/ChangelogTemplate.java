@@ -12,10 +12,16 @@ import java.util.regex.Pattern;
  * <p>Pure domain value object — no I/O. Placeholders of the form {@code {token}} are validated
  * against the app's {@link VersionScheme} (and, for {@link VersionScheme#CALVER}, its declared
  * {@link CalverFormat}) fail-fast at construction time, so an illegal placeholder can never
- * survive to read time. Placeholders:
+ * survive to read time. The per-scheme vocabularies are disjoint apart from {@code {version}}.
+ * Placeholders:
  * <ul>
- *   <li>{@code {version}} — {@link VersionValue#value()}, legal for both schemes.</li>
+ *   <li>{@code {version}} — {@link VersionValue#value()}, legal for every scheme.</li>
  *   <li>{@code {major}}/{@code {minor}}/{@code {patch}} — legal only for {@link VersionScheme#SEMVER}.</li>
+ *   <li>{@code {major}}/{@code {minor}}/{@code {build}}/{@code {revision}} — .NET's own component
+ *       names, legal only for {@link VersionScheme#DOTNET}. {@code {patch}} is NOT legal there:
+ *       {@code System.Version} has no patch component, and aliasing it to build or revision would be
+ *       a guess. {@code {revision}} renders even though the revision is never compared — the
+ *       component exists and is displayed, it just carries no drift signal.</li>
  *   <li>A calver.org format-symbol token (e.g. {@code {YY}}, {@code {0M}}, {@code {MICRO}}) —
  *       legal only for {@link VersionScheme#CALVER}, and only when the symbol is one of the
  *       app's declared {@code calver-format} tokens. Values are the displayed substrings of the
@@ -28,6 +34,8 @@ public final class ChangelogTemplate {
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{([^{}]+)}");
     private static final String VERSION_TOKEN = "version";
     private static final List<String> SEMVER_COMPONENT_TOKENS = List.of("major", "minor", "patch");
+    private static final List<String> DOTNET_COMPONENT_TOKENS =
+            List.of("major", "minor", "build", "revision");
 
     private final String rawTemplate;
     private final VersionScheme scheme;
@@ -77,6 +85,7 @@ public final class ChangelogTemplate {
         return switch (scheme) {
             case SEMVER -> SEMVER_COMPONENT_TOKENS.contains(token);
             case CALVER -> calverFormat != null && calverFormat.declaresSymbol(token);
+            case DOTNET -> DOTNET_COMPONENT_TOKENS.contains(token);
         };
     }
 
@@ -87,6 +96,7 @@ public final class ChangelogTemplate {
         return switch (scheme) {
             case SEMVER -> resolveSemverToken(token, (SemverVersion) version);
             case CALVER -> resolveCalverToken(token, (CalverVersion) version);
+            case DOTNET -> resolveDotnetToken(token, (DotnetVersion) version);
         };
     }
 
@@ -95,6 +105,19 @@ public final class ChangelogTemplate {
             case "major" -> version.major();
             case "minor" -> version.minor();
             case "patch" -> version.patch();
+            default -> throw new IllegalStateException(
+                    "Unreachable: '" + token + "' was validated as legal at construction");
+        };
+    }
+
+    // A version that omits trailing components renders them as 0 — 6.2 gives {build} = 0 and
+    // {revision} = 0 — the same absent-as-zero rule the comparison uses (ADR-0036).
+    private static String resolveDotnetToken(String token, DotnetVersion version) {
+        return switch (token) {
+            case "major" -> version.major();
+            case "minor" -> version.minor();
+            case "build" -> version.build();
+            case "revision" -> version.revision();
             default -> throw new IllegalStateException(
                     "Unreachable: '" + token + "' was validated as legal at construction");
         };

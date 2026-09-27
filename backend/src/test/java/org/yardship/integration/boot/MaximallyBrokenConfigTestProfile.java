@@ -114,6 +114,17 @@ public class MaximallyBrokenConfigTestProfile implements QuarkusTestProfile {
         fillerCurrent(props, 9);
         fillerLatest(props, 9);
 
+        // apps[14]: 'version-scheme: dotnet' plus a 'prerelease-filter' (ADR-0036) -- a request the
+        // scheme can never satisfy: a dotnet version has no pre-release segment, so no tag could
+        // ever match the filter and the scrape would fail forever. Refused at APP scope instead.
+        props.put(app(14, "name"), "dotnet-prerelease-filter-app");
+        props.put(app(14, "version-scheme"), "dotnet");
+        fillerCurrent(props, 14);
+        props.put(app(14, "latest.type"), "oci-registry");
+        props.put(app(14, "latest.registry"), "registry.example");
+        props.put(app(14, "latest.repo"), "library/sonarr");
+        props.put(app(14, "latest.prerelease-filter"), "alpine");
+
         // apps[10]: NO 'name' AT ALL -- the un-bindable-identity case (issue 02 / ADR-0032).
         // Dropped from the fleet entirely; never a ConfigError entry, since there is no identity
         // to record one under.

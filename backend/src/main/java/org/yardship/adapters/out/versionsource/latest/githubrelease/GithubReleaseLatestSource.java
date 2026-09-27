@@ -2,7 +2,6 @@ package org.yardship.adapters.out.versionsource.latest.githubrelease;
 
 import org.yardship.core.domain.exceptions.InvalidVersionException;
 import org.yardship.core.domain.primitives.VersionParser;
-import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.LatestVersionSource;
 
@@ -69,13 +68,14 @@ public class GithubReleaseLatestSource implements LatestVersionSource, Closeable
     // Visible for testing: lets unit tests inject a fake GithubReleaseClient directly, bypassing the
     // lazy redirect-following-transport path, so the selection logic (largest version among
     // non-prerelease/non-draft releases, by tag_name) can be unit-tested without HTTP/Quarkus. The
-    // fake ignores the perPage argument, so the exact value passed here is inconsequential. Defaults
-    // to a SEMVER parser, matching every GitHub-released app today.
-    public GithubReleaseLatestSource(GithubReleaseClient client) {
+    // fake ignores the perPage argument, so the exact value passed here is inconsequential. The
+    // parser is supplied by the caller like on every other constructor — this source is
+    // scheme-agnostic and must not name one.
+    public GithubReleaseLatestSource(GithubReleaseClient client, VersionParser parser) {
         this.url = null;
         this.token = Optional.empty();
         this.pageSize = DEFAULT_PAGE_SIZE;
-        this.parser = new VersionParser(VersionScheme.SEMVER);
+        this.parser = parser;
         this.client = client;
     }
 

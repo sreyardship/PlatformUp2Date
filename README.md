@@ -117,8 +117,9 @@ pu2d_version_drift_level{app="git-tea"} 0
 One gauge answers both questions: whether an app is outdated, and how far
 behind it is. The value is the highest-significance difference between the
 deployed and latest version; calver apps (e.g. Ubuntu's `24.04`) report on
-the same scale, graded by what the changed token *means*. The full grading
-rules (pre-releases, build metadata, calver token classes) are in
+the same scale, graded by what the changed token *means*, and dotnet apps (e.g.
+Sonarr's `4.0.20.3014`) grade by changed component. The full grading rules
+(pre-releases, build metadata, calver token classes, the dotnet revision) are in
 [`docs/deployment.md`](docs/deployment.md#metrics) and
 [`docs/configuration.md`](docs/configuration.md#calver-format).
 `pu2d_application_info` carries the actual current/latest version strings and

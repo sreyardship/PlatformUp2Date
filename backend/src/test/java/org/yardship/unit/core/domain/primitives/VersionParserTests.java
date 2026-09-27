@@ -3,6 +3,7 @@ package org.yardship.unit.core.domain.primitives;
 import org.junit.jupiter.api.Test;
 import org.yardship.core.domain.exceptions.InvalidVersionException;
 import org.yardship.core.domain.primitives.CalverVersion;
+import org.yardship.core.domain.primitives.DotnetVersion;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
@@ -77,6 +78,48 @@ public class VersionParserTests {
         assertEquals("2024.04", result.value());
     }
 
+    @Test
+    void dotnetParser_parsesRawString_intoDotnetVersion() {
+        // Arrange
+        VersionParser parser = new VersionParser(VersionScheme.DOTNET);
+
+        // Act
+        VersionValue result = parser.parse("4.0.20.3014");
+
+        // Assert
+        assertInstanceOf(DotnetVersion.class, result,
+                "A DOTNET parser must return a DotnetVersion instance");
+        assertEquals("4.0.20.3014", result.value());
+    }
+
+    // -----------------------------------------------------------------------
+    // DOTNET parser — the dotnet-compare-build knob is threaded, not defaulted per-value
+    // -----------------------------------------------------------------------
+
+    @Test
+    void dotnetParser_comparesTheBuild_whenBuiltFromTheSingleArgConstructor() {
+        VersionParser parser = new VersionParser(VersionScheme.DOTNET);
+
+        assertTrue(parser.parse("4.0.17").isOlderThan(parser.parse("4.0.20")),
+                "The documented default is to compare the build");
+    }
+
+    @Test
+    void dotnetParser_dropsTheBuild_whenConstructedWithCompareBuildFalse() {
+        VersionParser parser = new VersionParser(VersionScheme.DOTNET, false);
+
+        assertFalse(parser.parse("4.0.17").isOlderThan(parser.parse("4.0.20")),
+                "dotnet-compare-build: false must reach the parsed values");
+    }
+
+    @Test
+    void dotnetParser_throwsInvalidVersionException_whenVersionIsNotSystemVersionShaped() {
+        // A bad version string is isolated to that app's parse() call, never the boot.
+        VersionParser parser = new VersionParser(VersionScheme.DOTNET);
+
+        assertThrows(InvalidVersionException.class, () -> parser.parse("4.0.17-rc1"));
+    }
+
     // -----------------------------------------------------------------------
     // CALVER parser — fail-fast at construction (missing / invalid format)
     // -----------------------------------------------------------------------
@@ -87,6 +130,13 @@ public class VersionParserTests {
         assertThrows(IllegalArgumentException.class,
                 () -> new VersionParser(VersionScheme.CALVER),
                 "Constructing a CALVER parser without a format must throw at construction");
+    }
+
+    @Test
+    void calverParser_throwsAtConstruction_whenBuiltFromTheCompareBuildConstructor() {
+        // The dotnet-compare-build constructor cannot supply a calver-format either.
+        assertThrows(IllegalArgumentException.class,
+                () -> new VersionParser(VersionScheme.CALVER, true));
     }
 
     @Test

@@ -17,7 +17,7 @@ public final class SemverVersion implements VersionValue {
 
     public SemverVersion(String input) {
         input = notNull(input, new InvalidVersionException("Value cannot be null"));
-        input = trimInput(input);
+        input = VersionStrings.stripDecoration(input);
         try {
             this.semver = new Semver(input);
         } catch (SemverException ex) {
@@ -115,10 +115,5 @@ public final class SemverVersion implements VersionValue {
                             + v.getClass().getSimpleName());
         }
         return sv;
-    }
-
-    private static String trimInput(String input) {
-        input = input.trim();
-        return input.replaceAll("^[vV]+", "");
     }
 }

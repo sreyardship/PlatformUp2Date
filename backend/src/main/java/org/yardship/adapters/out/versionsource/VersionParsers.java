@@ -19,7 +19,8 @@ import java.util.Optional;
 
 /**
  * Per-app {@link VersionParser} lookup, built eagerly at startup from {@link
- * ApplicationConfigLoader}'s per-app {@code version-scheme}/{@code calver-format} config.
+ * ApplicationConfigLoader}'s per-app {@code version-scheme} config and its scheme-specific
+ * companions ({@code calver-format}, {@code dotnet-compare-build}).
  *
  * <p>This is the single place parser construction happens; {@code VersionSourceResolver} consumes
  * this bean instead of building parsers inline, so current and latest legs for a given app always
@@ -29,6 +30,10 @@ import java.util.Optional;
  * it records exactly one {@link ConfigErrorScope#APP}-scope {@link ConfigError} instead, and {@link
  * #forApp} returns {@link Optional#empty()} for that app — a legitimate, expected state, since the
  * Version scheme is declared once per app and shared by both legs, so neither leg is parseable.
+ *
+ * <p>The same APP-scope path refuses a scheme/source-knob combination the scheme can never satisfy:
+ * {@code version-scheme: dotnet} with a {@code prerelease-filter} (ADR-0036). See {@link
+ * #refusePrereleaseFilterUnderDotnet}.
  */
 @ApplicationScoped
 @Startup
@@ -53,9 +58,11 @@ public class VersionParsers implements ConfigErrorSource {
             // has no identity to key a parser under, and VersionSourceResolver never resolves it.
             app.name().ifPresent(name -> {
                 try {
+                    refusePrereleaseFilterUnderDotnet(app, name);
                     parsers.put(name, buildParser(app));
-                } catch (IllegalArgumentException invalidScheme) {
-                    errors.add(new ConfigError(name, ConfigErrorScope.APP, invalidScheme.getMessage()));
+                } catch (IllegalArgumentException declaredConfigError) {
+                    errors.add(new ConfigError(
+                            name, ConfigErrorScope.APP, declaredConfigError.getMessage()));
                 } catch (RuntimeException undeclaredDefect) {
                     logger.error("Defect building version parser for app '{}': {}",
                             name, undeclaredDefect.getMessage(), undeclaredDefect);
@@ -98,11 +105,48 @@ public class VersionParsers implements ConfigErrorSource {
         return configErrors;
     }
 
+    /**
+     * Refuses {@code version-scheme: dotnet} combined with a {@code prerelease-filter} on the latest
+     * leg, at APP scope (ADR-0036).
+     *
+     * <p>{@code prerelease-filter} does not merely strip a segment, it NARROWS the eligible tag set
+     * to tags whose pre-release segment equals the filter. {@code DotnetVersion.preReleaseSegment()}
+     * is always empty, so no tag can ever match and {@code OciTagSelector} would throw on every
+     * scrape, forever, never self-healing — precisely the shape {@code CONTEXT.md} reserves for a
+     * configuration error. Ignoring the knob instead would silently widen selection to every tag,
+     * the opposite of what the operator asked for.
+     *
+     * <p>Only {@code oci-registry} reads the knob, but the refusal is keyed on the knob being
+     * configured at all rather than on a kind name: under {@code dotnet} the request is unsatisfiable
+     * whichever latest kind is declared, and this bean does not dispatch on {@code type} strings.
+     * {@code strip-prerelease} is deliberately NOT refused — it is meaningless but harmless, and
+     * stays a silent no-op.
+     */
+    private static void refusePrereleaseFilterUnderDotnet(
+            ApplicationConfigLoader.AppConfig app, String name) {
+        if (app.versionScheme() != VersionScheme.DOTNET) {
+            return;
+        }
+        Optional<String> prereleaseFilter = app.latest().prereleaseFilter();
+        if (prereleaseFilter.isEmpty()) {
+            return;
+        }
+        throw new IllegalArgumentException(
+                "App '" + name + "' combines 'version-scheme: dotnet' with a 'prerelease-filter' ("
+                        + prereleaseFilter.get() + "). A dotnet version has no pre-release segment, "
+                        + "so no tag could ever match the filter. Remove the filter, or use a scheme "
+                        + "with pre-release segments.");
+    }
+
     private static VersionParser buildParser(ApplicationConfigLoader.AppConfig app) {
         try {
             return switch (app.versionScheme()) {
                 case SEMVER -> new VersionParser(VersionScheme.SEMVER);
                 case CALVER -> new VersionParser(VersionScheme.CALVER, app.calverFormat().orElse(null));
+                // dotnet-compare-build defaults to true here, beside the code that reads it: the
+                // motivating Sonarr 4.0.17 -> 4.0.20 upgrade must read as drift (ADR-0036).
+                case DOTNET -> new VersionParser(
+                        VersionScheme.DOTNET, app.dotnetCompareBuild().orElse(true));
             };
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException(

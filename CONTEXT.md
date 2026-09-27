@@ -70,11 +70,15 @@ share, not what distinguishes them)
 
 **Version scheme**:
 How an Application's version strings are interpreted and compared — `semver`
-(the default) or `calver`. Declared once per Application and shared by its
-current and latest sources, so the two are always commensurable. It governs both
-ordering ("is it behind?") and how Drift severity is assigned. Comparing across
-schemes — or across two different calver formats — is a configuration error,
-never a silent guess.
+(the default), `calver`, or `dotnet` (`System.Version`'s
+`major.minor[.build[.revision]]`, as Sonarr/Radarr/Prowlarr publish). Declared
+once per Application and shared by its current and latest sources, so the two are
+always commensurable. It governs both ordering ("is it behind?") and how Drift
+severity is assigned. Comparing across schemes — or across two different calver
+formats — is a configuration error, never a silent guess. A scheme may declare a
+component outside the comparison: under `dotnet` the revision is parsed and
+displayed but never compared, so a revision-only difference is not Drift (see
+`docs/adr/0036`).
 _Avoid_: Version format, versioning style, version type, coercion
 
 **Manual scrape** (a.k.a. **scrape trigger**):
@@ -84,10 +88,11 @@ _Avoid_: Force refresh, rescan
 
 **Drift**:
 How far an Application's current version is behind its latest upstream release,
-graded by severity: PATCH, MINOR, or MAJOR. Severity is defined under both
-Version schemes — by changed component for semver, and by the category of the
-changed calver token for calver (year → MAJOR, month/week/day → MINOR,
-micro/modifier → PATCH).
+graded by severity: PATCH, MINOR, or MAJOR. Severity is defined under every
+Version scheme — by changed component for semver and dotnet (dotnet: major →
+MAJOR, minor → MINOR, build → PATCH; the revision cannot produce a grade), and by
+the category of the changed calver token for calver (year → MAJOR,
+month/week/day → MINOR, micro/modifier → PATCH).
 _Avoid_: Lag, delta, staleness (staleness refers to the snapshot, not a version)
 
 **Scrape budget**:

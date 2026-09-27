@@ -2,13 +2,14 @@ package org.yardship.core.domain.primitives;
 
 /**
  * The version abstraction shared by every version source and the domain. Sealed to the known
- * schemes — {@link SemverVersion} and {@link CalverVersion} — keeping exhaustive switches honest.
+ * schemes — {@link SemverVersion}, {@link CalverVersion} and {@link DotnetVersion} — keeping
+ * exhaustive switches honest.
  *
  * <p>Both the {@code current} and {@code latest} legs for a given app use the SAME
  * {@link VersionParser} instance, which means the two sides always produce commensurable
  * {@code VersionValue} instances that can be safely compared.
  */
-public sealed interface VersionValue permits SemverVersion, CalverVersion {
+public sealed interface VersionValue permits SemverVersion, CalverVersion, DotnetVersion {
 
     /** {@code true} if this version is strictly older (lower precedence) than {@code comparable}. */
     boolean isOlderThan(VersionValue comparable);
@@ -33,8 +34,9 @@ public sealed interface VersionValue permits SemverVersion, CalverVersion {
      * The pre-release segment of this version, or {@link java.util.Optional#empty()} when there is
      * none. For semver this is the dot-joined prerelease (e.g. {@code 1.22.0-rc.1} → {@code "rc.1"},
      * {@code 1.22.0-alpine} → {@code "alpine"}); for calver it is the {@code MODIFIER} token when the
-     * format has one and the version carries it. Used by sources that filter/select by prerelease
-     * variant (e.g. {@code oci-registry}).
+     * format has one and the version carries it; for dotnet it is ALWAYS empty, since
+     * {@code System.Version} has no pre-release concept. Used by sources that filter/select by
+     * prerelease variant (e.g. {@code oci-registry}).
      */
     java.util.Optional<String> preReleaseSegment();
 

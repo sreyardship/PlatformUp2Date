@@ -77,8 +77,9 @@ One entry per monitored Application under `apps[]`:
 | `name` | string | yes | — | The Application's identifier, used across every surface (REST, metrics, MCP). |
 | `current` | [VersionSource](#version-source-keys-shared) | yes | — | The `current`-side source (`type` selects the kind). |
 | `latest` | [VersionSource](#version-source-keys-shared) | yes | — | The `latest`-side source (`type` selects the kind). |
-| `version-scheme` | `semver` \| `calver` | no | `semver` | Shared by both legs so they are always commensurable. Case-insensitive. |
+| `version-scheme` | `semver` \| `calver` \| `dotnet` | no | `semver` | Shared by both legs so they are always commensurable. Case-insensitive. `dotnet` is `System.Version`'s `major.minor[.build[.revision]]` — see [Dotnet versions](#dotnet-versions) below. |
 | `calver-format` | string (calver.org grammar) | required if `version-scheme: calver`, else ignored | — | e.g. `YY.0M.MICRO`. See [Calver format](#calver-format) below. Checked during startup after config binding. A missing or invalid format records an `APP` config error and degrades both sides; the backend continues running. |
+| `dotnet-compare-build` | boolean | no (ignored unless `version-scheme: dotnet`) | `true` | Whether the `build` component (the third) is compared. `false` leaves a major.minor comparison, under which the app can never grade `PATCH`. The `revision` is never compared under either setting. See [Dotnet versions](#dotnet-versions). |
 | `changelog-url` | string (template) | no | absent → no changelog link | App-level, sibling of `version-scheme` — not a `VersionSource` field. See [Changelog link templates](#changelog-link-templates). |
 
 ## Version source keys (shared)
@@ -281,8 +282,9 @@ top-level keys — see [Top-level keys](#top-level-keys).
 ### `type: oci-registry` (latest) — no credentials required for public repos
 
 Uses the registry's bearer-token challenge dance (a public repo mints an
-anonymous token, same as an anonymous `docker pull`), then selects the
-largest semver over the full tag set (truncate-and-warn past `max-tags`).
+anonymous token, same as an anonymous `docker pull`), then selects the largest
+tag over the full tag set under the app's own `version-scheme`
+(truncate-and-warn past `max-tags`).
 
 | Key | Type | Required | Default |
 |---|---|---|---|
@@ -290,7 +292,7 @@ largest semver over the full tag set (truncate-and-warn past `max-tags`).
 | `repo` | string | yes | — |
 | `page-size` | int | no | `100` |
 | `max-tags` | int | no | `1000` |
-| `prerelease-filter` | string | no | absent → only clean semver tags (no prerelease segment) are eligible |
+| `prerelease-filter` | string | no | absent → only clean semver tags (no prerelease segment) are eligible. **Incompatible with `version-scheme: dotnet`**: a dotnet version has no pre-release segment, so no tag could ever match. That combination records an `APP` config error at startup (the app is reported as misconfigured; every other app is unaffected) rather than failing the app's scrape on every pass. The refusal keys on the knob, not on the source kind: `prerelease-filter` on a `dotnet` app is refused whichever `latest` kind the app declares, even one that would ignore it. |
 | `strip-prerelease` | boolean | no | `false` |
 | `auth.type` | `basic` (only) | no | absent → anonymous | 
 | `auth.username` / `auth.password` | string | required if `auth` present | — |
@@ -385,21 +387,67 @@ separated by `.`, `-`, or `_`: `YYYY`, `YY`, `0Y`, `MM`, `0M`, `WW`, `0W`,
 `MAJOR` are MAJOR-severity; sub-year date tokens and `MINOR` are
 MINOR-severity; `MICRO`/`MODIFIER` are PATCH-severity.
 
+## Dotnet versions
+
+`version-scheme: dotnet` parses `System.Version`'s grammar — two to four
+non-negative integer components, `major.minor[.build[.revision]]` — which is what
+Sonarr, Radarr and Prowlarr publish (`4.0.20.3014`). An optional leading `v` is
+stripped. A single component, five or more components, and any non-numeric suffix
+(`4`, `1.2.3.4.5`, `4.0.x`, `4.0.17-rc1`) are rejected; a rejected string fails
+that app's scrape with a precise reason and never the boot.
+
+- **Absent trailing components count as zero**, so `6.2`, `6.2.0` and `6.2.0.0`
+  are equal. This is a deliberate divergence from .NET, which orders
+  `1.1 < 1.1.0` to separate assembly identities; PU2D compares published
+  releases, where writing fewer digits is formatting, not precedence.
+- **The revision is never compared.** `4.0.20.3012` is up to date against
+  `4.0.20.3014` — .NET documents builds differing only in revision as fully
+  interchangeable. The revision is still displayed and still available as a
+  changelog placeholder.
+- **The build is compared by default** (`dotnet-compare-build: true`), so
+  Sonarr's `4.0.17` → `4.0.20` reads as `PATCH` drift. Setting it `false` drops
+  the build from the comparison, and that app can then never grade `PATCH`.
+- Drift grades by the most significant differing component: major → `MAJOR`,
+  minor → `MINOR`, build → `PATCH`.
+- The displayed version is the string the source published, minus a leading `v`.
+  It is never padded to four components — `6.2` displays as `6.2`.
+- `strip-prerelease` is a no-op for a `dotnet` app: `System.Version` has no
+  pre-release segment to strip. An `oci-registry` `prerelease-filter` is
+  incompatible with the scheme and is refused — see the `prerelease-filter` row
+  under [`type: oci-registry`](#type-oci-registry-latest--no-credentials-required-for-public-repos).
+
+Because the revision is not compared, two tags differing only in revision (e.g.
+`v4.0.20.3012` and `v4.0.20.3014`) are tied for latest, and which of them is
+reported depends on the order GitHub or the registry lists tags in. That is
+accepted rather than tie-broken: every tied tag is equally current, so the choice
+cannot change an app's monitoring status — only which of several equivalent
+strings is displayed. See [ADR-0036](adr/0036-dotnet-as-a-third-version-scheme.md).
+
 ## Changelog link templates
 
 `changelog-url` is a per-app URL template resolved at read time from the
 app's stored latest version; a scrape never observes or stores it. Legal
 placeholders:
 
-- `{version}` — the full version string; legal for both schemes.
+- `{version}` — the full version string; legal for every scheme.
 - `{major}` / `{minor}` / `{patch}` — legal only for `version-scheme: semver`.
+- `{major}` / `{minor}` / `{build}` / `{revision}` — .NET's own component names,
+  legal only for `version-scheme: dotnet`. `{patch}` is **illegal** there:
+  `System.Version` has no patch component, and aliasing it to build or revision
+  would be a guess. `{revision}` renders even though the revision is never
+  compared — the component exists and is displayed, it just carries no drift
+  signal, and a changelog URL frequently needs the full build identifier. A
+  version that omits trailing components renders them as `0`, so `6.2` gives
+  `{build}` = `0` and `{revision}` = `0`.
 - A calver.org format-symbol token declared in the app's `calver-format`
   (e.g. `{YY}`, `{0M}`, `{MICRO}`) — legal only for `version-scheme: calver`,
   and only for tokens the app's own format actually declares. Values are the
   *displayed* substrings of the matched version string (zero-padding
   preserved), never re-rendered numbers.
 
-An illegal placeholder (wrong scheme, or a calver token absent from the app's
-declared format) records a `CHANGELOG` config error naming the offending app
-and placeholder. The backend still starts, both sides scrape normally, and the
-Changelog link is omitted. A token-free template (a constant URL) is legal.
+The per-scheme vocabularies are disjoint apart from `{version}`. An illegal
+placeholder (wrong scheme, `{patch}` on a `dotnet` app, or a calver token absent
+from the app's declared format) records a `CHANGELOG` config error naming the
+offending app and placeholder. The backend still starts, both sides scrape
+normally, and the Changelog link is omitted. A token-free template (a constant
+URL) is legal.
