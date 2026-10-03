@@ -7,12 +7,16 @@ name: Build and publish images
 #     toolchains and runtimes, each with its own `permissions:`; a composite
 #     action is a single flat step sequence and cannot declare permissions or
 #     split into parallel jobs.
-#   - callers only need to vary the docker/metadata-action tag rules
-#     (edge vs semver), passed as a single input, so the two call sites stay
-#     tiny and cannot drift apart on the actual build/push mechanics.
+#   - callers select identity kind and docker/metadata-action tag rules
+#     (edge vs semver), so the two call sites cannot drift apart on the
+#     actual build/push mechanics.
 on:
   workflow_call:
     inputs:
+      identity-kind:
+        description: 'Build identity channel: release or edge.'
+        required: true
+        type: string
       tags-config:
         description: >
           docker/metadata-action `tags:` input (newline-separated patterns),
@@ -22,6 +26,39 @@ on:
         type: string
 
 jobs:
+  identity:
+    name: resolve build identity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.identity.outputs.version }}
+      source-sha: ${{ steps.identity.outputs.source-sha }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Resolve identity from checked-out source
+        id: identity
+        env:
+          IDENTITY_KIND: ${{ inputs.identity-kind }}
+          REF_TYPE: ${{ github.ref_type }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          case "$IDENTITY_KIND" in
+            release)
+              [[ "$REF_TYPE" == tag ]] || { echo 'release requires a tag checkout' >&2; exit 1; }
+              version=$(bash ci/resolve-build-version.sh release "$RELEASE_TAG")
+              ;;
+            edge) version=$(bash ci/resolve-build-version.sh edge) ;;
+            *) echo "unknown identity kind: $IDENTITY_KIND" >&2; exit 1 ;;
+          esac
+          source_sha=$(git rev-parse --verify HEAD)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "source-sha=$source_sha" >> "$GITHUB_OUTPUT"
+
   # Backend: GraalVM NATIVE image. The old Tekton production path built the
   # native binary in the project's Nix devshell and packaged it with
   # Dockerfile.native-ci (see git history on that file: "fix(backend): now we
@@ -54,10 +91,10 @@ jobs:
   # KNOWN OPEN RISK (flag for first live run, see NOTES.md): native-image
   # links against the *build host's* system glibc when not using
   # `quarkus.native.container-build`, which this job deliberately does not
-  # use (per the "identical toolchain split as pr.yml" constraint — the
-  # native binary must be built exactly once and fed into both the native
-  # ITs upstream and this docker build, never recompiled). If `ubuntu-latest`
-  # ships a newer glibc than UBI9's 2.34 at the time this runs for real, the
+  # use. PR native ITs exercise their own build of the shipped image recipe;
+  # this publishing run separately recompiles the event's source with its
+  # resolved identity, then packages that binary without recompilation.
+  # If `ubuntu-latest` ships a newer glibc than UBI9's 2.34 at the time this runs for real, the
   # packaged binary will fail to start ("GLIBC_x.xx not found"). There is no
   # way to prove this from a sandbox without GitHub-hosted runners; treat the
   # first edge publish as the real test of this Dockerfile choice and be
@@ -65,14 +102,23 @@ jobs:
   # builder image if it fails.
   backend:
     name: backend image
+    needs: identity
+    env:
+      BUILD_VERSION: ${{ needs.identity.outputs.version }}
+      BUILD_SOURCE_SHA: ${{ needs.identity.outputs.source-sha }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
       packages: write
     steps:
-      - name: Check out repository
+      - name: Check out resolved source
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.identity.outputs.source-sha }}
+
+      - name: Verify build source
+        run: test "$(git rev-parse HEAD)" = "$BUILD_SOURCE_SHA"
 
       # Same split as pr.yml's native job: GraalVM CE 25 provides
       # native-image (via GRAALVM_HOME, which Quarkus prefers over
@@ -96,9 +142,9 @@ jobs:
         with:
           gradle-version: '8.14.4'
 
-      # Built once here; the native ITs that gate this exact binary already
-      # ran in the `native` job on `main` before this push landed (pr.yml),
-      # so this job does not repeat them — it only compiles once more.
+      # PR native ITs gate the source and image recipe, not this exact binary.
+      # Publishing rebuilds from the event's source with the resolved identity;
+      # this job does not repeat the ITs.
       # -PcustomBuildDir=build-native routes the output to the path
       # Dockerfile.native-ci's build context expects
       # (backend/.dockerignore whitelists build-native/*-runner).
@@ -109,6 +155,8 @@ jobs:
           -Dquarkus.package.jar.enabled=false
           -x test
           -PcustomBuildDir=build-native
+          -PbuildVersion="$BUILD_VERSION"
+          -PbuildVersionRequired=true
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -138,21 +186,26 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  # Frontend: static assets served by nginx; runtime config (API_BASE_URL) is
-  # injected by docker-entrypoint.d/40-env-config.sh at container start, not
-  # baked in at build time (see frontend/nginx.conf +
-  # docker-entrypoint.d/40-env-config.sh — no REACT_APP_BASE_URL/VITE_* build
-  # arg is consumed by frontend/Dockerfile), so no --build-arg is needed here.
+  # Frontend: build identity is embedded in the static assets. Deployment
+  # config (API_BASE_URL/OIDC) remains injected separately at container start.
   frontend:
     name: frontend image
+    needs: identity
+    env:
+      BUILD_SOURCE_SHA: ${{ needs.identity.outputs.source-sha }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
       packages: write
     steps:
-      - name: Check out repository
+      - name: Check out resolved source
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.identity.outputs.source-sha }}
+
+      - name: Verify build source
+        run: test "$(git rev-parse HEAD)" = "$BUILD_SOURCE_SHA"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -178,6 +231,9 @@ jobs:
         with:
           context: frontend
           file: frontend/Dockerfile
+          build-args: |
+            BUILD_VERSION=${{ needs.identity.outputs.version }}
+            BUILD_VERSION_REQUIRED=true
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

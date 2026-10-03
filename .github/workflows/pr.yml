@@ -24,7 +24,7 @@ jobs:
   fast:
     name: fast
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -40,8 +40,14 @@ jobs:
         with:
           gradle-version: '8.14.4'
 
+      - name: Build identity CLI tests
+        run: bash ci/test-resolve-build-version.sh
+
       - name: Backend unit + integration tests
         run: gradle --no-daemon :backend:test
+
+      - name: Backend build identity injection + regeneration (packaged JVM endpoint)
+        run: bash ci/check-backend-build-version.sh
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -54,9 +60,12 @@ jobs:
         working-directory: frontend
         run: yarn install --frozen-lockfile
 
-      - name: Frontend tests
+      - name: Frontend tests (including build identity regeneration)
         working-directory: frontend
         run: yarn test
+
+      - name: Frontend build identity (both shipped nginx images, no publishing)
+        run: bash frontend/ci/bin/test-build-version-image.sh
 
   # The GraalVM native build plus the native @QuarkusIntegrationTest suite
   # (SshOsReleaseResourceIT et al. — see docs/adr/0025). `quarkusIntTest` boots
@@ -139,6 +148,8 @@ jobs:
           -Dquarkus.package.jar.enabled=false
           -Dquarkus.container-image.build=true
           -PcustomBuildDir=build-native
+          -PbuildVersion=1.2.3-rc.6+ci.1
+          -PbuildVersionRequired=true
           -x test
 
   # Keeps deploy/k8s from rotting: kustomize-build every shipped composition

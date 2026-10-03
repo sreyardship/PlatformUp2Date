@@ -6,7 +6,9 @@ COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile
 
 COPY . .
-RUN yarn build
+ARG BUILD_VERSION=dev
+ARG BUILD_VERSION_REQUIRED=false
+RUN BUILD_VERSION="$BUILD_VERSION" BUILD_VERSION_REQUIRED="$BUILD_VERSION_REQUIRED" yarn build
 
 FROM nginx:alpine
 

@@ -185,6 +185,50 @@ both):
   [`configuration.md`](configuration.md#type-ssh-os-release-current--tier-b-requires-ssh-access))
   and no Kubernetes RBAC at all.
 
+## Build-version endpoints
+
+| Service | Request | Response |
+|---|---|---|
+| Backend | `GET /api/version` | `{"version":"1.2.3"}` |
+| Frontend (nginx) | `GET /version.json` | `{"version":"1.2.3"}` |
+
+Both return HTTP 200, `Content-Type: application/json`, and
+`Cache-Control: no-store`. They expose only embedded build identity, with no
+credentials or deployment configuration. The existing `/api/v1/version`
+continues to return monitored Applications' statuses, not backend build identity.
+
+Both endpoints are anonymously readable even when web/MCP Surface
+authentication is enabled; the `/api/v1*` and `/api/mcp*` role gates are
+unchanged. An external authentication proxy may still restrict them. For
+credential-free version discovery through such a proxy, configure exact-path
+bypasses for `/api/version` and `/version.json`, separately from MCP's bypasses
+below. Honour `no-store` and disable any CDN/proxy caching of these paths;
+otherwise the scraper can observe an earlier artifact rather than the running
+instance.
+
+No new ingress rule is needed: `/api` still reaches the backend unstripped,
+while the catch-all reaches the frontend. Both shipped nginx configurations
+serve `/version.json` as an exact JSON location; a missing file returns 404,
+not the SPA shell with HTTP 200. The frontend serves its own static identity
+without contacting the backend, so it remains available when the backend is
+unavailable.
+
+Identity belongs to **the instance that answered**, not all replicas or a
+browser's already-loaded JavaScript bundle. Rolling updates can legitimately
+return different identities on successive requests. There is no rollout
+aggregation or consistency check. Backend identity reads require no scrape,
+Valkey access, or upstream request, but readiness is unchanged: a backend whose
+Valkey readiness fails may be removed from Service routing and therefore be
+unreachable through its Service.
+
+Release identities come from the tag (leading `v` removed, prerelease/build
+metadata preserved); edge builds report `dev-<full-commit>`, local builds `dev`.
+Runtime variables, mounted config, labels, or retagging cannot override them.
+For build-time injection see [RELEASE.md](../RELEASE.md#embedded-build-identity);
+for opt-in tagged-build monitoring see
+[configuration.md](configuration.md#opt-in-self-monitoring). Development
+identities cannot be compared as ordinary semver releases.
+
 ## MCP endpoint authentication
 
 If you turn on MCP endpoint authentication (`OIDC_ISSUER` +
@@ -276,9 +320,9 @@ cluster-level consequences than MCP:
   [ADR 0028](adr/0028-web-and-mcp-surfaces-role-gated-behind-one-issuer.md)).
   If hiding the page itself matters to you, that's still an edge-proxy
   decision, not something this feature does for you.
-- **`/metrics`, `/q/health`, and the OpenAPI spec (`/q/openapi`) stay open**
-  regardless of web-auth state — none of them live under `/api/v1`, so
-  neither surface's role gate touches them.
+- **`/metrics`, `/q/health`, the OpenAPI spec (`/q/openapi`), and build-version
+  endpoints (`/api/version`, `/version.json`) stay open** regardless of
+  web-auth state. Neither Surface's role gate touches them.
 - **Dev-mode CORS**: the Vite dev server serves the SPA from
   `localhost:3000` while Quarkus serves the API from `localhost:8080` (a
   cross-origin request in dev only). The `%dev`-scoped CORS block in

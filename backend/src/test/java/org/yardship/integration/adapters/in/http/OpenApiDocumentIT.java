@@ -31,9 +31,20 @@ class OpenApiDocumentIT {
                 .then()
                 .statusCode(200)
                 .body("info.title", equalTo("PlatformUp2Date"))
+                .body("paths", org.hamcrest.Matchers.hasKey("/api/version"))
                 .body("paths", org.hamcrest.Matchers.hasKey("/api/v1/version"))
                 .body("paths", org.hamcrest.Matchers.hasKey("/api/v1/scrape"))
                 .body("paths", org.hamcrest.Matchers.hasKey("/api/v1/scrape/applications"));
+    }
+
+    @Test
+    void openApiDocument_buildIdentity_hasOnlyOneStringField() {
+        given().accept("application/json").when().get("/q/openapi").then()
+                .statusCode(200)
+                .body("paths.'/api/version'.get.responses.'200'.content.'application/json'.schema.$ref",
+                        org.hamcrest.Matchers.containsString("BuildVersion"))
+                .body("components.schemas.BuildVersion.properties.size()", equalTo(1))
+                .body("components.schemas.BuildVersion.properties.version.type", equalTo("string"));
     }
 
     /**
