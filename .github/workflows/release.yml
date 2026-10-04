@@ -6,16 +6,10 @@ name: Release
 # one build definition).
 #
 # Version consistency: the git tag is the single source of the version.
-# docker/metadata-action's `type=semver` tags derive directly from the pushed
-# tag and it sets `org.opencontainers.image.version` to the parsed version
-# automatically, so the OCI version label always matches the tag with no
-# extra wiring. We deliberately do NOT thread the tag into the Gradle build
-# (`-Pversion=` / `quarkus.application.version`) — build.gradle hardcodes
-# `version '1.0.0-SNAPSHOT'` and overriding that would mean editing a backend
-# build file for a cosmetic value with no external consumer (the app doesn't
-# expose its own version anywhere users would compare it against the image
-# tag). The OCI label is sufficient because the application does not expose a
-# separate build version to consumers.
+# build-images.yml validates strict semver and strips only the leading v,
+# then injects that identity before native compilation and frontend asset
+# generation. OCI tags/labels are separate publication metadata; they cannot
+# replace the identities reported by /api/version and /version.json.
 on:
   push:
     tags: ['v*']
@@ -37,6 +31,7 @@ jobs:
       contents: read
       packages: write
     with:
+      identity-kind: release
       # :latest comes from docker/metadata-action's default flavor
       # (latest=auto): added for release semver tags, skipped for
       # prereleases (e.g. v0.9.9-rc.1) — which likewise only get the exact

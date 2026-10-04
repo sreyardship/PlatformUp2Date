@@ -28,9 +28,9 @@ stream is published between releases.
 
 ## What each trigger does
 
-- **Pull request** — tests only (JVM + native + manifest validation). PRs
-  never build or publish images; fork PRs run with a read-only token
-  (ADR 0023).
+- **Pull request** — tests only (JVM + native + frontend build/image checks +
+  manifest validation). PRs build local test images but never publish them;
+  fork PRs run with a read-only token (ADR 0023).
 - **Merge to `main`** — builds both images once and publishes `edge` and
   `sha-<short>` (`.github/workflows/edge.yml`).
 - **Push a `v*` tag** — the release pipeline (`.github/workflows/release.yml`):
@@ -67,6 +67,53 @@ Versioning is semver, chosen at tag time by the maintainer: patch for fixes,
 minor for features, major for breaking changes to the config schema or the
 `/api/v1` contract. The project is in `0.x` — minor bumps may still carry
 breaking changes.
+
+## Embedded build identity
+
+Each artifact reports its own build identity: backend `GET /api/version` and
+frontend `GET /version.json`, both returning `{"version":"..."}`. The frontend
+does not ask the backend for its version.
+
+| Build | Embedded identity |
+|---|---|
+| Release tag `v1.2.3` | `1.2.3` |
+| Prerelease/build metadata `v1.2.3-rc.6+build.1` | `1.2.3-rc.6+build.1` |
+| CI edge | `dev-<full git rev-parse HEAD>` of the checked-out source |
+| Local build without injection | `dev` |
+
+The shared publishing workflow resolves identity once **after checkout**, using
+[`ci/resolve-build-version.sh`](ci/resolve-build-version.sh). Release tags must
+be strict SemVer with a leading `v`; only that prefix is removed. Both image
+jobs check out the resolved commit and consume the same identity:
+
+- Backend: `gradle ... -PbuildVersion=<identity> -PbuildVersionRequired=true`, before
+  native compilation, not in the later Docker packaging step.
+- Frontend Docker build arguments: `BUILD_VERSION=<identity>` and
+  `BUILD_VERSION_REQUIRED=true`, before static asset generation.
+
+Both publishing channels require explicit valid injection and fail rather than
+falling back to `dev`. Runtime environment variables, monitoring config, OCI
+labels, and image retagging cannot change the embedded identity. Build metadata
+is preserved in responses; image tags still follow docker/metadata-action's
+existing rules (OCI tag syntax does not permit `+`).
+
+For a local injected build, run Gradle from the repository root or Docker with
+the frontend directory as context:
+
+```bash
+gradle :backend:quarkusBuild -PbuildVersion=1.2.3-rc.6+build.1 -PbuildVersionRequired=true
+docker build frontend --build-arg BUILD_VERSION=1.2.3-rc.6+build.1 \
+  --build-arg BUILD_VERSION_REQUIRED=true
+```
+
+PR checks test the identity CLI, rebuild the JVM artifact with changed injection
+without cleaning generated output, query its public endpoint, and exercise the
+frontend build and nginx images. Native integration tests use explicit
+injection through the packaged native image. Those tests validate the source
+and image recipe, **not the exact binary later published**: the publishing run
+separately recompiles the triggering source with the release/edge identity.
+Tag pushes rebuild both images; they do not promote or retag an earlier `edge`
+artifact. Publication tag policies and the pin-bump flow above are unchanged.
 
 ## Deployment follows releases
 

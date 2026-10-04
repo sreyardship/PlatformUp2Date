@@ -1,6 +1,7 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+import buildVersion from './build-version.js'
 
 // CRA replacement. Notes:
 // - dev server stays on port 3000 (compose / Dockerfile.dev expect it)
@@ -8,7 +9,7 @@ import react from '@vitejs/plugin-react'
 // - public/ is served at the root, so /env-config.js still provides the
 //   runtime window._env_ config injected by the Docker entrypoint.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), buildVersion()],
   server: {
     port: 3000,
     host: true,

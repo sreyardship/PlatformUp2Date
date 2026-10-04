@@ -312,6 +312,59 @@ Fetches `url` as text and applies `regex`; capture group 1 of every match is a
 candidate version string, the largest wins (validated to compile with at
 least one group at startup).
 
+## Opt-in self-monitoring
+
+The backend's `GET /api/version` and the frontend-serving service's
+`GET /version.json` each report their own embedded build identity as
+`{"version":"1.2.3"}`. Use the ordinary `http-json` current source; there is no
+self-monitoring special case and neither Application is added to the shipped
+monitoring defaults.
+
+Merge these entries into your existing `platform-config.apps` rather than
+replacing your fleet. Replace the example host with one reachable from the
+scraper, or use each service's internal address with the same endpoint paths:
+
+```yaml
+platform-config:
+  scrape-interval: 1h
+  apps:
+    - name: platformup2date-backend
+      current:
+        type: http-json
+        url: https://platformup2date.example.com/api/version
+      latest:
+        type: github-release
+        repo: sreyardship/PlatformUp2Date
+
+    - name: platformup2date-frontend
+      current:
+        type: http-json
+        url: https://platformup2date.example.com/version.json
+      latest:
+        type: github-release
+        repo: sreyardship/PlatformUp2Date
+```
+
+Both use the defaults: JSON Pointer `/version` and version scheme `semver`.
+They share an upstream release repository but have independent current
+observations. These endpoints are public even with Surface authentication on;
+an external authentication proxy may still need bypass rules (see
+[deployment.md](deployment.md#build-version-endpoints)).
+
+Use this example for tagged builds. Local `dev` and CI edge
+`dev-<full-commit>` identities are deliberately not semantic versions: reading
+one with the `semver` source fails the current scrape, not a fabricated release
+comparison. RC identities are valid semver, but `github-release` selects the
+largest parseable version among **non-draft, non-prerelease** releases in its
+recent window (default 30); it does not monitor the RC channel. With no eligible
+release in that window the latest scrape fails; without a previous successful
+latest read the Application remains Unresolved. This feature does not change
+that selection policy.
+
+Identity is a build input, not a runtime configuration key. Neither
+`platform-config`, frontend runtime config, nor environment variables can
+replace it; see [RELEASE.md](../RELEASE.md#embedded-build-identity) for injection.
+
 ## Surface authentication (MCP + web)
 
 These environment variables are the entire operator-facing contract for the
@@ -353,8 +406,9 @@ independent per role var (either one alone trips it) and happens before the
 audience check, so an issuer-less config with a role set never gets masked by
 the audience error instead.
 
-This section guards the MCP endpoint and the REST API/web UI. `/metrics` and
-`/q/health` are never gated by either surface's role; see
+This section guards the MCP endpoint and the REST API/web UI. `/metrics`,
+`/q/health`, `/api/version`, and the frontend's `/version.json` are never gated
+by either Surface's role; see
 [`deployment.md`](deployment.md#web-ui-authentication) for the full boundary
 notes and the interim edge-proxy posture for whichever surface you leave
 disabled. Everything beyond these four variables (the underlying
@@ -362,8 +416,9 @@ disabled. Everything beyond these four variables (the underlying
 
 ## Frontend runtime configuration
 
-Like `platform-config`, the frontend's configuration is supplied at container
-start, not baked into the image. The nginx-based frontend image regenerates
+Like `platform-config`, the frontend's deployment configuration is supplied at
+container start, not baked into the image. Build identity (`/version.json`) is
+separate and immutable. The nginx-based frontend image regenerates
 `window._env_` from environment variables via
 `docker-entrypoint.d/40-env-config.sh` on every start:
 

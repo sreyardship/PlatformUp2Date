@@ -26,6 +26,38 @@ asset filenames include content hashes.
 Serves the production build locally from `build/` on port 3000 for a final check
 before deployment.
 
+## Build identity
+
+`GET /version.json` reports the frontend artifact's embedded identity. Builds
+accept `BUILD_VERSION` as strict SemVer (including prerelease/build metadata),
+`dev-<hexcommit>` for edge builds, or `dev` for local builds. Omitted identity
+defaults to `dev`; explicitly blank or invalid values fail the build.
+
+Publishing builds set `BUILD_VERSION_REQUIRED=true`, which rejects missing
+identity and explicit `dev`. Only the literal `true` enables this build-only
+check. The Docker build arguments default to `BUILD_VERSION=dev` and
+`BUILD_VERSION_REQUIRED=false` for local builds:
+
+```bash
+docker build --build-arg BUILD_VERSION=1.2.3 \
+  --build-arg BUILD_VERSION_REQUIRED=true -t p2d-frontend .
+```
+
+Development always serves `dev`. Preview and nginx serve the embedded file;
+runtime environment variables cannot override it. Build identity is separate
+from the runtime UI settings below.
+
+Contract checks (from `frontend/`):
+
+```bash
+yarn test ci/build-version.test.js
+bash ci/bin/test-build-version-image.sh # requires Docker, curl, and Node
+```
+
+The image check builds local and required-injection release/edge variants,
+rejects missing/dev/invalid required injection, and checks both shipped nginx
+configurations without publishing images.
+
 ## Runtime configuration
 
 Runtime settings come from `public/env-config.js`, which sets `window._env_`.

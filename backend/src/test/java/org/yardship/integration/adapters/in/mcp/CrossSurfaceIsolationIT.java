@@ -154,6 +154,17 @@ class CrossSurfaceIsolationIT {
                 .thenAssertResults();
     }
 
+    @Test
+    void buildIdentity_isAnonymous_whileBothSurfaceRoleGatesRemainEnforced() {
+        given().when().get("/api/version").then()
+                .statusCode(200)
+                .contentType("application/json")
+                .header("Cache-Control", "no-store")
+                .body("", org.hamcrest.Matchers.equalTo(java.util.Map.of("version", "dev")));
+        given().when().get("/api/v1/version").then().statusCode(401);
+        given().when().get("/api/mcp").then().statusCode(401);
+    }
+
     // --- Open-surface regression: both surfaces gated is the strictest combination ----------
 
     @Test
