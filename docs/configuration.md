@@ -4,7 +4,9 @@ For a full working example, see
 [`deploy/k8s/base/platform-config.yaml`](../deploy/k8s/base/platform-config.yaml).
 Both quick starts use it. It monitors two public apps and needs no credentials.
 
-Version source tiers are referenced here in the vain hope you'll try and stick to Tier A, see [Architecture](../ARCHITECTURE.md)
+Each current source has a tier. The tier says how much the reading can be
+trusted, not what access it needs. Stick to Tier A when you can. See
+[Architecture](../ARCHITECTURE.md#tiers-of-current-probes-ordered-by-trust).
 
 ## Top-level keys
 
@@ -44,15 +46,15 @@ A current source reads the version that is running now.
 
 | `type` | Reads the version from | Tier |
 |---|---|---|
-| [`http-json`](#http-json) | a field in a JSON response body | [A](../ARCHITECTURE.md#tier-a--black-box-network-reachability-only-the-default) |
-| [`http-header`](#http-header) | an HTTP response header | [A](../ARCHITECTURE.md#tier-a--black-box-network-reachability-only-the-default) |
-| [`http-prometheus`](#http-prometheus) | a label on a Prometheus metric | [A](../ARCHITECTURE.md#tier-a--black-box-network-reachability-only-the-default) |
-| [`k8s-image`](#k8s-image) | the image tag of a running container | [B](../ARCHITECTURE.md#tier-b--credentialed-opportunistic-only-when-we-happen-to-have-access) (cluster access) |
-| [`ssh-os-release`](#ssh-os-release) | `/etc/os-release` on a host, over SSH | [B](../ARCHITECTURE.md#tier-b--credentialed-opportunistic-only-when-we-happen-to-have-access) (SSH access) |
+| [`http-json`](#http-json) | a field in a JSON response body | [A](../ARCHITECTURE.md#tier-a--self-reported) |
+| [`http-header`](#http-header) | an HTTP response header | [A](../ARCHITECTURE.md#tier-a--self-reported) |
+| [`http-prometheus`](#http-prometheus) | a label on a Prometheus metric | [A](../ARCHITECTURE.md#tier-a--self-reported) |
+| [`k8s-image`](#k8s-image) | the image tag of a running container | [B](../ARCHITECTURE.md#tier-b--a-deployed-artifact-named-by-convention) |
+| [`ssh-os-release`](#ssh-os-release) | `/etc/os-release` on a host, over SSH | [A](../ARCHITECTURE.md#tier-a--self-reported) |
 
 #### `http-json`
 
-[Tier A](../ARCHITECTURE.md#tier-a--black-box-network-reachability-only-the-default):
+[Tier A](../ARCHITECTURE.md#tier-a--self-reported):
 needs network access only.
 
 | Key | Type | Required | Default |
@@ -75,7 +77,7 @@ needs network access only.
 
 #### `http-header`
 
-[Tier A](../ARCHITECTURE.md#tier-a--black-box-network-reachability-only-the-default):
+[Tier A](../ARCHITECTURE.md#tier-a--self-reported):
 needs network access only. For apps that put their version in a response header,
 such as Jenkins (`X-Jenkins`).
 
@@ -101,7 +103,7 @@ such as Jenkins (`X-Jenkins`).
 
 #### `http-prometheus`
 
-[Tier A](../ARCHITECTURE.md#tier-a--black-box-network-reachability-only-the-default):
+[Tier A](../ARCHITECTURE.md#tier-a--self-reported):
 needs network access only. For apps that publish their version as a label on a
 `*_build_info` metric, such as blackbox_exporter:
 
@@ -137,8 +139,9 @@ blackbox_exporter_build_info{branch="HEAD",goversion="go1.22.4",revision="0ec2a6
 
 #### `k8s-image`
 
-[Tier B](../ARCHITECTURE.md#tier-b--credentialed-opportunistic-only-when-we-happen-to-have-access):
-needs cluster access. See [deployment.md](deployment.md) for the
+[Tier B](../ARCHITECTURE.md#tier-b--a-deployed-artifact-named-by-convention):
+the tag is set when the image is built, not by the app. Needs cluster access.
+See [deployment.md](deployment.md) for the
 ServiceAccount and ClusterRole.
 
 | Key | Type | Required | Default |
@@ -155,8 +158,8 @@ ServiceAccount and ClusterRole.
 
 #### `ssh-os-release`
 
-[Tier B](../ARCHITECTURE.md#tier-b--credentialed-opportunistic-only-when-we-happen-to-have-access):
-needs SSH access.
+[Tier A](../ARCHITECTURE.md#tier-a--self-reported):
+the OS wrote `/etc/os-release` itself. Needs SSH access.
 
 | Key | Type | Required | Default |
 |---|---|---|---|
@@ -391,7 +394,8 @@ and in the `pu2d_config_error{application, scope}` metric. See
     [0034](adr/0034-conf-check-removed-the-backend-proves-the-config.md),
     [0035](adr/0035-config-error-is-a-domain-primitive.md)
   - Version sources: [0005](adr/0005-version-sources-as-pluggable-factories.md),
-    [0031](adr/0031-http-current-source-renamed-http-json.md)
+    [0031](adr/0031-http-current-source-renamed-http-json.md),
+    [0038](adr/0038-current-source-tiers-rank-trust-not-access.md)
   - `http-json`: [0007](adr/0007-json-pointer-current-version-extraction.md),
     [0008](adr/0008-authenticated-http-current-source.md),
     [0012](adr/0012-http-current-source-file-token-and-custom-ca.md)
