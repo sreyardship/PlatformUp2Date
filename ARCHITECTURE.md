@@ -6,7 +6,7 @@ For *how* the backend is laid out (hexagonal packages, build commands), see `CLA
 
 ## Guiding idea: a general, substrate-agnostic version monitor
 
-PlatformUp2Date answers one question per application: **"is what's running the latest
+PlatformUp2Date answers one question per application: **"is it running the latest
 version, or is it behind?"** The hard part is that the applications it watches are not
 uniform. They are deployed in every way imaginable and many of them are not ours:
 
@@ -42,36 +42,46 @@ Declared-state inference is allowed only as an explicit, clearly-labeled last re
 so a green card from a real version endpoint is never conflated with a green card from a
 repo pin. Keep this in mind if we ever implement a Tier C adapter.
 
-## Tiers of "current" probes (ordered by required access)
+## Tiers of "current" probes (ordered by trust)
 
-Each application picks the best probe it can support. Most apps only ever need Tier A, and that is awesome.
+The tier says **who wrote the version string** the probe reads. The closer the author
+is to the application, the more the reading can be trusted. Each application picks the
+best tier it can support. Most apps only ever need Tier A, and that is awesome.
 
-### Tier A — black-box, network reachability only (the default)
+### Tier A — self-reported
 
-Substrate-agnostic. Works whether the app runs in k8s, on a VM, or on the moon (assuming the moon gets hooked up to the world wide web), because it only talks to the running app over the network.
+The application wrote the version string about itself. Nothing sits between the probe
+and the author. Transport does not matter: HTTP, a metrics page, or SSH are all Tier A
+when the application is the author.
 
-A list of possible adapters (not all implemented at the time of writing)
-- **HTTP version endpoint** — `GET <url>` and select a field (e.g. JSON Pointer `/version`).
-- **Prometheus `*_build_info` scrape** — hit `/metrics`, read the `version=` label.
-- **HTTP header probe** — `Server:`, `X-Version`, or other custom headers.
+Possible adapters (not all implemented at the time of writing):
+
+- **HTTP version endpoint** — `GET <url>` and pick a field (e.g. JSON Pointer `/version`).
+- **Prometheus `*_build_info` scrape** — read `/metrics`, take the `version=` label.
+- **HTTP header** — `Server:`, `X-Version`, or another custom header.
 - **HTML/regex scrape** — `<meta name="generator">`, a footer or login-page version string.
-- *(extensible: any "fetch text → regex → version" probe also covers TLS banners,
-  `/version.txt`, etc.)*
+- **`/etc/os-release` over SSH** — the distro wrote it, so it is the OS's own statement.
+- **`<binary> --version` over SSH** — the same idea with another transport.
 
-### Tier B — credentialed, opportunistic (only when we happen to have access)
+### Tier B — a deployed artifact, named by convention
 
-Still observes *reality*, not the manifest, but does not necessarily talk to the application directly.
+The probe reads a label on an artifact that really got deployed. But the label was set
+by a packaging step the application never saw. The reading is right only as long as
+everyone follows the naming convention.
 
-- **Kubernetes API** — read the *running* pod's container image tag, or better its image
-  **digest** (tags can be mutated; digests cannot).
-- **SSH to a host** — `<binary> --version`, or query the package manager.
+- **Kubernetes image tag** — read the *running* pod's container image tag.
+- **Package manager version** — the package wraps the binary; the two can disagree.
 
-Kubernetes is just *one optional adapter among many here* — never the foundation.
+An image tag can be moved to another build. A digest cannot, but a digest names an
+image, not an application version, so it does not lift the probe to Tier A. When the
+app has a Tier A source, use that instead.
+
+Kubernetes is one optional adapter among many here — never the foundation.
 
 ### Tier C — declared state, explicit last resort
 
-Used only when nothing observable is reachable, and **always labeled "declared, may differ
-from running."**
+Nothing here has been observed running. Use it only when nothing observable is
+reachable, and **always label it "declared, may differ from running".**
 
 - GitOps repo pin, Helm values, or a manifest image tag.
 
@@ -124,7 +134,7 @@ platform-config:
 
     - name: rook-ceph
       current:
-        type: k8s-image              # Tier B — reads the RUNNING pod
+        type: k8s-image              # Tier B — the image tag, set by packaging
         namespace: storage-operator
         workload: deployment/rook-ceph-operator
         container: rook-ceph-operator
@@ -134,13 +144,13 @@ platform-config:
 
     - name: edge-router
       current:
-        type: ssh-os-release         # Tier B — asks the running host itself
+        type: ssh-os-release         # Tier A — the OS reports its own version
         host: router.example.com
         user: pu2d
         private-key-file: /secrets/router_ed25519
         known-hosts: /secrets/known_hosts
       latest:
-        type: http-regex             # Tier A — scrape the vendor's release page
+        type: http-regex             # scrape the vendor's release page
         url: https://vendor.example.com/downloads
         regex: 'Latest:\s*v?(\d+\.\d+\.\d+)'
 ```
