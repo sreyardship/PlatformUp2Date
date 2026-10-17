@@ -1,58 +1,49 @@
 package org.yardship.unit.adapters.out.versionsource.current.httpjson;
 
-import org.yardship.core.domain.primitives.VersionParser;
-import org.yardship.core.domain.primitives.VersionScheme;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.NullNode;
-import jakarta.ws.rs.client.ClientRequestFilter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader.VersionSource.Auth;
-import org.yardship.adapters.out.versionsource.auth.BasicAuthFilter;
-import org.yardship.adapters.out.versionsource.auth.BearerAuthFilter;
-import org.yardship.adapters.out.versionsource.auth.FileBearerAuthFilter;
-import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentVersionClient;
-import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentVersionClientFactory;
 import org.yardship.adapters.out.versionsource.current.FailedCurrentSource;
-import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentSource;
+import org.yardship.adapters.out.versionsource.current.HttpCurrentSource;
 import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentSourceFactory;
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.KeyStore;
-import java.security.cert.Certificate;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 /**
- * Unit tests for {@link HttpJsonCurrentSourceFactory} — the factory for the {@code http-json} current-version
- * kind. Verifies its discriminator, its own config-fragment validation (the {@code http-json} kind
- * requires a {@code url}; {@code version-key} — if present — must be a syntactically valid JSON
- * Pointer), and that it builds the {@link HttpJsonCurrentVersionClient} eagerly during
- * {@code create(cfg)} via an injected {@link HttpJsonCurrentVersionClientFactory} collaborator, rather than
- * lazily inside the source. A FAKE collaborator is used so this stays a true POJO unit test: no Arc,
- * no {@code @QuarkusTest}. The real, REST-client-backed collaborator is exercised at the integration
- * level ({@code HttpJsonCurrentVersionClientFactoryIT}).
+ * Unit tests for {@link HttpJsonCurrentSourceFactory} — the factory for the {@code http-json}
+ * current-version kind. Verifies its discriminator, its own STRUCTURAL config-fragment validation
+ * (a non-blank {@code url} is required; {@code version-key} — if present — must be a syntactically
+ * valid JSON Pointer; both THROW an {@link IllegalArgumentException} from {@code create()}), and
+ * that VALUE-level {@code auth} / {@code ca-cert} / {@code insecure-skip-tls-verify} problems are
+ * routed through the shared, kind-labelled {@code HttpTransportConfig} into a
+ * {@link FailedCurrentSource} whose message names {@code http-json}, never a thrown exception.
+ *
+ * <p>The exhaustive matrix of every individual {@code auth}/{@code ca-cert} value-error case is
+ * owned by {@code HttpTransportConfigTests} against the shared collaborator directly, and what the
+ * built transport does on the wire by {@code HttpTransportIT}; this class only proves the WIRING —
+ * that this factory constructs the collaborator with the {@code "http-json"} kind label and maps
+ * its outcome — matching {@code HttpHeaderCurrentSourceFactoryTests}' idiom.
  */
 class HttpJsonCurrentSourceFactoryTests {
-    private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
 
-    private final FakeHttpJsonCurrentVersionClientFactory clientFactory = new FakeHttpJsonCurrentVersionClientFactory();
-    private final HttpJsonCurrentSourceFactory factory = new HttpJsonCurrentSourceFactory(clientFactory);
+    private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
+    private static final String URL = "http://localhost:8089/current";
+
+    private final HttpJsonCurrentSourceFactory factory = new HttpJsonCurrentSourceFactory();
 
     @Test
     void type_isHttpJson() {
@@ -60,326 +51,150 @@ class HttpJsonCurrentSourceFactoryTests {
     }
 
     @Test
-    void create_buildsASource_whenUrlIsPresent() {
-        assertNotNull(factory.create(source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.empty()), SEMVER_PARSER));
+    void create_buildsAWorkingSource_forAMinimalValidFragment() {
+        CurrentVersionSource result = factory.create(source(Optional.of(URL), Optional.empty()), SEMVER_PARSER);
+
+        assertInstanceOf(HttpCurrentSource.class, result);
     }
 
-    @Test
-    void create_buildsTheClientEagerly_viaTheCollaborator_withTheResolvedUrl() {
-        factory.create(source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.empty()), SEMVER_PARSER);
-
-        assertEquals(1, clientFactory.buildCalls.size(),
-                "the client must be built eagerly during create(cfg), not lazily on first version()");
-        assertEquals("http://localhost:8089/current", clientFactory.buildCalls.get(0));
-    }
+    // --- structural: url --------------------------------------------------------------------
 
     @Test
-    void create_rejectsAbsentUrl_withAClearMessage() {
+    void create_throws_whenUrlIsAbsent_withAClearMessage() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> factory.create(source(Optional.empty(), Optional.empty(), Optional.empty()), SEMVER_PARSER));
+                () -> factory.create(source(Optional.empty(), Optional.empty()), SEMVER_PARSER));
+
         assertTrue(ex.getMessage().toLowerCase().contains("url"),
                 "the validation error must mention the missing 'url'; was: " + ex.getMessage());
     }
 
     @Test
-    void create_rejectsAbsentUrl_withoutInvokingTheCollaborator() {
+    void create_throws_whenUrlIsBlank() {
         assertThrows(IllegalArgumentException.class,
-                () -> factory.create(source(Optional.empty(), Optional.empty(), Optional.empty()), SEMVER_PARSER));
-
-        assertTrue(clientFactory.buildCalls.isEmpty(),
-                "validation must fail before any client is built");
+                () -> factory.create(source(Optional.of("   "), Optional.empty()), SEMVER_PARSER));
     }
 
-    @Test
-    void create_rejectsBlankUrl_withAClearMessage() {
-        assertThrows(IllegalArgumentException.class,
-                () -> factory.create(source(Optional.of("   "), Optional.empty(), Optional.empty()), SEMVER_PARSER));
-    }
+    // --- structural: version-key ------------------------------------------------------------
 
     @Test
     void create_defaultsVersionKey_toSlashVersion_whenAbsent() {
         // No 'version-key' configured: the factory must still construct a source successfully,
         // defaulting the pointer to '/version' so existing {"version":"…"} endpoints keep working.
-        assertNotNull(factory.create(
-                source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.empty()), SEMVER_PARSER));
+        assertInstanceOf(HttpCurrentSource.class,
+                factory.create(source(Optional.of(URL), Optional.empty()), SEMVER_PARSER));
     }
 
     @Test
     void create_acceptsAConfiguredVersionKey() {
-        assertNotNull(factory.create(
-                source(Optional.of("http://localhost:8089/current"), Optional.of("/harbor_version"), Optional.empty()), SEMVER_PARSER));
+        assertInstanceOf(HttpCurrentSource.class,
+                factory.create(source(Optional.of(URL), Optional.of("/harbor_version")), SEMVER_PARSER));
     }
 
     @Test
-    void create_rejectsASyntacticallyInvalidVersionKey_withAClearMessage() {
+    void create_throws_whenVersionKeyIsNotAValidJsonPointer_namingTheBadPointer() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> factory.create(
-                        source(Optional.of("http://localhost:8089/current"), Optional.of("harbor_version"), Optional.empty()), SEMVER_PARSER));
+                () -> factory.create(source(Optional.of(URL), Optional.of("harbor_version")), SEMVER_PARSER));
+
         assertTrue(ex.getMessage().contains("harbor_version"),
                 "the validation error must name the bad pointer; was: " + ex.getMessage());
     }
 
-    @Test
-    void create_rejectsASyntacticallyInvalidVersionKey_withoutInvokingTheCollaborator() {
-        assertThrows(IllegalArgumentException.class,
-                () -> factory.create(
-                        source(Optional.of("http://localhost:8089/current"), Optional.of("harbor_version"), Optional.empty()), SEMVER_PARSER));
-
-        assertTrue(clientFactory.buildCalls.isEmpty(),
-                "version-key validation must fail before any client is built");
-    }
+    // --- value-level: auth --------------------------------------------------------------------
 
     @Test
-    void create_buildsASource_whenStripPrereleaseIsAbsent_defaultingToFalse() {
-        // No 'strip-prerelease' configured: the factory must still construct a source successfully,
-        // defaulting to false so prerelease segments are preserved for every existing app.
-        assertNotNull(factory.create(
-                source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.empty()), SEMVER_PARSER));
-    }
+    void create_withAnInvalidAuthValue_returnsAFailedCurrentSource_withAMessageNamingHttpJson() {
+        Auth unsupported = auth("oauth2", Optional.of("user"), Optional.of("pass"));
 
-    @Test
-    void create_buildsASource_whenStripPrereleaseIsExplicitlyTrue() {
-        assertNotNull(factory.create(
-                source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.of(true)), SEMVER_PARSER));
-    }
-
-    @Test
-    void create_buildsASource_whenStripPrereleaseIsExplicitlyFalse() {
-        assertNotNull(factory.create(
-                source(Optional.of("http://localhost:8089/current"), Optional.empty(), Optional.of(false)), SEMVER_PARSER));
-    }
-
-    // --- Auth resolution ---------------------------------------------------------------------
-
-    @Test
-    void create_withNoAuth_stillBuildsAnHttpCurrentSource_withNoFilter() {
-        // An absent auth fragment preserves unauthenticated behavior.
-        CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.empty()), SEMVER_PARSER);
-
-        assertInstanceOf(HttpJsonCurrentSource.class, result);
-        assertEquals(1, clientFactory.buildCalls.size());
-        assertEquals(Optional.empty(), clientFactory.lastAuthFilter);
-    }
-
-    @Test
-    void create_withValidBasicAuth_buildsTheClient_withABasicAuthFilter() {
-        Auth basic = auth("basic", Optional.of("harbor-bot"), Optional.of("s3cr3t"), Optional.empty());
-
-        CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(basic)), SEMVER_PARSER);
-
-        assertInstanceOf(HttpJsonCurrentSource.class, result,
-                "valid basic auth must still produce a real HttpJsonCurrentSource, not a FailedCurrentSource");
-        assertEquals(1, clientFactory.buildCalls.size());
-        assertTrue(clientFactory.lastAuthFilter.isPresent(),
-                "the collaborator must be called with a present auth filter for valid basic auth");
-        assertInstanceOf(BasicAuthFilter.class, clientFactory.lastAuthFilter.get());
-    }
-
-    @Test
-    void create_withUnknownAuthType_returnsAFailedCurrentSource_withoutInvokingTheCollaborator() {
-        Auth unknown = auth("oauth2", Optional.of("user"), Optional.of("pass"), Optional.empty());
-
-        CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(unknown)), SEMVER_PARSER);
+        CurrentVersionSource result = factory.create(sourceWithAuth(URL, unsupported), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
-        assertTrue(clientFactory.buildCalls.isEmpty(),
-                "an unsupported auth type must fail before any client is built");
+        IllegalStateException ex = assertThrows(IllegalStateException.class, result::version);
+        assertTrue(ex.getMessage().contains("http-json"),
+                "the FailedCurrentSource message must name 'http-json'; was: " + ex.getMessage());
     }
 
     @Test
-    void create_withAnAuthBlockWithNoType_returnsAFailedCurrentSource_ratherThanThrowing() {
-        // issue 02 / ADR-0032: Auth.type() is now Optional, so a configured 'auth:' block with no
-        // 'type' binds cleanly and must degrade here — via VersionSourceResolver this becomes a
-        // CURRENT-scope ConfigError, not a SmallRye binding failure.
-        Auth typeless = authWithNoType(Optional.of("user"), Optional.of("pass"), Optional.empty());
+    void create_withAValidAuthValue_buildsAWorkingSource() {
+        Auth basic = auth("basic", Optional.of("harbor-bot"), Optional.of("s3cr3t"));
 
-        CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(typeless)), SEMVER_PARSER);
+        CurrentVersionSource result = factory.create(sourceWithAuth(URL, basic), SEMVER_PARSER);
+
+        assertInstanceOf(HttpCurrentSource.class, result);
+    }
+
+    @Test
+    void create_withFailedAuth_doesNotThrow_soOneBadAppCannotBlockTheOthersAtStartup() {
+        // VersionSourceResolver builds every app's sources eagerly at CDI construction; a thrown
+        // exception here (rather than a returned FailedCurrentSource) would take down the whole
+        // resolver, defeating per-app isolation. create(cfg) must return, never throw, for a VALUE
+        // problem in auth.
+        Auth unsupported = auth("oauth2", Optional.empty(), Optional.empty());
+
+        assertDoesNotThrow(() -> factory.create(sourceWithAuth(URL, unsupported), SEMVER_PARSER));
+    }
+
+    // --- value-level: ca-cert / insecure-skip-tls-verify ---------------------------------------
+
+    @Test
+    void create_withABlankCaCert_returnsAFailedCurrentSource_withAMessageNamingHttpJson() {
+        CurrentVersionSource result = factory.create(sourceWithCaCert(URL, "   "), SEMVER_PARSER);
 
         assertInstanceOf(FailedCurrentSource.class, result);
-        assertTrue(clientFactory.buildCalls.isEmpty(),
-                "an 'auth' block with no 'type' must fail before any client is built");
+        IllegalStateException ex = assertThrows(IllegalStateException.class, result::version);
+        assertTrue(ex.getMessage().contains("http-json"),
+                "the FailedCurrentSource message must name 'http-json'; was: " + ex.getMessage());
     }
 
     @Test
-    void create_withBasicAuthMissingUsername_returnsAFailedCurrentSource() {
-        Auth missingUsername = auth("basic", Optional.empty(), Optional.of("s3cr3t"), Optional.empty());
-
-        CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(missingUsername)), SEMVER_PARSER);
+    void create_withAMissingCaCertFile_returnsAFailedCurrentSource_ratherThanThrowing() {
+        CurrentVersionSource result = assertDoesNotThrow(
+                () -> factory.create(sourceWithCaCert(URL, "/no/such/path/ca.crt"), SEMVER_PARSER));
 
         assertInstanceOf(FailedCurrentSource.class, result);
-        assertTrue(clientFactory.buildCalls.isEmpty());
     }
 
     @Test
-    void create_withBasicAuthMissingPassword_returnsAFailedCurrentSource() {
-        Auth missingPassword = auth("basic", Optional.of("harbor-bot"), Optional.empty(), Optional.empty());
+    void create_withCaCertAndInsecureSkipTlsVerifyTrue_returnsAFailedCurrentSource_namingBothKeysAndTheUrl() {
+        String url = "https://localhost:8443/current";
 
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(missingPassword)), SEMVER_PARSER);
+                sourceWithCaCertAndInsecureSkipTlsVerify(url, "/no/such/path/ca.crt", true), SEMVER_PARSER);
 
-        assertInstanceOf(FailedCurrentSource.class, result);
-        assertTrue(clientFactory.buildCalls.isEmpty());
+        assertInstanceOf(FailedCurrentSource.class, result,
+                "ca-cert together with insecure-skip-tls-verify: true is ambiguous and must be refused");
+        String message = assertThrows(IllegalStateException.class, result::version).getMessage();
+        assertTrue(message.contains("ca-cert"), "the refusal message must name 'ca-cert'; was: " + message);
+        assertTrue(message.contains("insecure-skip-tls-verify"),
+                "the refusal message must name 'insecure-skip-tls-verify'; was: " + message);
+        assertTrue(message.contains(url), "the refusal message must name the url; was: " + message);
     }
 
     @Test
-    void create_withBasicAuthBlankUsername_returnsAFailedCurrentSource() {
-        // An unset env var (e.g. ${HARBOR_USER:}) resolves to "" via SmallRye expansion, not absent —
-        // blank must be treated the same as missing.
-        Auth blankUsername = auth("basic", Optional.of("   "), Optional.of("s3cr3t"), Optional.empty());
+    void create_withAValidCaCert_andInsecureSkipTlsVerifyExplicitlyFalse_buildsAWorkingSource(@TempDir Path dir)
+            throws IOException {
+        Path pem = dir.resolve("ca.crt");
+        Files.writeString(pem, VALID_CA_PEM);
 
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(blankUsername)), SEMVER_PARSER);
+                sourceWithCaCertAndInsecureSkipTlsVerify("https://localhost:8443/current", pem.toString(), false),
+                SEMVER_PARSER);
 
-        assertInstanceOf(FailedCurrentSource.class, result);
-        assertTrue(clientFactory.buildCalls.isEmpty());
+        assertInstanceOf(HttpCurrentSource.class, result,
+                "ca-cert with insecure-skip-tls-verify: false must build normally, not refuse");
     }
 
     @Test
-    void create_withBasicAuthBlankPassword_returnsAFailedCurrentSource() {
-        Auth blankPassword = auth("basic", Optional.of("harbor-bot"), Optional.of(""), Optional.empty());
-
+    void create_withInsecureSkipTlsVerifyTrue_andNoCaCert_buildsAWorkingSource() {
         CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(blankPassword)), SEMVER_PARSER);
+                sourceWithInsecureSkipTlsVerify("https://localhost:8443/current", true), SEMVER_PARSER);
 
-        assertInstanceOf(FailedCurrentSource.class, result);
-        assertTrue(clientFactory.buildCalls.isEmpty());
+        assertInstanceOf(HttpCurrentSource.class, result);
     }
-
-    // --- Bearer auth resolution --------------------------------------------------------------
-
-    @Test
-    void create_withValidBearerAuth_buildsTheClient_withABearerAuthFilter() {
-        Auth bearer = authWithToken("bearer", Optional.of("gh-token"));
-
-        CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.of(bearer)), SEMVER_PARSER);
-
-        assertInstanceOf(HttpJsonCurrentSource.class, result,
-                "valid bearer auth must produce a real HttpJsonCurrentSource, not a FailedCurrentSource");
-        assertEquals(1, clientFactory.buildCalls.size());
-        assertTrue(clientFactory.lastAuthFilter.isPresent(),
-                "the collaborator must be called with a present auth filter for valid bearer auth");
-        assertInstanceOf(BearerAuthFilter.class, clientFactory.lastAuthFilter.get());
-    }
-
-    @Test
-    void create_withBearerAuthMissingToken_returnsAFailedCurrentSource_withoutInvokingTheCollaborator() {
-        Auth missingToken = authWithToken("bearer", Optional.empty());
-
-        CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.of(missingToken)), SEMVER_PARSER);
-
-        assertInstanceOf(FailedCurrentSource.class, result);
-        assertTrue(clientFactory.buildCalls.isEmpty(),
-                "a missing bearer token must fail before any client is built");
-    }
-
-    @Test
-    void create_withBearerAuthBlankToken_returnsAFailedCurrentSource() {
-        // An unset env var (e.g. ${GH_TOKEN:}) resolves to "" via SmallRye expansion, not absent —
-        // blank must be treated the same as missing, consistent with the basic-auth branch.
-        Auth blankToken = authWithToken("bearer", Optional.of(""));
-
-        CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.of(blankToken)), SEMVER_PARSER);
-
-        assertInstanceOf(FailedCurrentSource.class, result);
-        assertTrue(clientFactory.buildCalls.isEmpty());
-    }
-
-    @Test
-    void create_withBearerAuthWhitespaceToken_returnsAFailedCurrentSource() {
-        Auth whitespaceToken = authWithToken("bearer", Optional.of("   "));
-
-        CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.of(whitespaceToken)), SEMVER_PARSER);
-
-        assertInstanceOf(FailedCurrentSource.class, result);
-        assertTrue(clientFactory.buildCalls.isEmpty());
-    }
-
-    // --- Token-file bearer resolution --------------------------------------------------------
-
-    @Test
-    void create_withBearerTokenFileOnly_buildsTheClient_withAFileBearerAuthFilter() {
-        Auth tokenFile = authWithTokenFile("bearer", Optional.of("/var/run/secrets/token"));
-
-        CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.of(tokenFile)), SEMVER_PARSER);
-
-        assertInstanceOf(HttpJsonCurrentSource.class, result,
-                "bearer with only token-file must produce a real HttpJsonCurrentSource");
-        assertEquals(1, clientFactory.buildCalls.size());
-        assertTrue(clientFactory.lastAuthFilter.isPresent(),
-                "the collaborator must be called with a present auth filter for a token-file bearer");
-        assertInstanceOf(FileBearerAuthFilter.class, clientFactory.lastAuthFilter.get());
-    }
-
-    @Test
-    void create_withBearerTokenOnly_buildsTheClient_withAPlainBearerAuthFilter() {
-        // The static token path is unchanged: token set, token-file unset → BearerAuthFilter.
-        Auth token = authWithToken("bearer", Optional.of("gh-token"));
-
-        CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.of(token)), SEMVER_PARSER);
-
-        assertInstanceOf(HttpJsonCurrentSource.class, result);
-        assertEquals(1, clientFactory.buildCalls.size());
-        assertTrue(clientFactory.lastAuthFilter.isPresent());
-        assertInstanceOf(BearerAuthFilter.class, clientFactory.lastAuthFilter.get());
-    }
-
-    @Test
-    void create_withBearerNeitherTokenNorTokenFile_returnsAFailedCurrentSource_withoutInvokingTheCollaborator() {
-        Auth neither = auth("bearer", Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
-
-        CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.of(neither)), SEMVER_PARSER);
-
-        assertInstanceOf(FailedCurrentSource.class, result);
-        assertTrue(clientFactory.buildCalls.isEmpty(),
-                "bearer with neither token nor token-file must fail before any client is built");
-    }
-
-    @Test
-    void create_withBearerBothTokenAndTokenFile_returnsAFailedCurrentSource_withoutInvokingTheCollaborator_andDoesNotThrow() {
-        // Ambiguous: both set is refused, no precedence rule. This must be a returned
-        // FailedCurrentSource (a value problem), never a thrown exception.
-        Auth both = auth("bearer", Optional.empty(), Optional.empty(),
-                Optional.of("gh-token"), Optional.of("/var/run/secrets/token"));
-
-        CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.of(both)), SEMVER_PARSER);
-
-        assertInstanceOf(FailedCurrentSource.class, result);
-        assertTrue(clientFactory.buildCalls.isEmpty(),
-                "bearer with both token and token-file is ambiguous and must fail before any client is built");
-    }
-
-    @Test
-    void create_withBearerBlankTokenFile_returnsAFailedCurrentSource() {
-        // A blank path string is the same value-error bucket as a missing token.
-        Auth blankPath = authWithTokenFile("bearer", Optional.of("   "));
-
-        CurrentVersionSource result = factory.create(
-                sourceWithAuth("http://localhost:8089/current", Optional.of(blankPath)), SEMVER_PARSER);
-
-        assertInstanceOf(FailedCurrentSource.class, result);
-        assertTrue(clientFactory.buildCalls.isEmpty());
-    }
-
-    // --- ca-cert (per-scraper custom truststore) ---------------------------------------------
 
     /**
      * A valid self-signed X.509 certificate in PEM form (generated once via
-     * {@code openssl req -x509 -newkey rsa:2048 -days 36500 -nodes}). Used as the on-disk PEM the
-     * factory must parse into an in-memory truststore. The expiry is set far in the future so this
-     * fixture does not rot.
+     * {@code openssl req -x509 -newkey rsa:2048 -days 36500 -nodes}). The expiry is set far in
+     * the future so this fixture does not rot.
      */
     private static final String VALID_CA_PEM = """
             -----BEGIN CERTIFICATE-----
@@ -403,456 +218,35 @@ class HttpJsonCurrentSourceFactoryTests {
             -----END CERTIFICATE-----
             """;
 
-    @Test
-    void create_withNoCaCert_buildsTheClient_withAnEmptyTrustStore() {
-        // ca-cert absent: the JVM default trust bundle stays in place — no custom truststore is built
-        // and the collaborator is handed Optional.empty().
-        CurrentVersionSource result = factory.create(
-                sourceWithCaCert("http://localhost:8089/current", Optional.empty()), SEMVER_PARSER);
+    // --- helpers -------------------------------------------------------------------------------
 
-        assertInstanceOf(HttpJsonCurrentSource.class, result);
-        assertEquals(1, clientFactory.buildCalls.size());
-        assertEquals(Optional.empty(), clientFactory.lastTrustStore,
-                "absent ca-cert must keep the JVM default trust (Optional.empty() truststore)");
+    private static ApplicationConfigLoader.VersionSource source(Optional<String> url, Optional<String> versionKey) {
+        return new FakeVersionSource(url, versionKey, Optional.empty(), Optional.empty(), Optional.empty());
     }
 
-    @Test
-    void create_withValidCaCertPem_buildsTheClient_withAPresentTrustStoreHoldingTheCert(@TempDir Path dir)
-            throws IOException, Exception {
-        Path pem = dir.resolve("ca.crt");
-        Files.writeString(pem, VALID_CA_PEM);
-
-        CurrentVersionSource result = factory.create(
-                sourceWithCaCert("https://localhost:8443/current", Optional.of(pem.toString())), SEMVER_PARSER);
-
-        assertInstanceOf(HttpJsonCurrentSource.class, result,
-                "a valid ca-cert PEM must still produce a real HttpJsonCurrentSource, not a FailedCurrentSource");
-        assertEquals(1, clientFactory.buildCalls.size());
-        assertTrue(clientFactory.lastTrustStore.isPresent(),
-                "a valid ca-cert PEM must be parsed into a present in-memory truststore");
-
-        KeyStore trustStore = clientFactory.lastTrustStore.get();
-        assertTrue(containsTheConfiguredCa(trustStore),
-                "the built truststore must contain ONLY the supplied CA cert (curl --cacert / replace semantics)");
+    private static ApplicationConfigLoader.VersionSource sourceWithAuth(String url, Auth auth) {
+        return new FakeVersionSource(Optional.of(url), Optional.empty(), Optional.of(auth), Optional.empty(),
+                Optional.empty());
     }
 
-    @Test
-    void create_withBlankCaCert_returnsAFailedCurrentSource_withoutInvokingTheCollaborator() {
-        // present-but-blank is a value-level misconfiguration → FailedCurrentSource, not a boot crash.
-        CurrentVersionSource result = factory.create(
-                sourceWithCaCert("https://localhost:8443/current", Optional.of("   ")), SEMVER_PARSER);
-
-        assertInstanceOf(FailedCurrentSource.class, result);
-        assertTrue(clientFactory.buildCalls.isEmpty(),
-                "a blank ca-cert must fail before any client is built");
-    }
-
-    @Test
-    void create_withMissingCaCertFile_returnsAFailedCurrentSource_withoutInvokingTheCollaborator() {
-        CurrentVersionSource result = factory.create(
-                sourceWithCaCert("https://localhost:8443/current",
-                        Optional.of("/no/such/path/ca.crt")), SEMVER_PARSER);
-
-        assertInstanceOf(FailedCurrentSource.class, result);
-        assertTrue(clientFactory.buildCalls.isEmpty(),
-                "a missing ca-cert file must fail before any client is built");
-    }
-
-    @Test
-    void create_withNonPemCaCertFile_returnsAFailedCurrentSource(@TempDir Path dir) throws IOException {
-        Path notPem = dir.resolve("ca.crt");
-        Files.writeString(notPem, "this is definitely not a PEM certificate");
-
-        CurrentVersionSource result = factory.create(
-                sourceWithCaCert("https://localhost:8443/current", Optional.of(notPem.toString())), SEMVER_PARSER);
-
-        assertInstanceOf(FailedCurrentSource.class, result);
-        assertTrue(clientFactory.buildCalls.isEmpty(),
-                "a file that is not parseable as X.509 must fail before any client is built");
-    }
-
-    @Test
-    void create_withEmptyCaCertFile_yieldingZeroCerts_returnsAFailedCurrentSource(@TempDir Path dir)
-            throws IOException {
-        // An empty (zero-cert) file is a value problem: a truststore with no CA would trust nothing.
-        Path empty = dir.resolve("ca.crt");
-        Files.writeString(empty, "");
-
-        CurrentVersionSource result = factory.create(
-                sourceWithCaCert("https://localhost:8443/current", Optional.of(empty.toString())), SEMVER_PARSER);
-
-        assertInstanceOf(FailedCurrentSource.class, result);
-        assertTrue(clientFactory.buildCalls.isEmpty(),
-                "a PEM yielding zero certs must fail before any client is built");
-    }
-
-    @Test
-    void create_withABadCaCert_doesNotThrow_soOneBadAppCannotBlockTheOthersAtStartup() {
-        // Same eager-construction isolation guarantee as the auth branch: a CA value problem must
-        // return a FailedCurrentSource, never throw out of create(cfg).
-        assertDoesNotThrow(() -> factory.create(
-                sourceWithCaCert("https://localhost:8443/current",
-                        Optional.of("/no/such/path/ca.crt")), SEMVER_PARSER));
-    }
-
-    // --- ca-cert plus insecure-skip-tls-verify is refused as ambiguous -----------------------
-
-    @Test
-    void create_withCaCertAndInsecureSkipTlsVerifyTrue_returnsAFailedCurrentSource_withMessageNamingBothKeysAndUrl_withoutInvokingTheCollaborator(
-            @TempDir Path dir) throws IOException {
-        // A plain, unvalidated path string is fine here: refusal must happen BEFORE ca-cert file
-        // resolution — this is a config-shape problem, not a file problem (mirrors the bearer
-        // both-set refusal, which never touches token files either).
-        Path pem = dir.resolve("ca.crt");
-        Files.writeString(pem, VALID_CA_PEM);
-        String url = "https://localhost:8443/current";
-
-        CurrentVersionSource result = factory.create(
-                sourceWithCaCertAndInsecureSkipTlsVerify(url, Optional.of(pem.toString()), Optional.of(true)),
-                SEMVER_PARSER);
-
-        assertInstanceOf(FailedCurrentSource.class, result,
-                "ca-cert together with insecure-skip-tls-verify: true is ambiguous and must be refused");
-        IllegalStateException thrown = assertThrows(IllegalStateException.class, result::version,
-                "a FailedCurrentSource re-throws its message on version()");
-        String message = thrown.getMessage();
-        assertTrue(message.contains("ca-cert"),
-                "the refusal message must name 'ca-cert'; was: " + message);
-        assertTrue(message.contains("insecure-skip-tls-verify"),
-                "the refusal message must name 'insecure-skip-tls-verify'; was: " + message);
-        assertTrue(message.contains(url),
-                "the refusal message must name the url; was: " + message);
-        assertTrue(clientFactory.buildCalls.isEmpty(),
-                "ca-cert + insecure-skip-tls-verify: true must fail before any client is built");
-    }
-
-    @Test
-    void create_withCaCertAndInsecureSkipTlsVerifyTrue_usingAPlainUnvalidatedPath_returnsAFailedCurrentSource_beforeAnyFileResolution() {
-        // Refusal happens BEFORE ca-cert file resolution: even a nonexistent/garbage path must be
-        // refused with the both-set message, not surfaced as a file-read failure. A plain path string
-        // is enough — if the factory ever tried to resolve the file first, this test would instead see
-        // a "could not be read as X.509 PEM" message, not the both-set refusal.
-        String url = "https://localhost:8443/current";
-
-        CurrentVersionSource result = factory.create(
-                sourceWithCaCertAndInsecureSkipTlsVerify(
-                        url, Optional.of("/no/such/path/ca.crt"), Optional.of(true)),
-                SEMVER_PARSER);
-
-        assertInstanceOf(FailedCurrentSource.class, result);
-        IllegalStateException thrown = assertThrows(IllegalStateException.class, result::version);
-        assertTrue(thrown.getMessage().contains("insecure-skip-tls-verify"),
-                "refusal must happen before file resolution, so the message must be the both-set "
-                        + "refusal, not a ca-cert file-read failure; was: " + thrown.getMessage());
-        assertTrue(clientFactory.buildCalls.isEmpty());
-    }
-
-    @Test
-    void create_withCaCertAndInsecureSkipTlsVerifyTrue_doesNotThrow_soOneBadAppCannotBlockTheOthersAtStartup() {
-        assertDoesNotThrow(() -> factory.create(
-                sourceWithCaCertAndInsecureSkipTlsVerify(
-                        "https://localhost:8443/current", Optional.of("/no/such/path/ca.crt"), Optional.of(true)),
-                SEMVER_PARSER));
-    }
-
-    @Test
-    void create_withCaCertAndInsecureSkipTlsVerifyExplicitlyFalse_buildsTheClient_withAPresentTrustStoreAndInsecureFalse(
-            @TempDir Path dir) throws IOException {
-        // Explicit false alongside ca-cert is allowed and uses ca-cert behavior.
-        Path pem = dir.resolve("ca.crt");
-        Files.writeString(pem, VALID_CA_PEM);
-
-        CurrentVersionSource result = factory.create(
-                sourceWithCaCertAndInsecureSkipTlsVerify(
-                        "https://localhost:8443/current", Optional.of(pem.toString()), Optional.of(false)),
-                SEMVER_PARSER);
-
-        assertInstanceOf(HttpJsonCurrentSource.class, result,
-                "ca-cert with insecure-skip-tls-verify: false must build normally, not refuse");
-        assertEquals(1, clientFactory.buildCalls.size());
-        assertTrue(clientFactory.lastTrustStore.isPresent(),
-                "the collaborator must be called with a present truststore");
-        assertFalse(clientFactory.lastInsecureSkipTlsVerify,
-                "the collaborator must be called with insecure=false");
-    }
-
-    // --- insecure-skip-tls-verify -----------------------------------------------------------
-
-    @Test
-    void create_withInsecureSkipTlsVerifyAbsent_buildsTheClient_withInsecureFalse() {
-        // Absent insecure-skip-tls-verify uses normal verification; the collaborator is
-        // called with insecureSkipTlsVerify=false.
-        CurrentVersionSource result = factory.create(
-                sourceWithInsecureSkipTlsVerify("http://localhost:8089/current", Optional.empty()), SEMVER_PARSER);
-
-        assertInstanceOf(HttpJsonCurrentSource.class, result);
-        assertEquals(1, clientFactory.buildCalls.size());
-        assertFalse(clientFactory.lastInsecureSkipTlsVerify,
-                "an absent insecure-skip-tls-verify must resolve to false");
-    }
-
-    @Test
-    void create_withInsecureSkipTlsVerifyExplicitlyFalse_buildsTheClient_withInsecureFalse() {
-        CurrentVersionSource result = factory.create(
-                sourceWithInsecureSkipTlsVerify("http://localhost:8089/current", Optional.of(false)), SEMVER_PARSER);
-
-        assertInstanceOf(HttpJsonCurrentSource.class, result);
-        assertEquals(1, clientFactory.buildCalls.size());
-        assertFalse(clientFactory.lastInsecureSkipTlsVerify);
-    }
-
-    @Test
-    void create_withInsecureSkipTlsVerifyTrue_buildsTheClient_withInsecureTrue() {
-        CurrentVersionSource result = factory.create(
-                sourceWithInsecureSkipTlsVerify("https://localhost:8443/current", Optional.of(true)), SEMVER_PARSER);
-
-        assertInstanceOf(HttpJsonCurrentSource.class, result);
-        assertEquals(1, clientFactory.buildCalls.size());
-        assertTrue(clientFactory.lastInsecureSkipTlsVerify,
-                "insecure-skip-tls-verify: true must be resolved and passed through to the collaborator");
-    }
-
-    @Test
-    void create_withInsecureSkipTlsVerifyTrueAndBasicAuth_registersTheAuthFilter_andPassesInsecureTrue() {
-        // An insecure client must still be able to send credentials — the two concerns compose.
-        Auth basic = auth("basic", Optional.of("harbor-bot"), Optional.of("s3cr3t"), Optional.empty());
-
-        CurrentVersionSource result = factory.create(
-                sourceWithAuthAndInsecureSkipTlsVerify(
-                        "https://localhost:8443/systeminfo", Optional.of(basic), Optional.of(true)),
-                SEMVER_PARSER);
-
-        assertInstanceOf(HttpJsonCurrentSource.class, result);
-        assertEquals(1, clientFactory.buildCalls.size());
-        assertTrue(clientFactory.lastAuthFilter.isPresent(),
-                "an insecure client must still register the auth filter");
-        assertInstanceOf(BasicAuthFilter.class, clientFactory.lastAuthFilter.get());
-        assertTrue(clientFactory.lastInsecureSkipTlsVerify,
-                "insecure-skip-tls-verify: true must be passed through even when auth is present");
-    }
-
-    @Test
-    void create_withFailedAuth_doesNotThrow_soOneBadAppCannotBlockTheOthersAtStartup() {
-        // VersionSourceResolver builds every app's sources eagerly at CDI construction; a thrown
-        // exception here (rather than a returned FailedCurrentSource) would take down the whole
-        // resolver, defeating per-app isolation. create(cfg) must return, never throw, for a VALUE
-        // problem in auth.
-        Auth unknown = auth("oauth2", Optional.empty(), Optional.empty(), Optional.empty());
-
-        assertNotNull(factory.create(sourceWithAuth("http://localhost:8089/systeminfo", Optional.of(unknown)), SEMVER_PARSER));
-    }
-
-    private static ApplicationConfigLoader.VersionSource source(
-            Optional<String> url, Optional<String> versionKey, Optional<Boolean> stripPrerelease) {
-        return source(url, versionKey, stripPrerelease, Optional.empty());
-    }
-
-    private static ApplicationConfigLoader.VersionSource sourceWithAuth(String url, Optional<Auth> auth) {
-        return source(Optional.of(url), Optional.empty(), Optional.empty(), auth);
-    }
-
-    private static ApplicationConfigLoader.VersionSource sourceWithCaCert(String url, Optional<String> caCert) {
-        return source(Optional.of(url), Optional.empty(), Optional.empty(), Optional.empty(), caCert);
+    private static ApplicationConfigLoader.VersionSource sourceWithCaCert(String url, String caCert) {
+        return new FakeVersionSource(Optional.of(url), Optional.empty(), Optional.empty(), Optional.of(caCert),
+                Optional.empty());
     }
 
     private static ApplicationConfigLoader.VersionSource sourceWithInsecureSkipTlsVerify(
-            String url, Optional<Boolean> insecureSkipTlsVerify) {
-        return source(Optional.of(url), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                insecureSkipTlsVerify);
-    }
-
-    private static ApplicationConfigLoader.VersionSource sourceWithAuthAndInsecureSkipTlsVerify(
-            String url, Optional<Auth> auth, Optional<Boolean> insecureSkipTlsVerify) {
-        return source(Optional.of(url), Optional.empty(), Optional.empty(), auth, Optional.empty(),
-                insecureSkipTlsVerify);
+            String url, boolean insecureSkipTlsVerify) {
+        return new FakeVersionSource(Optional.of(url), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.of(insecureSkipTlsVerify));
     }
 
     private static ApplicationConfigLoader.VersionSource sourceWithCaCertAndInsecureSkipTlsVerify(
-            String url, Optional<String> caCert, Optional<Boolean> insecureSkipTlsVerify) {
-        return source(Optional.of(url), Optional.empty(), Optional.empty(), Optional.empty(), caCert,
-                insecureSkipTlsVerify);
+            String url, String caCert, boolean insecureSkipTlsVerify) {
+        return new FakeVersionSource(Optional.of(url), Optional.empty(), Optional.empty(), Optional.of(caCert),
+                Optional.of(insecureSkipTlsVerify));
     }
 
-    private static ApplicationConfigLoader.VersionSource source(
-            Optional<String> url, Optional<String> versionKey, Optional<Boolean> stripPrerelease,
-            Optional<Auth> auth) {
-        return source(url, versionKey, stripPrerelease, auth, Optional.empty());
-    }
-
-    private static ApplicationConfigLoader.VersionSource source(
-            Optional<String> url, Optional<String> versionKey, Optional<Boolean> stripPrerelease,
-            Optional<Auth> auth, Optional<String> caCert) {
-        return source(url, versionKey, stripPrerelease, auth, caCert, Optional.empty());
-    }
-
-    private static ApplicationConfigLoader.VersionSource source(
-            Optional<String> url, Optional<String> versionKey, Optional<Boolean> stripPrerelease,
-            Optional<Auth> auth, Optional<String> caCert, Optional<Boolean> insecureSkipTlsVerify) {
-        return new ApplicationConfigLoader.VersionSource() {
-            @Override
-            public Optional<String> type() {
-                return Optional.of("http-json");
-            }
-
-            @Override
-            public Map<String, String> labels() {
-                return Map.of();
-            }
-
-            @Override
-            public Optional<String> url() {
-                return url;
-            }
-
-            @Override
-            public Optional<String> regex() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> versionHeader() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> host() { return Optional.empty(); }
-
-            @Override
-            public Optional<Integer> port() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> user() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> privateKey() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> privateKeyFile() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> hostKey() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> knownHosts() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> releaseField() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> repo() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> namespace() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> workload() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> container() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> versionKey() {
-                return versionKey;
-            }
-
-            @Override
-            public Optional<Boolean> stripPrerelease() {
-                return stripPrerelease;
-            }
-
-            @Override
-            public Optional<Auth> auth() {
-                return auth;
-            }
-
-            @Override
-            public Optional<Integer> pageSize() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<Integer> maxTags() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> caCert() {
-                return caCert;
-            }
-
-            @Override
-            public Optional<Boolean> insecureSkipTlsVerify() {
-                return insecureSkipTlsVerify;
-            }
-
-            @Override
-            public Optional<String> registry() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> metric() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> versionLabel() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> prereleaseFilter() {
-                return Optional.empty();
-            }
-        };
-    }
-
-    /**
-     * Asserts the truststore holds exactly the supplied CA: at least one entry, and every entry is the
-     * X.509 cert parsed from {@link #VALID_CA_PEM} (replace, not augment — no JVM default certs leaked
-     * in).
-     */
-    private static boolean containsTheConfiguredCa(KeyStore trustStore) throws Exception {
-        Certificate expected;
-        try (var in = new java.io.ByteArrayInputStream(VALID_CA_PEM.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
-            expected = java.security.cert.CertificateFactory.getInstance("X.509").generateCertificate(in);
-        }
-        var aliases = Collections.list(trustStore.aliases());
-        if (aliases.isEmpty()) {
-            return false;
-        }
-        for (String alias : aliases) {
-            if (!expected.equals(trustStore.getCertificate(alias))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static Auth authWithToken(String type, Optional<String> token) {
-        return auth(type, Optional.empty(), Optional.empty(), token, Optional.empty());
-    }
-
-    private static Auth authWithTokenFile(String type, Optional<String> tokenFile) {
-        return auth(type, Optional.empty(), Optional.empty(), Optional.empty(), tokenFile);
-    }
-
-    private static Auth auth(
-            String type, Optional<String> username, Optional<String> password, Optional<String> token) {
-        return auth(type, username, password, token, Optional.empty());
-    }
-
-    private static Auth auth(
-            String type, Optional<String> username, Optional<String> password, Optional<String> token,
-            Optional<String> tokenFile) {
+    private static Auth auth(String type, Optional<String> username, Optional<String> password) {
         return new Auth() {
             @Override
             public Optional<String> type() {
@@ -871,38 +265,7 @@ class HttpJsonCurrentSourceFactoryTests {
 
             @Override
             public Optional<String> token() {
-                return token;
-            }
-
-            @Override
-            public Optional<String> tokenFile() {
-                return tokenFile;
-            }
-        };
-    }
-
-    /** An {@code auth} fragment with no {@code type} configured (issue 02 / ADR-0032). */
-    private static Auth authWithNoType(
-            Optional<String> username, Optional<String> password, Optional<String> token) {
-        return new Auth() {
-            @Override
-            public Optional<String> type() {
                 return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> username() {
-                return username;
-            }
-
-            @Override
-            public Optional<String> password() {
-                return password;
-            }
-
-            @Override
-            public Optional<String> token() {
-                return token;
             }
 
             @Override
@@ -913,32 +276,164 @@ class HttpJsonCurrentSourceFactoryTests {
     }
 
     /**
-     * Fake {@link HttpJsonCurrentVersionClientFactory} collaborator: records every
-     * {@code build(url, filter, trustStore)} invocation (so tests can assert eagerness + the resolved
-     * url, the auth filter, and the custom truststore handed in) and returns a trivial
-     * {@link HttpJsonCurrentVersionClient} stub without touching Arc or the network.
+     * Fully implements {@link ApplicationConfigLoader.VersionSource}, defaulting every field this
+     * test class does not vary to {@link Optional#empty()}. {@code type()} is fixed to
+     * {@code "http-json"}.
      */
-    private static class FakeHttpJsonCurrentVersionClientFactory extends HttpJsonCurrentVersionClientFactory {
+    private static final class FakeVersionSource implements ApplicationConfigLoader.VersionSource {
+        private final Optional<String> url;
+        private final Optional<String> versionKey;
+        private final Optional<Auth> auth;
+        private final Optional<String> caCert;
+        private final Optional<Boolean> insecureSkipTlsVerify;
 
-        private final List<String> buildCalls = new ArrayList<>();
-        private Optional<ClientRequestFilter> lastAuthFilter = Optional.empty();
-        private Optional<KeyStore> lastTrustStore = Optional.empty();
-        private boolean lastInsecureSkipTlsVerify = false;
-
-        @Override
-        public HttpJsonCurrentVersionClient build(
-                String url, Optional<ClientRequestFilter> authFilter, Optional<KeyStore> trustStore,
-                boolean insecureSkipTlsVerify) {
-            buildCalls.add(url);
-            lastAuthFilter = authFilter;
-            lastTrustStore = trustStore;
-            lastInsecureSkipTlsVerify = insecureSkipTlsVerify;
-            return stubClient();
+        FakeVersionSource(Optional<String> url, Optional<String> versionKey, Optional<Auth> auth,
+                Optional<String> caCert, Optional<Boolean> insecureSkipTlsVerify) {
+            this.url = url;
+            this.versionKey = versionKey;
+            this.auth = auth;
+            this.caCert = caCert;
+            this.insecureSkipTlsVerify = insecureSkipTlsVerify;
         }
 
-        private static HttpJsonCurrentVersionClient stubClient() {
-            JsonNode empty = NullNode.getInstance();
-            return () -> empty;
+        @Override
+        public Optional<String> type() {
+            return Optional.of("http-json");
+        }
+
+        @Override
+        public Map<String, String> labels() {
+            return Map.of();
+        }
+
+        @Override
+        public Optional<String> url() {
+            return url;
+        }
+
+        @Override
+        public Optional<String> versionKey() {
+            return versionKey;
+        }
+
+        @Override
+        public Optional<Auth> auth() {
+            return auth;
+        }
+
+        @Override
+        public Optional<String> caCert() {
+            return caCert;
+        }
+
+        @Override
+        public Optional<Boolean> insecureSkipTlsVerify() {
+            return insecureSkipTlsVerify;
+        }
+
+        @Override
+        public Optional<String> regex() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> versionHeader() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<Boolean> stripPrerelease() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> repo() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> namespace() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> workload() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> container() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<Integer> pageSize() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> host() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<Integer> port() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> user() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> privateKey() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> privateKeyFile() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> hostKey() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> knownHosts() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> releaseField() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<Integer> maxTags() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> prereleaseFilter() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> registry() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> metric() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> versionLabel() {
+            return Optional.empty();
         }
     }
 }

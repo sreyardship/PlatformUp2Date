@@ -17,9 +17,9 @@ import java.util.Optional;
 
 /**
  * Renders a {@link ClientRequestFilter} into a literal {@code Authorization} header value, for the
- * current-leg HTTP transports ({@code http-json} and {@code http-header}) that talk over a plain
- * {@code java.net.http} client rather than a JAX-RS client with a native filter chain, and so need
- * a header map, not a filter to register.
+ * shared current-leg {@code HttpTransport}, which talks over a plain {@code java.net.http} client
+ * rather than a JAX-RS client with a native filter chain, and so needs a header map, not a filter
+ * to register.
  *
  * <p>Invokes {@code filter} against a minimal {@link ClientRequestContext} stand-in that only
  * implements {@link ClientRequestContext#getHeaders()}, then reads back whatever
@@ -31,8 +31,8 @@ import java.util.Optional;
  * invoked fresh on every {@link #render} call, exactly as a JAX-RS filter would be invoked fresh
  * for every outgoing request.
  *
- * <p>Extracted so ADR-0029-compliant current-leg transports have exactly one home for this
- * rendering logic rather than near-identical private copies that can drift (see
+ * <p>Extracted so ADR-0029-compliant transports have exactly one home for this rendering logic
+ * rather than near-identical private copies that can drift (see
  * {@code docs/adr/0030-http-header-current-source.md}).
  */
 public final class AuthorizationHeaderRenderer {

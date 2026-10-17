@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link PrometheusExposition} — the pure, HTTP-free, version-free Prometheus
- * text-exposition parser sitting beside {@code HttpPrometheusCurrentSource} exactly as
+ * text-exposition parser sitting beside {@code HttpPrometheusVersionExtractor} exactly as
  * {@code OsReleaseParser} sits beside {@code SshOsReleaseCurrentSource}. No Arc, no network: every
  * test is a pure-function call over a raw exposition-format string.
  *
@@ -336,9 +336,9 @@ class PrometheusExpositionTests {
     // Issue 02: the optional `labels:` installation selector, on
     // samplesOf(String, String, Map<String,String>). Exact string equality on every entry, ANDed
     // — no !=, =~, !~ (ADR-0033, following oci-registry's prerelease-filter). This is the selector
-    // — first-in-document-order winning among whatever survives is HttpPrometheusCurrentSource's
+    // — first-in-document-order winning among whatever survives is HttpPrometheusVersionExtractor's
     // job, not this pure parser's, and is covered at that seam
-    // (HttpPrometheusCurrentSourceTests).
+    // (HttpPrometheusVersionExtractorTests).
     // -----------------------------------------------------------------------
 
     @Test

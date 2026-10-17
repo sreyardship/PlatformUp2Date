@@ -16,7 +16,6 @@ import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -24,9 +23,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
-import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
-import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -39,9 +36,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * matching the style of {@code HttpJsonCurrentSourceIT}.
  *
  * <p>{@code docs/adr/0030-http-header-current-source.md} is the binding specification. Unit-level
- * extraction/message behavior lives in {@code HttpHeaderCurrentSourceTests}; this class exists to
- * prove the real wire behavior a fake response cannot: an actual non-2xx status, an actual redirect
- * chain, and header case as an actual server sends it.
+ * extraction/message behavior lives in {@code HttpHeaderVersionExtractorTests}; redirects, TLS and
+ * auth are proven once for the shared transport in {@code HttpTransportIT}. This class exists to
+ * prove the kind's own rule on the wire: an actual non-2xx status still yields the header, and
+ * header case as an actual server sends it.
  */
 @QuarkusTest
 class HttpHeaderCurrentSourceIT {
@@ -114,25 +112,6 @@ class HttpHeaderCurrentSourceIT {
     }
 
     @Test
-    void version_followsARedirectChain_andReadsTheHeaderOffTheFinalResponse() {
-        // The intermediate hop deliberately carries no x-jenkins header: if this source wrongly read
-        // headers off the FIRST response instead of following the redirect, this would fail with an
-        // absent-header error rather than silently returning the wrong thing.
-        wireMockServer.stubFor(get(urlEqualTo("/")).willReturn(aResponse()
-                .withStatus(301)
-                .withHeader("Location", "/final")));
-        wireMockServer.stubFor(get(urlEqualTo("/final")).willReturn(aResponse()
-                .withStatus(200)
-                .withHeader("x-jenkins", "2.568.2")));
-
-        CurrentVersionSource source = new HttpHeaderCurrentSourceFactory().create(
-                source("http://localhost:8089/", "X-Jenkins"), SEMVER_PARSER);
-
-        assertEquals("2.568.2", source.version().value());
-        wireMockServer.verify(getRequestedFor(urlEqualTo("/final")));
-    }
-
-    @Test
     void version_throws_whenTheResponseCarriesNoSuchHeader_namingTheObservedStatus() {
         wireMockServer.stubFor(get(urlEqualTo("/")).willReturn(aResponse().withStatus(200)));
 
@@ -166,104 +145,8 @@ class HttpHeaderCurrentSourceIT {
                         + matching);
     }
 
-    @Test
-    void version_withBasicAuth_sendsTheRenderedAuthorizationHeader_onTheWire() {
-        wireMockServer.stubFor(get(urlEqualTo("/")).willReturn(aResponse().withStatus(401)));
-        wireMockServer.stubFor(get(urlEqualTo("/"))
-                .withBasicAuth("jenkins-bot", "s3cr3t")
-                .willReturn(aResponse().withStatus(200).withHeader("x-jenkins", "2.568.2")));
-
-        CurrentVersionSource source = new HttpHeaderCurrentSourceFactory().create(
-                source("http://localhost:8089/", "X-Jenkins", basicAuth("jenkins-bot", "s3cr3t")), SEMVER_PARSER);
-
-        assertEquals("2.568.2", source.version().value());
-
-        String expected = "Basic " + Base64.getEncoder()
-                .encodeToString("jenkins-bot:s3cr3t".getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        wireMockServer.verify(getRequestedFor(urlEqualTo("/"))
-                .withHeader("Authorization", equalTo(expected)));
-    }
-
-    @Test
-    void version_withBearerAuth_sendsTheRenderedAuthorizationHeader_onTheWire() {
-        wireMockServer.stubFor(get(urlEqualTo("/")).willReturn(aResponse().withStatus(401)));
-        wireMockServer.stubFor(get(urlEqualTo("/"))
-                .withHeader("Authorization", equalTo("Bearer gh-token"))
-                .willReturn(aResponse().withStatus(200).withHeader("x-jenkins", "2.568.2")));
-
-        CurrentVersionSource source = new HttpHeaderCurrentSourceFactory().create(
-                source("http://localhost:8089/", "X-Jenkins", bearerAuth("gh-token")), SEMVER_PARSER);
-
-        assertEquals("2.568.2", source.version().value());
-
-        wireMockServer.verify(getRequestedFor(urlEqualTo("/"))
-                .withHeader("Authorization", equalTo("Bearer gh-token")));
-    }
-
     private static ApplicationConfigLoader.VersionSource source(String url, String header) {
         return new FakeVersionSource(Optional.of(url), Optional.of(header), Optional.empty());
-    }
-
-    private static ApplicationConfigLoader.VersionSource source(String url, String header, Auth auth) {
-        return new FakeVersionSource(Optional.of(url), Optional.of(header), Optional.of(auth));
-    }
-
-    private static Auth basicAuth(String username, String password) {
-        return new Auth() {
-            @Override
-            public Optional<String> type() {
-                return Optional.of("basic");
-            }
-
-            @Override
-            public Optional<String> username() {
-                return Optional.of(username);
-            }
-
-            @Override
-            public Optional<String> password() {
-                return Optional.of(password);
-            }
-
-            @Override
-            public Optional<String> token() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> tokenFile() {
-                return Optional.empty();
-            }
-        };
-    }
-
-    private static Auth bearerAuth(String token) {
-        return new Auth() {
-            @Override
-            public Optional<String> type() {
-                return Optional.of("bearer");
-            }
-
-            @Override
-            public Optional<String> username() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> password() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> token() {
-                return Optional.of(token);
-            }
-
-            @Override
-            public Optional<String> tokenFile() {
-                return Optional.empty();
-            }
-        };
     }
 
     /**

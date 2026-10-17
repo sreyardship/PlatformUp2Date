@@ -18,11 +18,12 @@ import java.util.Collection;
 import java.util.Optional;
 
 /**
- * Stateless, kind-labelled collaborator shared by every current-leg HTTP factory (e.g. {@code
- * http-json}, {@code http-header}). Resolves the {@code auth} / {@code ca-cert} /
- * {@code insecure-skip-tls-verify} part of a config fragment into either a value-level failure
- * message (never a thrown exception) or the resolved transport inputs: an optional
- * {@link ClientRequestFilter}, an optional truststore, and the insecure-TLS flag.
+ * Stateless, kind-labelled collaborator shared by every current-leg HTTP factory ({@code
+ * http-json}, {@code http-header}, {@code http-prometheus}). Resolves the {@code auth} /
+ * {@code ca-cert} / {@code insecure-skip-tls-verify} part of a config fragment into either a
+ * value-level failure message (never a thrown exception) or the resolved transport inputs — an
+ * optional {@link ClientRequestFilter}, an optional truststore, and the insecure-TLS flag — from
+ * which {@link HttpTransport#from} builds the one shared transport.
  *
  * <p>The {@code kindLabel} supplied at construction is substituted into every message so wording reads
  * {@code "The 'http-json' current source's ..."} for the {@code http-json} kind and {@code "The
@@ -47,20 +48,17 @@ public class HttpTransportConfig {
      * Outcome of {@link #resolve}: either a value-level failure message (mapped to a
      * {@code FailedCurrentSource} by the caller, never thrown) or the resolved transport inputs.
      *
-     * <p>On success, this is the COMPLETE bundle of resolved transport inputs the caller needs to
-     * build its HTTP client — {@code authFilter}, {@code trustStore}, AND {@code insecureSkipTlsVerify}
-     * — even though the caller already holds the raw {@code insecureSkipTlsVerify} flag it passed
-     * into {@link #resolve}. This is deliberate: {@code insecureSkipTlsVerify} is echoed back
-     * unchanged so every caller (today {@code HttpJsonCurrentSourceFactory}, later
-     * {@code HttpHeaderCurrentSourceFactory}) can hand this one record straight to its client
-     * factory instead of re-threading its own local copy of the flag alongside it. One object in,
-     * one object out.
+     * <p>On success, this is the COMPLETE bundle of resolved transport inputs needed to build the
+     * transport — {@code authFilter}, {@code trustStore}, AND {@code insecureSkipTlsVerify} — even
+     * though the caller already holds the raw {@code insecureSkipTlsVerify} flag it passed into
+     * {@link #resolve}. This is deliberate: {@code insecureSkipTlsVerify} is echoed back unchanged
+     * so every factory hands this one record straight to {@link HttpTransport#from} instead of
+     * re-threading its own local copy of the flag alongside it. One object in, one object out.
      *
      * <p>On {@link #failed}, {@code insecureSkipTlsVerify} is always {@code false} — a placeholder,
-     * not a resolved value. It is unreachable by construction: every caller of {@link #resolve}
-     * MUST check {@link #failureMessage} first and short-circuit (log + {@code FailedCurrentSource})
-     * before reading any other field, exactly as {@code HttpJsonCurrentSourceFactory} does. Nothing in
-     * this class ever reads {@code insecureSkipTlsVerify} off a failed {@code Resolution}.
+     * not a resolved value. Every caller of {@link #resolve} MUST check {@link #failureMessage}
+     * first and short-circuit (log + {@code FailedCurrentSource}) before building a transport;
+     * {@link HttpTransport#from} refuses a failed {@code Resolution} outright.
      */
     public record Resolution(
             Optional<String> failureMessage,

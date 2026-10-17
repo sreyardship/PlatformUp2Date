@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader.VersionSource.Auth;
 import org.yardship.adapters.out.versionsource.current.FailedCurrentSource;
-import org.yardship.adapters.out.versionsource.current.httpprometheus.HttpPrometheusCurrentSource;
+import org.yardship.adapters.out.versionsource.current.HttpCurrentSource;
 import org.yardship.adapters.out.versionsource.current.httpprometheus.HttpPrometheusCurrentSourceFactory;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
@@ -54,7 +54,7 @@ class HttpPrometheusCurrentSourceFactoryTests {
         CurrentVersionSource result =
                 factory.create(source(URL, METRIC, Optional.empty()), SEMVER_PARSER);
 
-        assertInstanceOf(HttpPrometheusCurrentSource.class, result);
+        assertInstanceOf(HttpCurrentSource.class, result);
     }
 
     // --- structural: url --------------------------------------------------------------------
@@ -131,7 +131,7 @@ class HttpPrometheusCurrentSourceFactoryTests {
                 "a blank 'regex' must be treated as absent, not compiled as a real "
                         + "(zero-capture-group) pattern");
 
-        assertInstanceOf(HttpPrometheusCurrentSource.class, result);
+        assertInstanceOf(HttpCurrentSource.class, result);
     }
 
     // --- strip-prerelease: wiring is proven at the integration level in
@@ -160,7 +160,7 @@ class HttpPrometheusCurrentSourceFactoryTests {
 
         CurrentVersionSource result = factory.create(sourceWithAuth(URL, METRIC, basic), SEMVER_PARSER);
 
-        assertInstanceOf(HttpPrometheusCurrentSource.class, result);
+        assertInstanceOf(HttpCurrentSource.class, result);
     }
 
     // --- value-level: ca-cert -------------------------------------------------------------------

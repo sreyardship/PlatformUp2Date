@@ -1,13 +1,15 @@
 package org.yardship.unit.adapters.out.versionsource.current.httpprometheus;
 
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.versionsource.current.httpprometheus.HttpPrometheusCurrentSource;
-import org.yardship.adapters.out.versionsource.current.httpprometheus.PrometheusBodyFetch;
+import org.yardship.adapters.out.versionsource.VersionFetchException;
+import org.yardship.adapters.out.versionsource.current.httpprometheus.HttpPrometheusVersionExtractor;
+import org.yardship.adapters.out.versionsource.http.HttpGetResponse;
 import org.yardship.adapters.out.versionsource.regex.RegexVersionExtractor;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.domain.primitives.VersionValue;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -18,25 +20,25 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link HttpPrometheusCurrentSource} as a pure POJO — NO Arc, NO real HTTP. It is
- * constructed directly with a fake {@link PrometheusBodyFetch} supplying a fixed body string, so
- * the source can be driven with hand-written Prometheus-exposition fixtures without a stub server
- * — mirroring how {@code HttpHeaderCurrentSourceTests} fakes {@code HttpHeaderFetch}.
+ * Unit tests for {@link HttpPrometheusVersionExtractor}, the {@code http-prometheus} rule applied
+ * to the final response the shared transport returns. Fed fake {@link HttpGetResponse}s — NO Arc,
+ * NO real HTTP — so the extractor can be driven with hand-written Prometheus-exposition fixtures
+ * without a stub server.
  *
  * <p>{@code docs/adr/0033-http-prometheus-current-source.md} is the binding specification. Real
  * parsing (comment-skipping, escaping, exact metric matching, document order) is exhaustively owned
  * by {@code PrometheusExpositionTests} at the pure-parser level and is NOT re-asserted here in
- * detail — this class exercises the source's OWN behavior on top of that: first-sample-wins
- * selection, {@code version-label} resolution, and the four failure messages this source itself
- * raises (a fifth — non-2xx — belongs to the production {@code PrometheusBodyFetch} and is an
- * integration-level concern). Of those four, three — metric absent, version-label absent, and
- * an unparseable/empty value — are asserted to never leak any slice of the fetched body via a
- * recognisable sentinel string. The fourth, "selector matched nothing", is the ADR-sanctioned
- * exception: it is permitted, bounded and scoped to the named metric, to quote label sets actually
- * seen for that metric, so its own tests assert what IS and is not named rather than a blanket
- * no-leak guarantee.
+ * detail — this class exercises the extractor's OWN behavior on top of that: the 2xx gate (unlike
+ * {@code http-header}, this kind refuses a non-2xx response), first-sample-wins selection,
+ * {@code version-label} resolution, and the four failure messages the extractor raises over a 2xx
+ * body. Of those four, three — metric absent, version-label absent, and an unparseable/empty
+ * value — are asserted to never leak any slice of the fetched body via a recognisable sentinel
+ * string. The fourth, "selector matched nothing", is the ADR-sanctioned exception: it is
+ * permitted, bounded and scoped to the named metric, to quote label sets actually seen for that
+ * metric, so its own tests assert what IS and is not named rather than a blanket no-leak
+ * guarantee.
  */
-class HttpPrometheusCurrentSourceTests {
+class HttpPrometheusVersionExtractorTests {
 
     private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
     private static final String URL = "https://blackbox.example.com/metrics";
@@ -55,7 +57,7 @@ class HttpPrometheusCurrentSourceTests {
                 # TYPE blackbox_exporter_build_info gauge
                 blackbox_exporter_build_info{branch="HEAD",goversion="go1.22.4",revision="0ec2a6b",version="0.25.0"} 1
                 """;
-        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL);
+        Read source = read(body, METRIC, DEFAULT_VERSION_LABEL);
 
         VersionValue result = source.version();
 
@@ -72,7 +74,7 @@ class HttpPrometheusCurrentSourceTests {
                 blackbox_exporter_build_info{instance="a",version="0.24.0"} 1
                 blackbox_exporter_build_info{instance="b",version="0.25.0"} 1
                 """;
-        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL);
+        Read source = read(body, METRIC, DEFAULT_VERSION_LABEL);
 
         VersionValue result = source.version();
 
@@ -92,7 +94,7 @@ class HttpPrometheusCurrentSourceTests {
         String body = """
                 blackbox_exporter_build_info{version="9.9.9",build_version="1.2.3"} 1
                 """;
-        HttpPrometheusCurrentSource source = source(body, METRIC, "build_version");
+        Read source = read(body, METRIC, "build_version");
 
         VersionValue result = source.version();
 
@@ -108,7 +110,7 @@ class HttpPrometheusCurrentSourceTests {
     @Test
     void version_throws_whenTheMetricIsAbsentFromTheBody_namingTheMetricAndUrl() {
         String body = "some_other_metric{version=\"1.0.0\"} 1\n# " + SENTINEL + "\n";
-        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL);
+        Read source = read(body, METRIC, DEFAULT_VERSION_LABEL);
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, source::version);
 
@@ -121,7 +123,7 @@ class HttpPrometheusCurrentSourceTests {
     @Test
     void version_throws_whenTheMatchedSampleLacksTheVersionLabel() {
         String body = "blackbox_exporter_build_info{other=\"" + SENTINEL + "\"} 1\n";
-        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL);
+        Read source = read(body, METRIC, DEFAULT_VERSION_LABEL);
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, source::version);
 
@@ -133,7 +135,7 @@ class HttpPrometheusCurrentSourceTests {
     @Test
     void version_throws_whenTheVersionLabelValueIsEmptyAfterTrim() {
         String body = "blackbox_exporter_build_info{version=\"   \",other=\"" + SENTINEL + "\"} 1\n";
-        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL);
+        Read source = read(body, METRIC, DEFAULT_VERSION_LABEL);
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, source::version);
 
@@ -146,7 +148,7 @@ class HttpPrometheusCurrentSourceTests {
     @Test
     void version_throws_whenTheVersionLabelValueDoesNotParse() {
         String body = "blackbox_exporter_build_info{version=\"not-a-version\",other=\"" + SENTINEL + "\"} 1\n";
-        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL);
+        Read source = read(body, METRIC, DEFAULT_VERSION_LABEL);
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, source::version);
 
@@ -171,8 +173,8 @@ class HttpPrometheusCurrentSourceTests {
 
     /**
      * Issue 02's fifth distinct failure message (numbered "the fourth" in ADR-0033's own list,
-     * which numbers among the {@code current}-leg failures the non-2xx case owned by
-     * {@code PrometheusBodyFetch} separately) must differ from EVERY case above it, in particular
+     * which numbers among the {@code current}-leg failures the non-2xx case the extractor's gate
+     * raises separately) must differ from EVERY case above it, in particular
      * from "metric absent" — the two are easy to conflate ("no sample" vs "no MATCHING sample")
      * but lead to different operator fixes: a bad {@code metric} name vs. a bad {@code labels:}
      * selector.
@@ -208,7 +210,7 @@ class HttpPrometheusCurrentSourceTests {
                 blackbox_exporter_build_info{instance="a",version="0.24.0"} 1
                 blackbox_exporter_build_info{instance="b",version="0.25.0"} 1
                 """;
-        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, Map.of());
+        Read source = read(body, METRIC, DEFAULT_VERSION_LABEL, Map.of());
 
         VersionValue result = source.version();
 
@@ -227,7 +229,7 @@ class HttpPrometheusCurrentSourceTests {
                 blackbox_exporter_build_info{job="blackbox",pod_name="blackbox-1",version="0.25.0"} 1
                 """;
         Map<String, String> selector = Map.of("job", "blackbox", "pod_name", "blackbox-1");
-        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, selector);
+        Read source = read(body, METRIC, DEFAULT_VERSION_LABEL, selector);
 
         VersionValue result = source.version();
 
@@ -244,7 +246,7 @@ class HttpPrometheusCurrentSourceTests {
         String body = "blackbox_exporter_build_info{job=\"blackbox\",version=\"1.0.0\","
                 + "other=\"unremarkable\"} 1\n";
         Map<String, String> selector = Map.of("job", "black");
-        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, selector);
+        Read source = read(body, METRIC, DEFAULT_VERSION_LABEL, selector);
 
         assertThrows(IllegalStateException.class, source::version,
                 "'job: black' must not match a sample whose 'job' is 'blackbox'");
@@ -257,7 +259,7 @@ class HttpPrometheusCurrentSourceTests {
                 blackbox_exporter_build_info{job="blackbox",version="0.25.0"} 1
                 """;
         Map<String, String> selector = Map.of("job", "blackbox");
-        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, selector);
+        Read source = read(body, METRIC, DEFAULT_VERSION_LABEL, selector);
 
         VersionValue result = source.version();
 
@@ -284,7 +286,7 @@ class HttpPrometheusCurrentSourceTests {
     void version_selectorMatchingNothing_throws_namingTheMetricAndUrl() {
         String body = "blackbox_exporter_build_info{job=\"blackbox\",version=\"1.0.0\"} 1\n";
         Map<String, String> selector = Map.of("job", "does-not-exist");
-        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, selector);
+        Read source = read(body, METRIC, DEFAULT_VERSION_LABEL, selector);
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, source::version);
 
@@ -300,7 +302,7 @@ class HttpPrometheusCurrentSourceTests {
         String body = "blackbox_exporter_build_info{job=\"blackbox\",pod_name=\"blackbox-0\","
                 + "version=\"1.0.0\"} 1\n";
         Map<String, String> selector = Map.of("job", "does-not-exist");
-        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, selector);
+        Read source = read(body, METRIC, DEFAULT_VERSION_LABEL, selector);
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, source::version);
 
@@ -328,7 +330,7 @@ class HttpPrometheusCurrentSourceTests {
         body.append("some_other_metric{label=\"").append(elsewhereSentinel).append("\"} 1\n");
 
         Map<String, String> selector = Map.of("job", "does-not-exist");
-        HttpPrometheusCurrentSource source = source(body.toString(), METRIC, DEFAULT_VERSION_LABEL, selector);
+        Read source = read(body.toString(), METRIC, DEFAULT_VERSION_LABEL, selector);
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, source::version);
         String message = ex.getMessage();
@@ -359,7 +361,7 @@ class HttpPrometheusCurrentSourceTests {
     @Test
     void version_withNoRegexConfigured_theTrimmedLabelValueIsParsedDirectly_slice01Behaviour() {
         String body = "blackbox_exporter_build_info{version=\"  0.25.0  \"} 1\n";
-        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, Optional.empty(), false);
+        Read source = read(body, METRIC, DEFAULT_VERSION_LABEL, Optional.empty(), false);
 
         VersionValue result = source.version();
 
@@ -374,8 +376,8 @@ class HttpPrometheusCurrentSourceTests {
         String body = "blackbox_exporter_build_info{version=\"1.0.0 then later 9.9.9\"} 1\n";
         RegexVersionExtractor extractor =
                 new RegexVersionExtractor(EXTRACTOR_LABEL, "(\\d+\\.\\d+\\.\\d+)", SEMVER_PARSER);
-        HttpPrometheusCurrentSource source =
-                source(body, METRIC, DEFAULT_VERSION_LABEL, Optional.of(extractor), false);
+        Read source =
+                read(body, METRIC, DEFAULT_VERSION_LABEL, Optional.of(extractor), false);
 
         VersionValue result = source.version();
 
@@ -394,8 +396,8 @@ class HttpPrometheusCurrentSourceTests {
         String body = "blackbox_exporter_build_info{version=\"1.2.3\"} 1\n";
         RegexVersionExtractor extractor =
                 new RegexVersionExtractor(EXTRACTOR_LABEL, "^v(\\d+\\.\\d+\\.\\d+)$", SEMVER_PARSER);
-        HttpPrometheusCurrentSource source =
-                source(body, METRIC, DEFAULT_VERSION_LABEL, Optional.of(extractor), false);
+        Read source =
+                read(body, METRIC, DEFAULT_VERSION_LABEL, Optional.of(extractor), false);
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, source::version,
                 "the configured regex requires a 'v' prefix that '1.2.3' does not have; the "
@@ -412,7 +414,7 @@ class HttpPrometheusCurrentSourceTests {
     @Test
     void version_withStripPrereleaseTrue_clearsThePrereleaseSegment() {
         String body = "blackbox_exporter_build_info{version=\"2.11.1-6b7ecba1\"} 1\n";
-        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, Optional.empty(), true);
+        Read source = read(body, METRIC, DEFAULT_VERSION_LABEL, Optional.empty(), true);
 
         VersionValue result = source.version();
 
@@ -422,7 +424,7 @@ class HttpPrometheusCurrentSourceTests {
     @Test
     void version_withStripPrereleaseAbsent_preservesThePrereleaseSegment() {
         String body = "blackbox_exporter_build_info{version=\"2.11.1-6b7ecba1\"} 1\n";
-        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, Optional.empty(), false);
+        Read source = read(body, METRIC, DEFAULT_VERSION_LABEL, Optional.empty(), false);
 
         VersionValue result = source.version();
 
@@ -435,8 +437,8 @@ class HttpPrometheusCurrentSourceTests {
         String body = "blackbox_exporter_build_info{version=\"prefix-v2.11.1-6b7ecba1-suffix\"} 1\n";
         RegexVersionExtractor extractor =
                 new RegexVersionExtractor(EXTRACTOR_LABEL, "v(\\d+\\.\\d+\\.\\d+-[a-z0-9]+)", SEMVER_PARSER);
-        HttpPrometheusCurrentSource source =
-                source(body, METRIC, DEFAULT_VERSION_LABEL, Optional.of(extractor), true);
+        Read source =
+                read(body, METRIC, DEFAULT_VERSION_LABEL, Optional.of(extractor), true);
 
         VersionValue result = source.version();
 
@@ -483,39 +485,83 @@ class HttpPrometheusCurrentSourceTests {
     // -----------------------------------------------------------------------
 
     private static String failureMessage(String body) {
-        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL);
+        Read source = read(body, METRIC, DEFAULT_VERSION_LABEL);
         return assertThrows(IllegalStateException.class, source::version).getMessage();
     }
 
     private static String failureMessage(String body, Optional<RegexVersionExtractor> extractor) {
-        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, extractor, false);
+        Read source = read(body, METRIC, DEFAULT_VERSION_LABEL, extractor, false);
         return assertThrows(IllegalStateException.class, source::version).getMessage();
     }
 
     private static String selectorFailureMessage(String body, Map<String, String> selector) {
-        HttpPrometheusCurrentSource source = source(body, METRIC, DEFAULT_VERSION_LABEL, selector);
+        Read source = read(body, METRIC, DEFAULT_VERSION_LABEL, selector);
         return assertThrows(IllegalStateException.class, source::version).getMessage();
     }
 
-    private static HttpPrometheusCurrentSource source(String body, String metric, String versionLabel) {
-        return source(body, metric, versionLabel, Map.of(), Optional.empty(), false);
+    private static Read read(String body, String metric, String versionLabel) {
+        return read(body, metric, versionLabel, Map.of(), Optional.empty(), false);
     }
 
-    private static HttpPrometheusCurrentSource source(
+    private static Read read(
             String body, String metric, String versionLabel, Map<String, String> labels) {
-        return source(body, metric, versionLabel, labels, Optional.empty(), false);
+        return read(body, metric, versionLabel, labels, Optional.empty(), false);
     }
 
-    private static HttpPrometheusCurrentSource source(String body, String metric, String versionLabel,
+    private static Read read(String body, String metric, String versionLabel,
             Optional<RegexVersionExtractor> extractor, boolean stripPrerelease) {
-        return source(body, metric, versionLabel, Map.of(), extractor, stripPrerelease);
+        return read(body, metric, versionLabel, Map.of(), extractor, stripPrerelease);
     }
 
     /** The single construction site: every other overload above delegates here. */
-    private static HttpPrometheusCurrentSource source(String body, String metric, String versionLabel,
+    private static Read read(String body, String metric, String versionLabel,
             Map<String, String> labels, Optional<RegexVersionExtractor> extractor, boolean stripPrerelease) {
-        PrometheusBodyFetch fetch = () -> body;
-        return new HttpPrometheusCurrentSource(
-                fetch, URL, metric, versionLabel, labels, extractor, stripPrerelease, SEMVER_PARSER);
+        HttpPrometheusVersionExtractor versionExtractor = new HttpPrometheusVersionExtractor(
+                URL, metric, versionLabel, labels, extractor, stripPrerelease, SEMVER_PARSER);
+        return new Read(versionExtractor, ok(body));
+    }
+
+    /** One extraction over one fake 2xx response — what a scrape of this kind amounts to. */
+    private record Read(HttpPrometheusVersionExtractor extractor, HttpGetResponse response) {
+
+        VersionValue version() {
+            return extractor.extract(response);
+        }
+    }
+
+    private static HttpGetResponse ok(String body) {
+        return new HttpGetResponse(200, Map.of("Content-Type", List.of("text/plain")), body);
+    }
+
+    // -----------------------------------------------------------------------
+    // The 2xx gate (ADR-0033): the body IS the resource, so a non-2xx response must fail the read
+    // rather than be handed to the parser. This decision lives in the extractor, not the transport.
+    // -----------------------------------------------------------------------
+
+    @Test
+    void extract_throwsAVersionFetchException_onANon2xxResponse_namingTheStatusAndTheUrl_butNeverTheBody() {
+        HttpPrometheusVersionExtractor extractor = new HttpPrometheusVersionExtractor(
+                URL, METRIC, DEFAULT_VERSION_LABEL, Map.of(), Optional.empty(), false, SEMVER_PARSER);
+        HttpGetResponse forbidden = new HttpGetResponse(403, Map.of(), "<html>" + SENTINEL + "</html>");
+
+        VersionFetchException ex = assertThrows(VersionFetchException.class, () -> extractor.extract(forbidden));
+
+        assertEquals(403, ex.status());
+        assertTrue(ex.getMessage().contains("403"), "must name the status; was: " + ex.getMessage());
+        assertTrue(ex.getMessage().contains(URL), "must name the url; was: " + ex.getMessage());
+        assertTrue(ex.getMessage().contains("http-prometheus"), "must name the kind; was: " + ex.getMessage());
+        assertFalse(ex.getMessage().contains(SENTINEL),
+                "no failure message may embed the body; was: " + ex.getMessage());
+    }
+
+    @Test
+    void extract_onANon2xxResponse_failsBeforeParsing_evenWhenTheBodyWouldHaveResolved() {
+        // A login page that happens to echo a metrics-shaped body is still a login page.
+        HttpPrometheusVersionExtractor extractor = new HttpPrometheusVersionExtractor(
+                URL, METRIC, DEFAULT_VERSION_LABEL, Map.of(), Optional.empty(), false, SEMVER_PARSER);
+        HttpGetResponse unauthorized = new HttpGetResponse(401, Map.of(),
+                "blackbox_exporter_build_info{version=\"0.25.0\"} 1\n");
+
+        assertThrows(VersionFetchException.class, () -> extractor.extract(unauthorized));
     }
 }

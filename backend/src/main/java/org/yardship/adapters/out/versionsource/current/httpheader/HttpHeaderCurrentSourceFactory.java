@@ -4,13 +4,13 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.current.CurrentVersionSourceFactory;
 import org.yardship.adapters.out.versionsource.current.FailedCurrentSource;
+import org.yardship.adapters.out.versionsource.current.HttpCurrentSource;
+import org.yardship.adapters.out.versionsource.http.HttpTransport;
 import org.yardship.adapters.out.versionsource.http.HttpTransportConfig;
-import org.yardship.adapters.out.versionsource.http.RedirectFollowingHttpGet;
 import org.yardship.adapters.out.versionsource.regex.RegexVersionExtractor;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
-import java.net.URI;
 import java.util.Optional;
 
 /**
@@ -19,10 +19,12 @@ import java.util.Optional;
  * STRUCTURAL config fragment fail-fast in {@link #create}: a non-blank {@code url} and a non-blank
  * {@code version-header} are required, as {@code url} is for the {@code http-json} kind; a configured
  * {@code regex} must compile and have at least one capture group, validated by
- * {@link RegexVersionExtractor}'s constructor. All three THROW and fail boot.
+ * {@link RegexVersionExtractor}'s constructor. All three THROW an {@link IllegalArgumentException},
+ * the declared "this config fragment is unusable" signal {@code VersionSourceResolver} records as
+ * a per-app {@code ConfigError} (ADR-0032).
  *
  * <p>A blank {@code regex} (e.g. {@code "   "}) is treated the same as an absent one — silently
- * optional, not a boot failure — matching how optional fields are read across the codebase:
+ * optional — matching how optional fields are read across the codebase:
  * {@code HttpRegexLatestSourceFactory}'s {@code nonBlank}, {@code GithubReleaseLatestSourceFactory}'s
  * optional token, and {@code OciRegistryLatestSourceFactory} all filter a blank value to absent.
  * Only {@code url} and {@code version-header} are required and reject a blank value. Note this is
@@ -30,15 +32,11 @@ import java.util.Optional;
  * {@link FailedCurrentSource}, resolved by {@link HttpTransportConfig} below.
  *
  * <p>The {@code auth} / {@code ca-cert} / {@code insecure-skip-tls-verify} part of the fragment is
- * delegated to the shared, kind-labelled {@link HttpTransportConfig} collaborator — the
- * same one the {@code http-json} kind uses, constructed here with the {@code "http-header"} label so
- * its messages name this kind. A VALUE-level problem there (e.g. an unsupported {@code auth.type},
- * or a {@code ca-cert} file that cannot be read) is mapped to a {@link FailedCurrentSource} with a
- * WARN, never a thrown exception — the single app degrades, the fleet keeps scraping.
- *
- * <p>No CDI-injected collaborators: unlike the {@code http-json} kind (which needs a REST-client
- * factory), this kind's transport is a plain {@link RedirectFollowingHttpGet}, built directly from
- * the resolved TLS inputs.
+ * delegated to the shared, kind-labelled {@link HttpTransportConfig}, constructed here with the
+ * {@code "http-header"} label so its messages name this kind. A VALUE-level problem there is mapped
+ * to a {@link FailedCurrentSource} with a WARN, never a thrown exception — the single app degrades,
+ * the fleet keeps scraping. On success the factory builds the shared {@link HttpTransport} and
+ * pairs it with this kind's {@link HttpHeaderVersionExtractor}.
  */
 @ApplicationScoped
 public class HttpHeaderCurrentSourceFactory implements CurrentVersionSourceFactory {
@@ -59,9 +57,9 @@ public class HttpHeaderCurrentSourceFactory implements CurrentVersionSourceFacto
         String versionHeader = requireNonBlank(cfg.versionHeader(), "version-header");
         // A blank `regex` is treated as absent (see class Javadoc), consistent with how this
         // factory treats every other optional field.
-        Optional<RegexVersionExtractor> extractor = cfg.regex()
+        Optional<RegexVersionExtractor> regex = cfg.regex()
                 .filter(value -> !value.isBlank())
-                .map(regex -> new RegexVersionExtractor(EXTRACTOR_LABEL, regex, parser));
+                .map(pattern -> new RegexVersionExtractor(EXTRACTOR_LABEL, pattern, parser));
         boolean stripPrerelease = cfg.stripPrerelease().orElse(false);
         boolean insecureSkipTlsVerify = cfg.insecureSkipTlsVerify().orElse(false);
 
@@ -71,10 +69,9 @@ public class HttpHeaderCurrentSourceFactory implements CurrentVersionSourceFacto
             return new FailedCurrentSource(resolution.failureMessage().get());
         }
 
-        RedirectFollowingHttpGet http =
-                RedirectFollowingHttpGet.withTls(resolution.trustStore(), resolution.insecureSkipTlsVerify());
-        HttpHeaderFetch fetch = new RedirectFollowingHttpHeaderFetch(http, URI.create(url), resolution.authFilter());
-        return new HttpHeaderCurrentSource(fetch, url, versionHeader, extractor, stripPrerelease, parser);
+        return new HttpCurrentSource(
+                HttpTransport.from(url, resolution),
+                new HttpHeaderVersionExtractor(url, versionHeader, regex, stripPrerelease, parser));
     }
 
     private static String requireNonBlank(Optional<String> value, String fieldName) {
