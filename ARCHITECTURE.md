@@ -6,7 +6,7 @@ For *how* the backend is laid out (hexagonal packages, build commands), see `CLA
 
 ## Guiding idea: a general, substrate-agnostic version monitor
 
-PlatformUp2Date answers one question per application: **"is what's running the latest
+PlatformUp2Date answers one question per application: **"is it running the latest
 version, or is it behind?"** The hard part is that the applications it watches are not
 uniform. They are deployed in every way imaginable and many of them are not ours:
 
