@@ -1,219 +1,112 @@
 # Configuration reference
 
-`platform-config` is the backend's entire monitoring configuration: the scrape
-interval, the manual-scrape budgets, and the list of monitored Applications,
-each pairing a `current` version source with a `latest` version source.
+`platform-config` is the backend's monitoring configuration. It sets the scrape
+interval, the manual-scrape budgets, and the list of monitored Applications.
+Each Application has one `current` version source and one `latest` version
+source.
 
-For a complete working example, see the canonical sample
-[`deploy/k8s/base/platform-config.yaml`](../deploy/k8s/base/platform-config.yaml):
-the same file both quick starts run, monitoring two real public apps with no
-credentials on either side.
-
-The harder keys to get right by hand (an `http-regex` regex, a `version-key`
-JSON Pointer, a `calver-format`, a `changelog-url` template) are proven by
-the running backend. Once `platform-config` binds, a per-Application value
-the backend cannot use is recorded as a config error against the scope it
-breaks. The scope determines whether one side, both sides, or only the
-Changelog link degrades. A value the backend accepts but cannot pull a version
-out of only fails the scrape. See
-[When configuration is wrong](#when-configuration-is-wrong) below for how a
-config error reaches every surface and what to change when one appears.
-
-## When configuration is wrong
-
-SmallRye loads and binds `platform-config` before per-Application validation
-runs. Binding is all or nothing: invalid YAML, a missing required mapped
-property, or a value that cannot be converted to its declared type stops
-startup before any scoped config errors can be recorded. For example,
-`page-size: many` is valid YAML, but `page-size` is mapped as an integer.
-
-Once binding succeeds, a defect in one Application's configuration degrades
-only what that defect touches; it does not stop the backend from starting
-(ADR-0032).
-
-Because a typo now reaches production rather than being caught by a crash-loop,
-the board says precisely what is wrong. A `current`/`latest` defect shows its
-reason on the affected side, which keeps its last-known version; the other side
-goes on reading normally. A defect in the shared version scheme is marked once
-at app level, since it breaks both legs for one reason. And a broken
-`changelog-url` degrades nothing at all — the app scrapes normally and only its
-link is absent.
-
-![The board showing a config error at each scope, alongside a clean app and an app whose newest read merely failed](img/board-config-errors.png)
-
-A config error is permanent until someone edits the ConfigMap, so it reads
-differently from a transient failed refresh: a red glyph with an always-visible
-reason, rather than the amber hover-only warning (`vault-transient` above). The
-one exception is the changelog scope, where nothing degrades and the reason sits
-behind the icon it replaces:
-
-![The changelog-scope reason, shown on hover in place of the changelog icon](img/board-config-error-reason.png)
-
-The same information reaches the other Surfaces: `configErrors` on the REST
-payload and on the MCP `get_application` view, the `list_misconfigured_applications`
-MCP tool, and `pu2d_config_error{application, scope}` for alerting — see
-[`deployment.md`](deployment.md#metrics).
+For a full working example, see
+[`deploy/k8s/base/platform-config.yaml`](../deploy/k8s/base/platform-config.yaml).
+Both quick starts use it. It monitors two public apps and needs no credentials.
 
 ## Top-level keys
 
 | Key | Type | Required | Default | Notes |
 |---|---|---|---|---|
-| `scrape-interval` | duration string (e.g. `1h`) | yes | — | How often the automatic (lazy) full scrape refreshes the fleet. |
-| `scrape-concurrency` | int | no | `15` | Bounds how many apps are scraped in parallel per full scrape. |
-| `apps` | list of [App](#app-level-keys) | yes | — | The monitored fleet. |
-| `scrape-trigger.max-per-window` | int | no | `10` | Manual full-scrape budget (Refresh button / MCP trigger) — max triggers per rolling window. |
+| `scrape-interval` | duration (e.g. `1h`) | yes | — | How often the automatic full scrape runs. |
+| `scrape-concurrency` | int | no | `15` | Max apps scraped in parallel during a full scrape. |
+| `apps` | list of [App](#app-keys) | yes | — | The monitored fleet. |
+| `scrape-trigger.max-per-window` | int | no | `10` | Max manual full scrapes (Refresh button, MCP trigger) per window. |
 | `scrape-trigger.window` | duration | no | `1h` | Rolling window for `scrape-trigger`. |
-| `targeted-scrape-trigger.max-per-window` | int | no | `30` | Targeted-scrape budget (agent-driven single-app/side refresh), kept separate and larger so it cannot starve the UI's full-scrape budget. |
+| `targeted-scrape-trigger.max-per-window` | int | no | `30` | Max targeted scrapes (one app or side, used by agents) per window. Separate from `scrape-trigger` so agents cannot use up the UI's budget. |
 | `targeted-scrape-trigger.window` | duration | no | `1h` | Rolling window for `targeted-scrape-trigger`. |
-| `github.token` | string, env-expandable | no | absent (unauthenticated, 60 req/hr) | Optional GitHub token shared by every `github-release` source, raising the limit to 5,000 req/hr. Typically `${GITHUB_TOKEN:}` so an unset env var resolves to empty rather than failing boot. |
-| `github.api-base-url` | string | no | `https://api.github.com` | Override for the GitHub API host every `github-release` source builds its URL against — a test/stub seam, not meant for GitHub Enterprise. |
+| `github.token` | string, env-expandable | no | absent (60 req/hr) | GitHub token used by every `github-release` source. Raises the limit to 5,000 req/hr. Usually `${GITHUB_TOKEN:}`, so an unset variable becomes empty. |
+| `github.api-base-url` | string | no | `https://api.github.com` | GitHub API host for every `github-release` source. Meant for tests, not GitHub Enterprise. |
 
-## App-level keys
+## App keys
 
-One entry per monitored Application under `apps[]`:
+One entry per Application under `apps[]`:
 
 | Key | Type | Required | Default | Notes |
 |---|---|---|---|---|
-| `name` | string | yes | — | The Application's identifier, used across every surface (REST, metrics, MCP). |
-| `current` | [VersionSource](#version-source-keys-shared) | yes | — | The `current`-side source (`type` selects the kind). |
-| `latest` | [VersionSource](#version-source-keys-shared) | yes | — | The `latest`-side source (`type` selects the kind). |
-| `version-scheme` | `semver` \| `calver` \| `dotnet` | no | `semver` | Shared by both legs so they are always commensurable. Case-insensitive. `dotnet` is `System.Version`'s `major.minor[.build[.revision]]` — see [Dotnet versions](#dotnet-versions) below. |
-| `calver-format` | string (calver.org grammar) | required if `version-scheme: calver`, else ignored | — | e.g. `YY.0M.MICRO`. See [Calver format](#calver-format) below. Checked during startup after config binding. A missing or invalid format records an `APP` config error and degrades both sides; the backend continues running. |
-| `dotnet-compare-build` | boolean | no (ignored unless `version-scheme: dotnet`) | `true` | Whether the `build` component (the third) is compared. `false` leaves a major.minor comparison, under which the app can never grade `PATCH`. The `revision` is never compared under either setting. See [Dotnet versions](#dotnet-versions). |
-| `changelog-url` | string (template) | no | absent → no changelog link | App-level, sibling of `version-scheme` — not a `VersionSource` field. See [Changelog link templates](#changelog-link-templates). |
+| `name` | string | yes | — | The Application's ID on every Surface (REST, MCP, metrics). |
+| `current` | [current source](#current-sources) | yes | — | Where the running version is read. `type` picks the kind. |
+| `latest` | [latest source](#latest-sources) | yes | — | Where the newest upstream version is read. `type` picks the kind. |
+| `version-scheme` | `semver` \| `calver` \| `dotnet` | no | `semver` | Used by both sides, so they can always be compared. Case-insensitive. See [Version schemes](#version-schemes). |
+| `calver-format` | string | if `version-scheme: calver` | — | e.g. `YY.0M.MICRO`. See [Calver format](#calver-format). |
+| `dotnet-compare-build` | boolean | no | `true` | Only for `version-scheme: dotnet`. `false` compares only major and minor. See [Dotnet versions](#dotnet-versions). |
+| `changelog-url` | string (template) | no | absent → no link | See [Changelog link templates](#changelog-link-templates). |
 
-## Version source keys (shared)
+## Version sources
 
-All source kinds live under the same tagged-union shape (`type` plus a union
-of type-specific fields); unused fields are simply absent for a given kind.
-The Tier A/B labels in the headings describe how much access a source needs;
-the tier model is defined in
-[`ARCHITECTURE.md`](../ARCHITECTURE.md#tiers-of-current-probes-ordered-by-required-access).
+A version source is set with `type` plus the keys for that type.
 
-### `type: http-json` (current) — Tier A, network-reachable, no credentials required
+### Current sources
+
+A current source reads the version that is running now.
+
+| `type` | Reads the version from | Tier |
+|---|---|---|
+| [`http-json`](#http-json) | a field in a JSON response body | [A](../ARCHITECTURE.md#tier-a--black-box-network-reachability-only-the-default) |
+| [`http-header`](#http-header) | an HTTP response header | [A](../ARCHITECTURE.md#tier-a--black-box-network-reachability-only-the-default) |
+| [`http-prometheus`](#http-prometheus) | a label on a Prometheus metric | [A](../ARCHITECTURE.md#tier-a--black-box-network-reachability-only-the-default) |
+| [`k8s-image`](#k8s-image) | the image tag of a running container | [B](../ARCHITECTURE.md#tier-b--credentialed-opportunistic-only-when-we-happen-to-have-access) (cluster access) |
+| [`ssh-os-release`](#ssh-os-release) | `/etc/os-release` on a host, over SSH | [B](../ARCHITECTURE.md#tier-b--credentialed-opportunistic-only-when-we-happen-to-have-access) (SSH access) |
+
+#### `http-json`
+
+[Tier A](../ARCHITECTURE.md#tier-a--black-box-network-reachability-only-the-default):
+needs network access only.
 
 | Key | Type | Required | Default |
 |---|---|---|---|
 | `url` | string | yes | — |
-| `version-key` | JSON Pointer string | no | `/version` |
+| `version-key` | JSON Pointer | no | `/version` |
 | `strip-prerelease` | boolean | no | `false` |
 | `ca-cert` | path to PEM file | no | absent → JVM default trust |
 | `insecure-skip-tls-verify` | boolean | no | `false` |
-| `auth.type` | `basic` \| `bearer` | required if `auth` present | — |
-| `auth.username` / `auth.password` | string | required for `auth.type: basic` | — |
-| `auth.token` | string | exactly one of `token`/`token-file` required for `auth.type: bearer` | — |
-| `auth.token-file` | path | exactly one of `token`/`token-file` required for `auth.type: bearer`; re-read on every request (never cached), so a rotating projected token stays valid | — |
+| `auth.type` | `basic` \| `bearer` | if `auth` is set | — |
+| `auth.username` / `auth.password` | string | for `auth.type: basic` | — |
+| `auth.token` | string | for `auth.type: bearer`, exactly one of `token`/`token-file` | — |
+| `auth.token-file` | path | for `auth.type: bearer`, exactly one of `token`/`token-file` | — |
 
-A present-but-blank `ca-cert`, or one that fails to load, shows up as a
-failed scrape for that app, not a boot crash. Missing/blank `url` also
-degrades only this app — it never fails the boot.
+- `auth.token-file` is read again on every request, so a rotating token keeps
+  working.
+- `insecure-skip-tls-verify` works like `curl -k`: it skips both certificate and
+  hostname checks, for this app only. It logs a WARN. It cannot be set together
+  with `ca-cert`.
 
-`insecure-skip-tls-verify` gives full `curl -k` semantics — it skips both
-certificate chain validation and hostname verification for that app's REST
-client only, never JVM-global TLS state. Enabling it logs a WARN naming the
-app's url. It is mutually exclusive with `ca-cert`: configuring both is
-refused (a value-level failure, not a boot crash).
+#### `http-header`
 
-> **Renamed from `http`** ([ADR-0031](adr/0031-http-current-source-renamed-http-json.md)). This
-> is a breaking, pre-1.0.0 config change with no alias: a `platform-config` still saying
-> `type: http` degrades that app's current side with `The 'http' version source kind was renamed to
-> 'http-json'; update this app's config.` — it does not fail the boot (ADR-0032) — update the app's
-> `type` to `http-json`.
-
-### `type: k8s-image` (current) — Tier B, requires cluster access
-
-See [deployment.md](deployment.md) for the ServiceAccount/ClusterRole this needs.
-
-| Key | Type | Required | Default |
-|---|---|---|---|
-| `namespace` | string | yes | — |
-| `workload` | `kind/name` reference, e.g. `deployment/argocd-server` | yes | — |
-| `container` | string | yes | — |
-| `strip-prerelease` | boolean | no | `false` |
-
-`workload` must be a `kind/name` reference where `kind` is one of
-`deployment`, `statefulset`, or `daemonset` (case-insensitive) — e.g.
-`deployment/argocd-server`, `statefulset/redis`, `daemonset/node-exporter`.
-A value without a `kind/` prefix, or naming any other kind, fails the scrape
-for this app with a clear error.
-
-All three of `namespace`/`workload`/`container` are required and non-blank;
-missing any one degrades this app's current side rather than failing boot
-(ADR-0032). The Kubernetes client itself needs no configuration here — it
-auto-configures in-cluster from the backend's ServiceAccount token.
-
-### `type: ssh-os-release` (current) — Tier B, requires SSH access
-
-| Key | Type | Required | Default |
-|---|---|---|---|
-| `host` | string | yes | — |
-| `port` | int | no | `22` |
-| `user` | string | yes | — |
-| `private-key` | inline OpenSSH PEM | exactly one of `private-key`/`private-key-file` required | — |
-| `private-key-file` | path, read at connect time | exactly one of `private-key`/`private-key-file` required | — |
-| `host-key` | single-line `ssh-ed25519 AAAA…` | exactly one of `host-key`/`known-hosts` required (no trust-on-first-use) | — |
-| `known-hosts` | path to `known_hosts` file | exactly one of `host-key`/`known-hosts` required | — |
-| `release-field` | string | no | `VERSION_ID` |
-
-Blank/absent `host` or `user`, and the mutually-exclusive-pair violations
-(both or neither of a pair set), all degrade this app's current side to a
-failed scrape; none of them fail the boot (ADR-0032).
-
-### `type: http-header` (current) — Tier A, network-reachable, no credentials required
-
-Reads the current version from a named HTTP **response header** rather than a response body — for
-apps (Jenkins is the motivating case) that volunteer their version in a header and never in a
-body. See [ADR-0030](adr/0030-http-header-current-source.md) for the full rationale; the three
-behaviors below are the deliberate, surprising parts.
+[Tier A](../ARCHITECTURE.md#tier-a--black-box-network-reachability-only-the-default):
+needs network access only. For apps that put their version in a response header,
+such as Jenkins (`X-Jenkins`).
 
 | Key | Type | Required | Default |
 |---|---|---|---|
 | `url` | string | yes | — |
 | `version-header` | string | yes | — |
-| `regex` | regex with ≥1 capture group | no | absent → the raw trimmed header value is parsed directly |
+| `regex` | regex with ≥1 capture group | no | absent → the trimmed header value is used as-is |
 | `strip-prerelease` | boolean | no | `false` |
 | `ca-cert` | path to PEM file | no | absent → JVM default trust |
 | `insecure-skip-tls-verify` | boolean | no | `false` |
-| `auth.type` | `basic` \| `bearer` | required if `auth` present | — |
-| `auth.username` / `auth.password` | string | required for `auth.type: basic` | — |
-| `auth.token` | string | exactly one of `token`/`token-file` required for `auth.type: bearer` | — |
-| `auth.token-file` | path | exactly one of `token`/`token-file` required for `auth.type: bearer`; re-read on every request (never cached) | — |
+| `auth.type` | `basic` \| `bearer` | if `auth` is set | — |
+| `auth.username` / `auth.password` | string | for `auth.type: basic` | — |
+| `auth.token` | string | for `auth.type: bearer`, exactly one of `token`/`token-file` | — |
+| `auth.token-file` | path | for `auth.type: bearer`, exactly one of `token`/`token-file` | — |
 
-Missing/blank `url` or `version-header`, a `regex` that fails to compile or has no capture group,
-and `auth`/`ca-cert` value problems (an unsupported `auth.type`, a `ca-cert` file that cannot be
-read, or configuring both `ca-cert` and `insecure-skip-tls-verify`) all degrade the single app to a
-failed scrape, matching the `http-json` kind — none of them fail the boot (ADR-0032).
+- The status code is ignored. The header is read even from a 403 response.
+- `regex` uses capture group 1 of the **first** match, not the largest.
+- The header name is case-insensitive. If the header repeats, the first value
+  is used.
+- `auth.token-file`, `ca-cert` and `insecure-skip-tls-verify` work as in
+  `http-json`.
 
-Three behaviors are deliberate design decisions, not bugs, and each differs from a sibling HTTP
-source kind:
+#### `http-prometheus`
 
-- **The status code is ignored.** The header is read off the final response *whatever its status
-  code was*; the status is consulted only when composing a failure message, never to gate the
-  read. Every real Jenkins is a secured Jenkins — it refuses the anonymous top page with a 403 and
-  still carries `X-Jenkins` on that same response. Requiring a 2xx, as the `http-json` and `http-regex`
-  kinds do, would fail every scrape of the motivating app while the answer sits in a response
-  already held in memory.
-- **The optional `regex` takes group 1 of the *first* match**, not the largest. `http-regex`'s
-  largest-wins rule is correct on the `latest` leg, where "newest release upstream" genuinely
-  means a maximum over candidates; on this `current` leg a version is a single *observation*, and
-  largest-wins against a loosely-written pattern can silently report the wrong number (e.g. an
-  `Ubuntu/22.04` fragment in a `Server` header outscoring the real version).
-- **The header name matches case-insensitively**, unlike `version-key`'s case-sensitive JSON
-  Pointer. JSON object keys are case-sensitive by specification; HTTP field names are
-  case-insensitive by specification (RFC 9110 §5.1) — the rule is "follow the substrate's own
-  spec," and it gives opposite answers for the two. A repeated header takes the first value.
-
-A `version-header`/`regex` pair that compiles but extracts nothing from the real response
-degrades that side to a failed scrape, the same as the invalid values above.
-
-### `type: http-prometheus` (current) — Tier A, network-reachable, no credentials required
-
-Reads the current version from a **label on a named Prometheus metric** in a `/metrics`-style
-text-exposition body — for apps (blackbox_exporter is the motivating case) that publish their
-version the way the Prometheus ecosystem conventionally does, as a label on a constant-`1`
-`*_build_info` gauge, and never in a JSON body or a response header. See
-[ADR-0033](adr/0033-http-prometheus-current-source.md) for the full rationale; the three behaviors
-below are the deliberate, surprising parts.
+[Tier A](../ARCHITECTURE.md#tier-a--black-box-network-reachability-only-the-default):
+needs network access only. For apps that publish their version as a label on a
+`*_build_info` metric, such as blackbox_exporter:
 
 ```
 blackbox_exporter_build_info{branch="HEAD",goversion="go1.22.4",revision="0ec2a6b",version="0.25.0"} 1
@@ -223,106 +116,180 @@ blackbox_exporter_build_info{branch="HEAD",goversion="go1.22.4",revision="0ec2a6
 |---|---|---|---|
 | `url` | string | yes | — |
 | `metric` | string | yes | — |
-| `labels` | map of string → string | no | absent → every sample of `metric` is a candidate |
+| `labels` | map of string → string | no | absent → every sample of `metric` matches |
 | `version-label` | string | no | `version` |
-| `regex` | regex with ≥1 capture group | no | absent → the raw trimmed label value is parsed directly |
+| `regex` | regex with ≥1 capture group | no | absent → the trimmed label value is used as-is |
 | `strip-prerelease` | boolean | no | `false` |
 | `ca-cert` | path to PEM file | no | absent → JVM default trust |
 | `insecure-skip-tls-verify` | boolean | no | `false` |
-| `auth.type` | `basic` \| `bearer` | required if `auth` present | — |
-| `auth.username` / `auth.password` | string | required for `auth.type: basic` | — |
-| `auth.token` | string | exactly one of `token`/`token-file` required for `auth.type: bearer` | — |
-| `auth.token-file` | path | exactly one of `token`/`token-file` required for `auth.type: bearer`; re-read on every request (never cached) | — |
+| `auth.type` | `basic` \| `bearer` | if `auth` is set | — |
+| `auth.username` / `auth.password` | string | for `auth.type: basic` | — |
+| `auth.token` | string | for `auth.type: bearer`, exactly one of `token`/`token-file` | — |
+| `auth.token-file` | path | for `auth.type: bearer`, exactly one of `token`/`token-file` | — |
 
-Missing/blank `url` or `metric`, a `regex` that fails to compile or has no capture group, and
-`auth`/`ca-cert` value problems (an unsupported `auth.type`, a `ca-cert` file that cannot be read,
-or configuring both `ca-cert` and `insecure-skip-tls-verify`) all degrade the single app to a
-failed scrape, matching the `http-json` and `http-header` kinds — none of them fail the boot
-(ADR-0032).
+- The version always comes from a label, never from the sample value.
+- The final response must have a 2xx status.
+- `labels` is an exact-match AND selector (no `!=`, `=~` or `!~`). Use it to pick
+  one installation when an endpoint serves several.
+- The first matching sample in the body wins. Samples that disagree are not
+  rejected.
+- Both Prometheus text and OpenMetrics bodies work, including a trailing
+  `# EOF`.
+- `auth.token-file`, `ca-cert` and `insecure-skip-tls-verify` work as in
+  `http-json`.
 
-Three behaviors are deliberate design decisions, not bugs, and each differs from a sibling HTTP
-source kind:
+#### `k8s-image`
 
-- **The version comes from the label, never the sample value**, and there is no config switch for
-  the latter. A Prometheus sample value is a float, and `0.25.0` cannot be one at all — which is
-  exactly why the `*_build_info` convention (a constant `1`, with the real version carried as a
-  label) exists in the first place.
-- **A 2xx status is required on the final response**, unlike `http-header`, which is deliberately
-  status-blind. This is not an inconsistency between the two: `http-header` reads metadata the
-  server volunteers about itself regardless of whether it authorizes the caller to read the
-  resource, but here the metrics body *is* the resource — a 403 yields a login page carrying no
-  metrics at all, and a 502 yields a proxy error page. See
-  [ADR-0033](adr/0033-http-prometheus-current-source.md) for the full reconciliation with
-  `http-header`'s rule.
-- **The first matching sample in document order wins, and conflicting samples are not refused.**
-  `labels:` exists to select among *installations* — an operator running two installations of the
-  same application behind one aggregating endpoint points each Application at its own series with
-  an exact-match, ANDed selector (no `!=` / `=~` / `!~`). It is not a remedy for disagreement
-  between samples: two samples of the same metric disagreeing means a rollout is in flight, a
-  condition that is short-lived by construction and resolves itself.
-
-OpenMetrics bodies (including a trailing `# EOF` line) are accepted as-is — a tolerant line parser
-handles both formats without a mode flag. A `metric`/`labels`/`version-label` combination that is
-well-formed but matches nothing in the real `/metrics` body degrades that side to a failed scrape,
-the same as the invalid values above.
-
-### `type: github-release` (latest) — no credentials required for public repos
-
-Selects the largest semver release; configured by `owner/repo` slug, not a
-raw URL.
+[Tier B](../ARCHITECTURE.md#tier-b--credentialed-opportunistic-only-when-we-happen-to-have-access):
+needs cluster access. See [deployment.md](deployment.md) for the
+ServiceAccount and ClusterRole.
 
 | Key | Type | Required | Default |
 |---|---|---|---|
-| `repo` | `owner/repo` string (exactly one `/`) | yes | — |
+| `namespace` | string | yes | — |
+| `workload` | `kind/name`, e.g. `deployment/argocd-server` | yes | — |
+| `container` | string | yes | — |
+| `strip-prerelease` | boolean | no | `false` |
+
+- `kind` in `workload` must be `deployment`, `statefulset` or `daemonset`
+  (case-insensitive).
+- The Kubernetes client needs no config. It uses the backend's ServiceAccount
+  in the cluster.
+
+#### `ssh-os-release`
+
+[Tier B](../ARCHITECTURE.md#tier-b--credentialed-opportunistic-only-when-we-happen-to-have-access):
+needs SSH access.
+
+| Key | Type | Required | Default |
+|---|---|---|---|
+| `host` | string | yes | — |
+| `port` | int | no | `22` |
+| `user` | string | yes | — |
+| `private-key` | inline OpenSSH PEM | exactly one of `private-key`/`private-key-file` | — |
+| `private-key-file` | path, read at connect time | exactly one of `private-key`/`private-key-file` | — |
+| `host-key` | one line, e.g. `ssh-ed25519 AAAA…` | exactly one of `host-key`/`known-hosts` | — |
+| `known-hosts` | path to a `known_hosts` file | exactly one of `host-key`/`known-hosts` | — |
+| `release-field` | string | no | `VERSION_ID` |
+
+There is no trust-on-first-use. You must give a host key or a `known_hosts`
+file.
+
+### Latest sources
+
+A latest source reads the newest version published upstream.
+
+| `type` | Reads the version from | Credentials |
+|---|---|---|
+| [`github-release`](#github-release) | GitHub Releases | none for public repos |
+| [`oci-registry`](#oci-registry) | image tags in an OCI registry | none for public repos |
+| [`http-regex`](#http-regex) | a regex over a web page | none |
+
+#### `github-release`
+
+Picks the largest release by version. Skips draft and prerelease releases.
+
+| Key | Type | Required | Default |
+|---|---|---|---|
+| `repo` | `owner/repo` (exactly one `/`) | yes | — |
 | `page-size` | int, 1–100 | no | `30` |
 
-`repo` also draws the (optional, shared) `github.token`/`github.api-base-url`
-top-level keys — see [Top-level keys](#top-level-keys).
+`page-size` is how many recent releases are checked. Uses the top-level
+`github.token` and `github.api-base-url` keys.
 
-### `type: oci-registry` (latest) — no credentials required for public repos
+#### `oci-registry`
 
-Uses the registry's bearer-token challenge dance (a public repo mints an
-anonymous token, same as an anonymous `docker pull`), then selects the largest
-tag over the full tag set under the app's own `version-scheme`
-(truncate-and-warn past `max-tags`).
+Picks the largest tag over the full tag list, using the app's
+`version-scheme`. Public repos get an anonymous token, like an anonymous
+`docker pull`.
 
 | Key | Type | Required | Default |
 |---|---|---|---|
-| `registry` | host, e.g. `registry-1.docker.io` (an explicit `http://`/`https://` prefix is honoured, e.g. for a local test registry) | yes | — |
+| `registry` | host, e.g. `registry-1.docker.io` | yes | — |
 | `repo` | string | yes | — |
 | `page-size` | int | no | `100` |
 | `max-tags` | int | no | `1000` |
-| `prerelease-filter` | string | no | absent → only clean semver tags (no prerelease segment) are eligible. **Incompatible with `version-scheme: dotnet`**: a dotnet version has no pre-release segment, so no tag could ever match. That combination records an `APP` config error at startup (the app is reported as misconfigured; every other app is unaffected) rather than failing the app's scrape on every pass. The refusal keys on the knob, not on the source kind: `prerelease-filter` on a `dotnet` app is refused whichever `latest` kind the app declares, even one that would ignore it. |
+| `prerelease-filter` | string | no | absent → only tags without a prerelease part |
 | `strip-prerelease` | boolean | no | `false` |
-| `auth.type` | `basic` (only) | no | absent → anonymous | 
-| `auth.username` / `auth.password` | string | required if `auth` present | — |
+| `auth.type` | `basic` (only) | no | absent → anonymous |
+| `auth.username` / `auth.password` | string | if `auth` is set | — |
 
-The base URL is assembled as `https://{registry}/v2/{repo}` (or `http://` if
-`registry` already carries a scheme). `bearer`/`token-file` auth are not
-supported here — they don't fit the realm-mint flow.
+- The URL is `https://{registry}/v2/{repo}`. Add `http://` or `https://` to
+  `registry` to choose the scheme yourself, e.g. for a local test registry.
+- Tags past `max-tags` are ignored, with a warning.
+- `bearer` and `token-file` auth are not supported.
+- `prerelease-filter` cannot be used with `version-scheme: dotnet`. This applies
+  to any `latest` type, not only `oci-registry`.
 
-### `type: http-regex` (latest) — no credentials required
+#### `http-regex`
+
+Fetches `url` as text. Capture group 1 of every `regex` match is a candidate.
+The largest wins.
 
 | Key | Type | Required | Default |
 |---|---|---|---|
 | `url` | string | yes | — |
 | `regex` | regex with ≥1 capture group | yes | — |
 
-Fetches `url` as text and applies `regex`; capture group 1 of every match is a
-candidate version string, the largest wins (validated to compile with at
-least one group at startup).
+## Version schemes
+
+### Calver format
+
+`calver-format` uses the calver.org tokens `YYYY`, `YY`, `0Y`, `MM`, `0M`, `WW`,
+`0W`, `DD`, `0D`, `MAJOR`, `MINOR`, `MICRO` and `MODIFIER`, separated by `.`, `-`
+or `_`. Examples: `YY.0M.MICRO`, `YYYY.MM.DD`.
+
+Drift severity per token:
+
+- **MAJOR**: year tokens and `MAJOR`.
+- **MINOR**: month, week and day tokens, and `MINOR`.
+- **PATCH**: `MICRO` and `MODIFIER`.
+
+### Dotnet versions
+
+`version-scheme: dotnet` reads `System.Version` strings:
+`major.minor[.build[.revision]]`, with 2 to 4 numeric parts. Sonarr, Radarr and
+Prowlarr use it (`4.0.20.3014`). A leading `v` is removed. Anything else is
+rejected, for example `4`, `1.2.3.4.5`, `4.0.x` or `4.0.17-rc1`.
+
+- Missing trailing parts count as zero, so `6.2`, `6.2.0` and `6.2.0.0` are
+  equal.
+- The revision is never compared. `4.0.20.3012` is up to date against
+  `4.0.20.3014`.
+- The build is compared by default. With `dotnet-compare-build: false` it is
+  not, and the app can never show `PATCH` drift.
+- Drift: major → `MAJOR`, minor → `MINOR`, build → `PATCH`.
+- The version is shown as published, minus a leading `v`. `6.2` shows as `6.2`.
+- `strip-prerelease` does nothing, because there is no prerelease part.
+- When tags differ only by revision, they tie for latest. Which one is shown
+  depends on the order of the upstream list. The status is the same either way.
+
+## Changelog link templates
+
+`changelog-url` is a URL template. It is filled in from the app's latest
+version when the link is read. Placeholders:
+
+| Placeholder | Allowed for |
+|---|---|
+| `{version}` | every scheme |
+| `{major}` `{minor}` `{patch}` | `semver` |
+| `{major}` `{minor}` `{build}` `{revision}` | `dotnet` (`{patch}` is not allowed) |
+| any token in the app's own `calver-format`, e.g. `{YY}` `{0M}` `{MICRO}` | `calver` |
+
+- `dotnet`: missing parts are filled in as `0`, so `6.2` gives `{build}` = `0`
+  and `{revision}` = `0`.
+- `calver`: values are the text exactly as shown in the version, zero-padding
+  included.
+- A template with no placeholders (a fixed URL) is allowed.
 
 ## Opt-in self-monitoring
 
-The backend's `GET /api/version` and the frontend-serving service's
-`GET /version.json` each report their own embedded build identity as
-`{"version":"1.2.3"}`. Use the ordinary `http-json` current source; there is no
-self-monitoring special case and neither Application is added to the shipped
-monitoring defaults.
+The backend's `GET /api/version` and the frontend's `GET /version.json` both
+return `{"version":"1.2.3"}`. Monitor them with a normal `http-json` source.
+They are not in the default config.
 
-Merge these entries into your existing `platform-config.apps` rather than
-replacing your fleet. Replace the example host with one reachable from the
-scraper, or use each service's internal address with the same endpoint paths:
+Add these entries to your `platform-config.apps`. Replace the host with one the
+scraper can reach:
 
 ```yaml
 platform-config:
@@ -345,164 +312,105 @@ platform-config:
         repo: sreyardship/PlatformUp2Date
 ```
 
-Both use the defaults: JSON Pointer `/version` and version scheme `semver`.
-They share an upstream release repository but have independent current
-observations. These endpoints are public even with Surface authentication on;
-an external authentication proxy may still need bypass rules (see
-[deployment.md](deployment.md#build-version-endpoints)).
-
-Use this example for tagged builds. Local `dev` and CI edge
-`dev-<full-commit>` identities are deliberately not semantic versions: reading
-one with the `semver` source fails the current scrape, not a fabricated release
-comparison. RC identities are valid semver, but `github-release` selects the
-largest parseable version among **non-draft, non-prerelease** releases in its
-recent window (default 30); it does not monitor the RC channel. With no eligible
-release in that window the latest scrape fails; without a previous successful
-latest read the Application remains Unresolved. This feature does not change
-that selection policy.
-
-Identity is a build input, not a runtime configuration key. Neither
-`platform-config`, frontend runtime config, nor environment variables can
-replace it; see [RELEASE.md](../RELEASE.md#embedded-build-identity) for injection.
+- Both endpoints stay public with Surface authentication on. An external auth
+  proxy may need bypass rules; see
+  [deployment.md](deployment.md#build-version-endpoints).
+- This works for tagged builds. Local `dev` and CI `dev-<commit>` builds are
+  not semver, so the current scrape fails.
+- `github-release` ignores RC releases, so it does not follow the RC channel.
+- The build identity is set at build time, not by configuration. See
+  [RELEASE.md](../RELEASE.md#embedded-build-identity).
 
 ## Surface authentication (MCP + web)
 
-These environment variables are the entire operator-facing contract for the
-backend authenticating its own callers as an OAuth 2.1 resource server
-(docs/adr/0026, docs/adr/0028). This is *inbound* authentication a protected
-surface demands of its callers, distinct from an app's `auth.*` keys above,
-which are *outbound* credentials the scraper presents to a version source.
-Never call this bare "auth"; see the `MCP endpoint authentication` glossary
-entry in `CONTEXT.md`.
-
-`OIDC_ISSUER`/`OIDC_AUDIENCE` are shared by both surfaces (one issuer, one
-audience for the whole app); `MCP_OIDC_ROLE` and `WEB_OIDC_ROLE` gate the MCP
-(`/api/mcp`) and web (`/api/v1`) surfaces independently of one another: each
-is only enforced when its own role var is set.
+These environment variables turn on inbound OAuth 2.1 authentication for the
+backend's own Surfaces. This is different from a version source's `auth.*`
+keys, which are outbound credentials the scraper sends.
 
 | Key | Type | Required | Default | Notes |
 |---|---|---|---|---|
-| `OIDC_ISSUER` | string (issuer URL) | no | absent → surface authentication disabled | Presence is the switch: setting this enables bearer-token validation for the whole app. Unset preserves every surface's open, unauthenticated behavior. |
-| `OIDC_AUDIENCE` | string | required when `OIDC_ISSUER` is set | — | Mandatory whenever the issuer is set — boot fails, naming `OIDC_AUDIENCE`, if it is missing. Prevents a token minted for another audience on the same issuer from being replayed against this app. |
-| `MCP_OIDC_ROLE` | string (role name) | no | absent → `/api/mcp` stays open | The role a bearer token must carry to reach the MCP endpoint. Presence, not the value, is the per-surface switch; conventionally `pu2d-mcp`. Requires `OIDC_ISSUER` to be set (see the boot-failure case below). |
-| `WEB_OIDC_ROLE` | string (role name) | no | absent → `/api/v1` stays open | The role a bearer token must carry to reach the REST API (and, by extension, what the SPA requires after login). Presence, not the value, is the per-surface switch; conventionally `pu2d-web`. Requires `OIDC_ISSUER` to be set (see the boot-failure case below). |
+| `OIDC_ISSUER` | issuer URL | no | absent → authentication off | Setting it turns on token checks for the whole app. |
+| `OIDC_AUDIENCE` | string | if `OIDC_ISSUER` is set | — | Stops tokens minted for another audience on the same issuer. |
+| `MCP_OIDC_ROLE` | role name | no | absent → `/api/mcp` is open | Role needed for the MCP endpoint. Usually `pu2d-mcp`. Needs `OIDC_ISSUER`. |
+| `WEB_OIDC_ROLE` | role name | no | absent → `/api/v1` is open | Role needed for the REST API and the web UI. Usually `pu2d-web`. Needs `OIDC_ISSUER`. |
 
-Every boot logs which mode was resolved: `Surface authentication: enabled
-against issuer <url>` or `Surface authentication: disabled — protected
-surfaces rely on edge/network protection`, so a typo'd variable name is
-visible on first boot.
-
-`OIDC_AUDIENCE` set without `OIDC_ISSUER` is not a boot failure (there is
-nothing to validate an audience against without an issuer) but is surfaced as
-a startup warning, since it is probably a missing or typo'd `OIDC_ISSUER`
-rather than an intentional configuration.
-
-**Role-without-issuer is a boot failure.** Either `MCP_OIDC_ROLE` or
-`WEB_OIDC_ROLE` set while `OIDC_ISSUER` is absent/blank refuses to boot,
-naming `OIDC_ISSUER` in the error. A role requirement is unambiguous
-evidence the operator intended auth on, so a role with nothing to validate
-against fails loudly instead of silently falling back to disabled. This check is
-independent per role var (either one alone trips it) and happens before the
-audience check, so an issuer-less config with a role set never gets masked by
-the audience error instead.
-
-This section guards the MCP endpoint and the REST API/web UI. `/metrics`,
-`/q/health`, `/api/version`, and the frontend's `/version.json` are never gated
-by either Surface's role; see
-[`deployment.md`](deployment.md#web-ui-authentication) for the full boundary
-notes and the interim edge-proxy posture for whichever surface you leave
-disabled. Everything beyond these four variables (the underlying
-`quarkus.oidc.*` properties) is reachable but not documented as contract.
+- Each role variable gates its own Surface. Setting it turns the check on.
+- At boot the backend logs whether authentication is enabled or disabled.
+- `/metrics`, `/q/health`, `/api/version` and `/version.json` are never gated.
+  See [deployment.md](deployment.md#web-ui-authentication).
+- Other `quarkus.oidc.*` properties work but are not part of the contract.
 
 ## Frontend runtime configuration
 
-Like `platform-config`, the frontend's deployment configuration is supplied at
-container start, not baked into the image. Build identity (`/version.json`) is
-separate and immutable. The nginx-based frontend image regenerates
-`window._env_` from environment variables via
-`docker-entrypoint.d/40-env-config.sh` on every start:
+The frontend reads these environment variables each time the container starts
+(`docker-entrypoint.d/40-env-config.sh` writes them to `window._env_`):
 
 | Key | Type | Required | Default | Notes |
 |---|---|---|---|---|
-| `API_BASE_URL` | string (base URL) | no | `""` (same-origin) | Where the SPA sends its API calls. Empty means same-origin — the browser calls `/api` on whatever host served the page. |
-| `OIDC_AUTHORITY` | string (issuer URL) | no | `""` | The IdP the SPA authenticates against. Must match `OIDC_ISSUER` on the backend. Both `OIDC_AUTHORITY` and `OIDC_CLIENT_ID` must be non-blank for the SPA to enable login; either blank leaves login disabled and no bearer token attached to `/api/v1` calls. |
-| `OIDC_CLIENT_ID` | string | no | `""` | The SPA's public (PKCE, no secret) client ID registered in the IdP. |
-| `OIDC_SCOPE` | string (space-separated scopes) | no | `openid profile` | Passed as-is to the authorization request. |
+| `API_BASE_URL` | base URL | no | `""` (same origin) | Where the SPA sends API calls. |
+| `OIDC_AUTHORITY` | issuer URL | no | `""` | The IdP to log in with. Must match the backend's `OIDC_ISSUER`. |
+| `OIDC_CLIENT_ID` | string | no | `""` | The SPA's public PKCE client ID. |
+| `OIDC_SCOPE` | space-separated scopes | no | `openid profile` | Sent as-is in the login request. |
 
-See [`deployment.md`](deployment.md#web-ui-authentication) for the full
-contract, including IdP prerequisites (public PKCE client,
-redirect/end-session URIs, role grants).
+Login is on only when both `OIDC_AUTHORITY` and `OIDC_CLIENT_ID` are set. See
+[deployment.md](deployment.md#web-ui-authentication) for IdP setup.
 
-## Calver format
+## When configuration is wrong
 
-`calver-format` is a calver.org grammar string built from these tokens,
-separated by `.`, `-`, or `_`: `YYYY`, `YY`, `0Y`, `MM`, `0M`, `WW`, `0W`,
-`DD`, `0D`, `MAJOR`, `MINOR`, `MICRO`, `MODIFIER` (e.g. `YY.0M.MICRO`,
-`YYYY.MM.DD`). Drift severity groups tokens by category: year-class tokens and
-`MAJOR` are MAJOR-severity; sub-year date tokens and `MINOR` are
-MINOR-severity; `MICRO`/`MODIFIER` are PATCH-severity.
+- **The backend does not start** when `platform-config` cannot load: invalid
+  YAML, a missing required key, or a value of the wrong type (e.g.
+  `page-size: many`). The same applies when `MCP_OIDC_ROLE` or `WEB_OIDC_ROLE`
+  is set without `OIDC_ISSUER`, or `OIDC_ISSUER` is set without
+  `OIDC_AUDIENCE`.
+- **A bad value in one app** records a config error. The backend still starts
+  and other apps are not affected. What breaks depends on the key:
+  - a `current` or `latest` key → that side stops updating and keeps its last
+    version;
+  - `version-scheme`, `calver-format` or `prerelease-filter` on a `dotnet`
+    app → both sides;
+  - `changelog-url` → only the changelog link is hidden.
+- **A valid value that finds no version** (a regex with no match, a missing
+  header, an unreachable URL) makes the scrape fail. It is not a config error.
 
-## Dotnet versions
+A config error stays until the config is fixed. On the board it shows as a red
+icon with the reason always visible. A failed scrape shows as an amber warning
+on hover.
 
-`version-scheme: dotnet` parses `System.Version`'s grammar — two to four
-non-negative integer components, `major.minor[.build[.revision]]` — which is what
-Sonarr, Radarr and Prowlarr publish (`4.0.20.3014`). An optional leading `v` is
-stripped. A single component, five or more components, and any non-numeric suffix
-(`4`, `1.2.3.4.5`, `4.0.x`, `4.0.17-rc1`) are rejected; a rejected string fails
-that app's scrape with a precise reason and never the boot.
+![The board showing a config error at each scope, next to a clean app and an app whose last read failed](img/board-config-errors.png)
 
-- **Absent trailing components count as zero**, so `6.2`, `6.2.0` and `6.2.0.0`
-  are equal. This is a deliberate divergence from .NET, which orders
-  `1.1 < 1.1.0` to separate assembly identities; PU2D compares published
-  releases, where writing fewer digits is formatting, not precedence.
-- **The revision is never compared.** `4.0.20.3012` is up to date against
-  `4.0.20.3014` — .NET documents builds differing only in revision as fully
-  interchangeable. The revision is still displayed and still available as a
-  changelog placeholder.
-- **The build is compared by default** (`dotnet-compare-build: true`), so
-  Sonarr's `4.0.17` → `4.0.20` reads as `PATCH` drift. Setting it `false` drops
-  the build from the comparison, and that app can then never grade `PATCH`.
-- Drift grades by the most significant differing component: major → `MAJOR`,
-  minor → `MINOR`, build → `PATCH`.
-- The displayed version is the string the source published, minus a leading `v`.
-  It is never padded to four components — `6.2` displays as `6.2`.
-- `strip-prerelease` is a no-op for a `dotnet` app: `System.Version` has no
-  pre-release segment to strip. An `oci-registry` `prerelease-filter` is
-  incompatible with the scheme and is refused — see the `prerelease-filter` row
-  under [`type: oci-registry`](#type-oci-registry-latest--no-credentials-required-for-public-repos).
+Config errors also appear in `configErrors` in the REST and MCP
+`get_application` responses, in the `list_misconfigured_applications` MCP tool,
+and in the `pu2d_config_error{application, scope}` metric. See
+[deployment.md](deployment.md#metrics).
 
-Because the revision is not compared, two tags differing only in revision (e.g.
-`v4.0.20.3012` and `v4.0.20.3014`) are tied for latest, and which of them is
-reported depends on the order GitHub or the registry lists tags in. That is
-accepted rather than tie-broken: every tied tag is equally current, so the choice
-cannot change an app's monitoring status — only which of several equivalent
-strings is displayed. See [ADR-0036](adr/0036-dotnet-as-a-third-version-scheme.md).
+## References
 
-## Changelog link templates
-
-`changelog-url` is a per-app URL template resolved at read time from the
-app's stored latest version; a scrape never observes or stores it. Legal
-placeholders:
-
-- `{version}` — the full version string; legal for every scheme.
-- `{major}` / `{minor}` / `{patch}` — legal only for `version-scheme: semver`.
-- `{major}` / `{minor}` / `{build}` / `{revision}` — .NET's own component names,
-  legal only for `version-scheme: dotnet`. `{patch}` is **illegal** there:
-  `System.Version` has no patch component, and aliasing it to build or revision
-  would be a guess. `{revision}` renders even though the revision is never
-  compared — the component exists and is displayed, it just carries no drift
-  signal, and a changelog URL frequently needs the full build identifier. A
-  version that omits trailing components renders them as `0`, so `6.2` gives
-  `{build}` = `0` and `{revision}` = `0`.
-- A calver.org format-symbol token declared in the app's `calver-format`
-  (e.g. `{YY}`, `{0M}`, `{MICRO}`) — legal only for `version-scheme: calver`,
-  and only for tokens the app's own format actually declares. Values are the
-  *displayed* substrings of the matched version string (zero-padding
-  preserved), never re-rendered numbers.
-
-The per-scheme vocabularies are disjoint apart from `{version}`. An illegal
-placeholder (wrong scheme, `{patch}` on a `dotnet` app, or a calver token absent
-from the app's declared format) records a `CHANGELOG` config error naming the
-offending app and placeholder. The backend still starts, both sides scrape
-normally, and the Changelog link is omitted. A token-free template (a constant
-URL) is legal.
+- [`CONTEXT.md`](../CONTEXT.md): domain terms.
+- [`ARCHITECTURE.md`](../ARCHITECTURE.md): current/latest design and tiers.
+- [`deployment.md`](deployment.md): Kubernetes, RBAC, metrics, and production
+  authentication.
+- ADRs in [`docs/adr/`](adr/):
+  - Config errors: [0032](adr/0032-config-errors-degrade-per-app-never-the-boot.md),
+    [0034](adr/0034-conf-check-removed-the-backend-proves-the-config.md),
+    [0035](adr/0035-config-error-is-a-domain-primitive.md)
+  - Version sources: [0005](adr/0005-version-sources-as-pluggable-factories.md),
+    [0031](adr/0031-http-current-source-renamed-http-json.md)
+  - `http-json`: [0007](adr/0007-json-pointer-current-version-extraction.md),
+    [0008](adr/0008-authenticated-http-current-source.md),
+    [0012](adr/0012-http-current-source-file-token-and-custom-ca.md)
+  - `http-header`: [0030](adr/0030-http-header-current-source.md)
+  - `http-prometheus`: [0033](adr/0033-http-prometheus-current-source.md)
+  - `ssh-os-release`: [0016](adr/0016-ssh-os-release-current-source.md),
+    [0025](adr/0025-ssh-os-release-native-image-reachability.md)
+  - `github-release`: [0010](adr/0010-github-release-latest-is-largest-semver.md),
+    [0011](adr/0011-github-release-configured-by-repo-slug.md)
+  - `oci-registry`: [0013](adr/0013-oci-registry-bearer-challenge-dance.md),
+    [0014](adr/0014-oci-registry-latest-is-largest-semver-over-full-tag-set.md)
+  - `http-regex`: [0017](adr/0017-http-regex-latest-source.md)
+  - Version schemes: [0015](adr/0015-calver-as-a-first-class-version-scheme.md),
+    [0022](adr/0022-version-scheme-authority-is-configuration.md),
+    [0036](adr/0036-dotnet-as-a-third-version-scheme.md)
+  - Changelog links: [0021](adr/0021-changelog-link-is-a-template-projection.md)
+  - Surface authentication: [0026](adr/0026-mcp-endpoint-oauth-resource-server.md),
+    [0028](adr/0028-web-and-mcp-surfaces-role-gated-behind-one-issuer.md)
+  - Build identity: [0037](adr/0037-build-identity-belongs-to-each-artifact.md)

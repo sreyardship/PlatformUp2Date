@@ -89,7 +89,7 @@ Argo CD and Flux both consume this directly (it's a plain kustomization).
 
   File-shaped secrets (the `ssh-os-release` private key, custom CAs) stay
   volume mounts — add the Secret volume and `volumeMounts` patch in your
-  overlay (see [`configuration.md`](configuration.md#type-ssh-os-release-current--tier-b-requires-ssh-access)
+  overlay (see [`configuration.md`](configuration.md#ssh-os-release)
   for the paths the config expects).
 - **Ingress**: the base ships none (the quickstart's Ingress lives in the
   overlay). Add your own Ingress/HTTPRoute honouring the routing contract
@@ -182,7 +182,7 @@ both):
   ServiceAccount (Fabric8) and needs the RBAC component above; it has no
   out-of-cluster story. `ssh-os-release` instead needs its private key and
   known-hosts/host-key mounted (see
-  [`configuration.md`](configuration.md#type-ssh-os-release-current--tier-b-requires-ssh-access))
+  [`configuration.md`](configuration.md#ssh-os-release))
   and no Kubernetes RBAC at all.
 
 ## Build-version endpoints
