@@ -48,9 +48,6 @@ The tier says **who wrote the version string** the probe reads. The closer the a
 is to the application, the more the reading can be trusted. Each application picks the
 best tier it can support. Most apps only ever need Tier A, and that is awesome.
 
-Access is not part of the tier. A probe can need a key or a ServiceAccount and still be
-Tier A. What each source needs is listed in [`docs/configuration.md`](docs/configuration.md).
-
 ### Tier A — self-reported
 
 The application wrote the version string about itself. Nothing sits between the probe
