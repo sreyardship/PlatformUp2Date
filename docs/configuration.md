@@ -1,13 +1,10 @@
 # Configuration reference
 
-`platform-config` is the backend's monitoring configuration. It sets the scrape
-interval, the manual-scrape budgets, and the list of monitored Applications.
-Each Application has one `current` version source and one `latest` version
-source.
-
 For a full working example, see
 [`deploy/k8s/base/platform-config.yaml`](../deploy/k8s/base/platform-config.yaml).
 Both quick starts use it. It monitors two public apps and needs no credentials.
+
+Version source tiers are referenced here in the vain hope you'll try and stick to Tier A, see [Architecture](../ARCHITECTURE.md)
 
 ## Top-level keys
 
