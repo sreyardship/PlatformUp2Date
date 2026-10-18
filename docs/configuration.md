@@ -395,7 +395,8 @@ and in the `pu2d_config_error{application, scope}` metric. See
     [0035](adr/0035-config-error-is-a-domain-primitive.md)
   - Version sources: [0005](adr/0005-version-sources-as-pluggable-factories.md),
     [0031](adr/0031-http-current-source-renamed-http-json.md),
-    [0038](adr/0038-current-source-tiers-rank-trust-not-access.md)
+    [0038](adr/0038-current-source-tiers-rank-trust-not-access.md),
+    [0039](adr/0039-one-http-transport-three-extractors.md)
   - `http-json`: [0007](adr/0007-json-pointer-current-version-extraction.md),
     [0008](adr/0008-authenticated-http-current-source.md),
     [0012](adr/0012-http-current-source-file-token-and-custom-ca.md)

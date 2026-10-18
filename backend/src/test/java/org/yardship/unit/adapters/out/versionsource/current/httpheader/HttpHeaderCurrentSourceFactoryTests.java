@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader.VersionSource.Auth;
 import org.yardship.adapters.out.versionsource.current.FailedCurrentSource;
-import org.yardship.adapters.out.versionsource.current.httpheader.HttpHeaderCurrentSource;
+import org.yardship.adapters.out.versionsource.current.HttpCurrentSource;
 import org.yardship.adapters.out.versionsource.current.httpheader.HttpHeaderCurrentSourceFactory;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
@@ -52,7 +52,7 @@ class HttpHeaderCurrentSourceFactoryTests {
     void create_buildsAWorkingSource_forAMinimalValidFragment() {
         CurrentVersionSource result = factory.create(source(URL, HEADER, Optional.empty()), SEMVER_PARSER);
 
-        assertInstanceOf(HttpHeaderCurrentSource.class, result);
+        assertInstanceOf(HttpCurrentSource.class, result);
     }
 
     @Test
@@ -60,7 +60,7 @@ class HttpHeaderCurrentSourceFactoryTests {
         CurrentVersionSource result = factory.create(
                 source(URL, HEADER, Optional.of("(\\d+\\.\\d+\\.\\d+)")), SEMVER_PARSER);
 
-        assertInstanceOf(HttpHeaderCurrentSource.class, result);
+        assertInstanceOf(HttpCurrentSource.class, result);
     }
 
     // --- structural: url --------------------------------------------------------------------
@@ -117,7 +117,7 @@ class HttpHeaderCurrentSourceFactoryTests {
                 "a blank 'regex' must be treated as absent, not compiled as a real "
                         + "(zero-capture-group) pattern");
 
-        assertInstanceOf(HttpHeaderCurrentSource.class, result);
+        assertInstanceOf(HttpCurrentSource.class, result);
     }
 
     // --- structural: regex (only when configured) -------------------------------------------
@@ -158,7 +158,7 @@ class HttpHeaderCurrentSourceFactoryTests {
 
         CurrentVersionSource result = factory.create(sourceWithAuth(URL, HEADER, basic), SEMVER_PARSER);
 
-        assertInstanceOf(HttpHeaderCurrentSource.class, result);
+        assertInstanceOf(HttpCurrentSource.class, result);
     }
 
     // --- value-level: ca-cert -------------------------------------------------------------------

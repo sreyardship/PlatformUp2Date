@@ -4,6 +4,14 @@ status: accepted
 
 # A current version published as a metric label is read by an http-prometheus source, which takes the first matching sample
 
+> **Amended by [ADR-0039](0039-one-http-transport-three-extractors.md):** the option
+> "extracting a shared seam" rejected below has since been taken for the current leg. The
+> `PrometheusBodyFetch` seam and its transport are gone; this kind now fetches through the one
+> shared `HttpTransport` and keeps its 2xx gate in `HttpPrometheusVersionExtractor`. The
+> decision itself — what the kind reads and how — is unchanged. `http-regex` remains a
+> follow-up.
+
+
 > **Amended by [ADR-0034](0034-conf-check-removed-the-backend-proves-the-config.md):** the `conf-check` CLI has been removed, and with
 > it the standing instruction in the consequence below that "`conf-check` learns the kind in
 > step". Adding a version source kind is now one implementation, in the backend. The

@@ -8,7 +8,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader.VersionSource.Auth;
 import org.yardship.adapters.out.versionsource.current.CurrentVersionSourceFactory;
@@ -17,9 +16,6 @@ import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -27,9 +23,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
-import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
-import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -42,10 +36,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * port 8089 — matching the style of {@code HttpHeaderCurrentSourceIT} and {@code HttpJsonCurrentSourceIT}.
  *
  * <p>{@code docs/adr/0033-http-prometheus-current-source.md} is the binding specification.
- * Unit-level extraction/message/parsing behavior lives in {@code HttpPrometheusCurrentSourceTests}
- * and {@code PrometheusExpositionTests}; this class exists to prove the real wire behavior a fake
- * body cannot: a genuine non-2xx status (which — UNLIKE {@code http-header} — this kind must
- * refuse), an actual redirect chain, and real transport-level auth.
+ * Unit-level extraction/message/parsing behavior lives in {@code HttpPrometheusVersionExtractorTests}
+ * and {@code PrometheusExpositionTests}; redirects, TLS and auth are proven once for the shared
+ * transport in {@code HttpTransportIT}. This class exists to prove the kind's own rules end to end
+ * through the factory: a genuine non-2xx status (which — UNLIKE {@code http-header} — this kind
+ * must refuse), and that every config field threads through to a working extractor.
  */
 @QuarkusTest
 class HttpPrometheusCurrentSourceIT {
@@ -118,20 +113,6 @@ class HttpPrometheusCurrentSourceIT {
                 "must name the url; was: " + ex.getMessage());
     }
 
-    @Test
-    void version_followsARedirectChain_toAFinalMetricsBody() {
-        wireMockServer.stubFor(get(urlEqualTo("/metrics")).willReturn(
-                aResponse().withStatus(301).withHeader("Location", "/final-metrics")));
-        wireMockServer.stubFor(get(urlEqualTo("/final-metrics")).willReturn(
-                aResponse().withStatus(200).withBody(BLACKBOX_BODY)));
-
-        CurrentVersionSource source = new HttpPrometheusCurrentSourceFactory().create(
-                source("http://localhost:8089/metrics", METRIC), SEMVER_PARSER);
-
-        assertEquals("0.25.0", source.version().value());
-        wireMockServer.verify(getRequestedFor(urlEqualTo("/final-metrics")));
-    }
-
     /**
      * Proves the kind is genuinely CDI-discovered (ADR-0005: no central dispatcher edited).
      */
@@ -144,60 +125,6 @@ class HttpPrometheusCurrentSourceIT {
         assertEquals(1, matching.size(),
                 "expected exactly one CDI-discovered CurrentVersionSourceFactory for "
                         + "'http-prometheus', found: " + matching);
-    }
-
-    @Test
-    void version_withBasicAuth_sendsTheRenderedAuthorizationHeader_onTheWire() {
-        wireMockServer.stubFor(get(urlEqualTo("/metrics")).willReturn(aResponse().withStatus(401)));
-        wireMockServer.stubFor(get(urlEqualTo("/metrics"))
-                .withBasicAuth("prom-bot", "s3cr3t")
-                .willReturn(aResponse().withStatus(200).withBody(BLACKBOX_BODY)));
-
-        CurrentVersionSource source = new HttpPrometheusCurrentSourceFactory().create(
-                source("http://localhost:8089/metrics", METRIC, basicAuth("prom-bot", "s3cr3t")), SEMVER_PARSER);
-
-        assertEquals("0.25.0", source.version().value());
-
-        String expected = "Basic " + Base64.getEncoder()
-                .encodeToString("prom-bot:s3cr3t".getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        wireMockServer.verify(getRequestedFor(urlEqualTo("/metrics"))
-                .withHeader("Authorization", equalTo(expected)));
-    }
-
-    @Test
-    void version_withBearerAuth_sendsTheRenderedAuthorizationHeader_onTheWire() {
-        wireMockServer.stubFor(get(urlEqualTo("/metrics")).willReturn(aResponse().withStatus(401)));
-        wireMockServer.stubFor(get(urlEqualTo("/metrics"))
-                .withHeader("Authorization", equalTo("Bearer prom-token"))
-                .willReturn(aResponse().withStatus(200).withBody(BLACKBOX_BODY)));
-
-        CurrentVersionSource source = new HttpPrometheusCurrentSourceFactory().create(
-                source("http://localhost:8089/metrics", METRIC, bearerAuth("prom-token")), SEMVER_PARSER);
-
-        assertEquals("0.25.0", source.version().value());
-
-        wireMockServer.verify(getRequestedFor(urlEqualTo("/metrics"))
-                .withHeader("Authorization", equalTo("Bearer prom-token")));
-    }
-
-    @Test
-    void version_withBearerFromFileAuth_reReadsTheTokenFile_onEveryCall(@TempDir Path dir) throws Exception {
-        Path tokenFile = dir.resolve("token");
-        Files.writeString(tokenFile, "file-tok\n");
-
-        wireMockServer.stubFor(get(urlEqualTo("/metrics")).willReturn(aResponse().withStatus(401)));
-        wireMockServer.stubFor(get(urlEqualTo("/metrics"))
-                .withHeader("Authorization", equalTo("Bearer file-tok"))
-                .willReturn(aResponse().withStatus(200).withBody(BLACKBOX_BODY)));
-
-        CurrentVersionSource source = new HttpPrometheusCurrentSourceFactory().create(
-                source("http://localhost:8089/metrics", METRIC, bearerFromFileAuth(tokenFile.toString())),
-                SEMVER_PARSER);
-
-        assertEquals("0.25.0", source.version().value());
-
-        wireMockServer.verify(getRequestedFor(urlEqualTo("/metrics"))
-                .withHeader("Authorization", equalTo("Bearer file-tok")));
     }
 
     /**
@@ -302,11 +229,6 @@ class HttpPrometheusCurrentSourceIT {
                 Map.of(), Optional.empty(), Optional.empty());
     }
 
-    private static ApplicationConfigLoader.VersionSource source(String url, String metric, Auth auth) {
-        return new FakeVersionSource(Optional.of(url), Optional.of(metric), Optional.empty(), Optional.of(auth),
-                Map.of(), Optional.empty(), Optional.empty());
-    }
-
     private static ApplicationConfigLoader.VersionSource source(
             String url, String metric, Map<String, String> labels) {
         return new FakeVersionSource(Optional.of(url), Optional.of(metric), Optional.empty(), Optional.empty(),
@@ -327,93 +249,6 @@ class HttpPrometheusCurrentSourceIT {
     private static ApplicationConfigLoader.VersionSource sourceWithStripPrerelease(String url, String metric) {
         return new FakeVersionSource(Optional.of(url), Optional.of(metric), Optional.empty(), Optional.empty(),
                 Map.of(), Optional.empty(), Optional.of(true));
-    }
-
-    private static Auth basicAuth(String username, String password) {
-        return new Auth() {
-            @Override
-            public Optional<String> type() {
-                return Optional.of("basic");
-            }
-
-            @Override
-            public Optional<String> username() {
-                return Optional.of(username);
-            }
-
-            @Override
-            public Optional<String> password() {
-                return Optional.of(password);
-            }
-
-            @Override
-            public Optional<String> token() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> tokenFile() {
-                return Optional.empty();
-            }
-        };
-    }
-
-    private static Auth bearerAuth(String token) {
-        return new Auth() {
-            @Override
-            public Optional<String> type() {
-                return Optional.of("bearer");
-            }
-
-            @Override
-            public Optional<String> username() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> password() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> token() {
-                return Optional.of(token);
-            }
-
-            @Override
-            public Optional<String> tokenFile() {
-                return Optional.empty();
-            }
-        };
-    }
-
-    private static Auth bearerFromFileAuth(String tokenFilePath) {
-        return new Auth() {
-            @Override
-            public Optional<String> type() {
-                return Optional.of("bearer");
-            }
-
-            @Override
-            public Optional<String> username() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> password() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> token() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> tokenFile() {
-                return Optional.of(tokenFilePath);
-            }
-        };
     }
 
     /**

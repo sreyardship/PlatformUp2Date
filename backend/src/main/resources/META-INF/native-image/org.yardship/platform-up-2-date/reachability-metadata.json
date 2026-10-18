@@ -3390,9 +3390,6 @@
       "type": "org.yardship.adapters.out.versionsource.current.CurrentVersionSourceFactory"
     },
     {
-      "type": "org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentVersionClientFactory"
-    },
-    {
       "type": "org.yardship.adapters.out.versionsource.latest.LatestVersionSourceFactory"
     },
     {
@@ -4099,12 +4096,6 @@
     },
     {
       "glob": "org/yardship/integration/adapters/out/versionsource/current/httpjson/HttpJsonCurrentSourceIT.class"
-    },
-    {
-      "glob": "org/yardship/integration/adapters/out/versionsource/current/httpjson/HttpJsonCurrentSourceTlsIT.class"
-    },
-    {
-      "glob": "org/yardship/integration/adapters/out/versionsource/current/httpjson/HttpJsonCurrentVersionClientFactoryIT.class"
     },
     {
       "glob": "org/yardship/integration/adapters/out/versionsource/current/k8simage/K8sImageCurrentSourceIT.class"

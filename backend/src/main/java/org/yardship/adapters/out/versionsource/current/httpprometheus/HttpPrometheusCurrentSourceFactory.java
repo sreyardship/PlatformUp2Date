@@ -4,13 +4,13 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
 import org.yardship.adapters.out.versionsource.current.CurrentVersionSourceFactory;
 import org.yardship.adapters.out.versionsource.current.FailedCurrentSource;
+import org.yardship.adapters.out.versionsource.current.HttpCurrentSource;
+import org.yardship.adapters.out.versionsource.http.HttpTransport;
 import org.yardship.adapters.out.versionsource.http.HttpTransportConfig;
-import org.yardship.adapters.out.versionsource.http.RedirectFollowingHttpGet;
 import org.yardship.adapters.out.versionsource.regex.RegexVersionExtractor;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
-import java.net.URI;
 import java.util.Optional;
 
 /**
@@ -35,14 +35,11 @@ import java.util.Optional;
  * treatment. {@code strip-prerelease} defaults to {@code false}.
  *
  * <p>The {@code auth} / {@code ca-cert} / {@code insecure-skip-tls-verify} part of the fragment is
- * delegated to the shared, kind-labelled {@link HttpTransportConfig} collaborator, constructed
- * here with the {@code "http-prometheus"} label so its messages name this kind. A VALUE-level
- * problem there (e.g. an unsupported {@code auth.type}, or a {@code ca-cert} file that cannot be
- * read) is mapped to a {@link FailedCurrentSource} with a WARN, never a thrown exception — the
- * single app degrades, the fleet keeps scraping.
- *
- * <p>No CDI-injected collaborators: like the {@code http-header} kind, this kind's transport is a
- * plain {@link RedirectFollowingHttpGet}, built directly from the resolved TLS inputs.
+ * delegated to the shared, kind-labelled {@link HttpTransportConfig}, constructed here with the
+ * {@code "http-prometheus"} label so its messages name this kind. A VALUE-level problem there is
+ * mapped to a {@link FailedCurrentSource} with a WARN, never a thrown exception — the single app
+ * degrades, the fleet keeps scraping. On success the factory builds the shared
+ * {@link HttpTransport} and pairs it with this kind's {@link HttpPrometheusVersionExtractor}.
  */
 @ApplicationScoped
 public class HttpPrometheusCurrentSourceFactory implements CurrentVersionSourceFactory {
@@ -65,9 +62,9 @@ public class HttpPrometheusCurrentSourceFactory implements CurrentVersionSourceF
         String versionLabel = cfg.versionLabel().filter(value -> !value.isBlank()).orElse(DEFAULT_VERSION_LABEL);
         // A blank `regex` is treated as absent (see class Javadoc), consistent with how this
         // factory treats every other optional field.
-        Optional<RegexVersionExtractor> extractor = cfg.regex()
+        Optional<RegexVersionExtractor> regex = cfg.regex()
                 .filter(value -> !value.isBlank())
-                .map(regex -> new RegexVersionExtractor(EXTRACTOR_LABEL, regex, parser));
+                .map(pattern -> new RegexVersionExtractor(EXTRACTOR_LABEL, pattern, parser));
         boolean stripPrerelease = cfg.stripPrerelease().orElse(false);
         boolean insecureSkipTlsVerify = cfg.insecureSkipTlsVerify().orElse(false);
 
@@ -77,12 +74,10 @@ public class HttpPrometheusCurrentSourceFactory implements CurrentVersionSourceF
             return new FailedCurrentSource(resolution.failureMessage().get());
         }
 
-        RedirectFollowingHttpGet http =
-                RedirectFollowingHttpGet.withTls(resolution.trustStore(), resolution.insecureSkipTlsVerify());
-        PrometheusBodyFetch fetch =
-                new RedirectFollowingPrometheusBodyFetch(http, URI.create(url), resolution.authFilter());
-        return new HttpPrometheusCurrentSource(
-                fetch, url, metric, versionLabel, cfg.labels(), extractor, stripPrerelease, parser);
+        return new HttpCurrentSource(
+                HttpTransport.from(url, resolution),
+                new HttpPrometheusVersionExtractor(
+                        url, metric, versionLabel, cfg.labels(), regex, stripPrerelease, parser));
     }
 
     private static String requireNonBlank(Optional<String> value, String fieldName) {

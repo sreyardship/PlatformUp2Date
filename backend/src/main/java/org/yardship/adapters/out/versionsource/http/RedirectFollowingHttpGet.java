@@ -37,7 +37,8 @@ import java.security.cert.X509Certificate;
  * </ul>
  *
  * <p>Deliberately generic (URI in, headers in, {@link HttpResponse} out) so any adapter making
- * outbound GETs to a source-controlled upstream can reuse it, not just {@code github-release}.
+ * outbound GETs to a source-controlled upstream can reuse it: the current leg's shared
+ * {@link HttpTransport} and the {@code github-release} client both do.
  */
 public class RedirectFollowingHttpGet {
 
@@ -73,7 +74,7 @@ public class RedirectFollowingHttpGet {
      * client only: a fresh {@link SSLContext} is built from a {@link TrustManagerFactory}
      * initialized with exactly the supplied {@link KeyStore}. {@code insecureSkipTlsVerify} builds a
      * trust-all {@link SSLContext} and disables hostname verification; it is the caller's
-     * responsibility (as it already is at the {@code HttpJsonCurrentSourceFactory} boundary) to treat
+     * responsibility (as it already is at the {@code HttpTransportConfig} boundary) to treat
      * {@code trustStore} and {@code insecureSkipTlsVerify} as mutually exclusive — this method does
      * not itself enforce that. Both {@link Optional#empty()} and {@code insecureSkipTlsVerify=false}
      * yields the JVM default trust bundle with normal hostname verification, i.e. behaviorally

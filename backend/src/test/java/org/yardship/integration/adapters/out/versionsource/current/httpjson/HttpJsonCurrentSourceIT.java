@@ -1,61 +1,56 @@
 package org.yardship.integration.adapters.out.versionsource.current.httpjson;
 
-import org.yardship.core.domain.primitives.VersionParser;
-import org.yardship.core.domain.primitives.VersionScheme;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import io.quarkus.test.junit.QuarkusTest;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
-import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentVersionClientFactory;
-import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentSource;
+import org.yardship.adapters.out.versionsource.ApplicationConfigLoader.VersionSource.Auth;
+import org.yardship.adapters.out.versionsource.VersionFetchException;
+import org.yardship.adapters.out.versionsource.current.CurrentVersionSourceFactory;
 import org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentSourceFactory;
-import org.yardship.core.domain.primitives.VersionValue;
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
-import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Integration test for the real {@link HttpJsonCurrentSource} adapter, now a pure POJO wired to a REAL
- * {@link org.yardship.adapters.out.versionsource.current.httpjson.HttpJsonCurrentVersionClient} built by the injected
- * {@link HttpJsonCurrentVersionClientFactory} against a standalone WireMock server on port 8089.
+ * Integration test for the real {@code http-json} current-version kind, built end to end through
+ * {@link HttpJsonCurrentSourceFactory#create} against a standalone WireMock server on port 8089.
  *
- * <p>This is intentionally thin: extraction, prerelease stripping, and error-message behavior are
- * covered by {@code HttpJsonCurrentSourceTests} with a fake client and no Arc. This class verifies that
- * a client built by the real collaborator and handed to the POJO source round-trips an HTTP call,
- * including non-2xx mapping. The
- * "never sends an Authorization header" guardrail moved to {@code HttpJsonCurrentVersionClientFactoryIT},
- * since that header decision is now entirely the client factory's concern.
- *
- * <p>Factory config-validation cases (blank password, blank token → FailedCurrentSource) are owned
- * exhaustively by {@code HttpJsonCurrentSourceFactoryTests} at the unit level and are not re-asserted here.
- * Auth-on-the-wire is owned by the unit filter tests + {@code HttpJsonCurrentVersionClientFactoryIT};
- * the authenticated source path is proven by the factory end-to-end happy paths below.
- *
- * <p>{@code @QuarkusTest} is used so {@link HttpJsonCurrentVersionClientFactory} can be injected — matching
- * the existing IT style.
+ * <p>Intentionally thin: extraction, prerelease stripping and the 2xx gate are covered by
+ * {@code HttpJsonVersionExtractorTests} with fake responses; redirects, TLS and auth rendering are
+ * proven once for the shared transport in {@code HttpTransportIT}. This class proves the kind's
+ * own rule on the wire — a real JSON body resolves, a real non-2xx fails — and one authenticated
+ * fragment end to end, the full production path the dev {@code application.yml} Harbor entry
+ * exercises.
  */
 @QuarkusTest
 class HttpJsonCurrentSourceIT {
+
     private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
 
     static WireMockServer wireMockServer;
 
     @Inject
-    HttpJsonCurrentVersionClientFactory clientFactory;
+    Instance<CurrentVersionSourceFactory> factories;
 
     @BeforeAll
     static void startWireMock() {
@@ -74,377 +69,95 @@ class HttpJsonCurrentSourceIT {
     }
 
     @Test
-    void read_parsesVersionJson_intoVersion() {
+    void version_parsesVersionJson_endToEndThroughTheFactory() {
         wireMockServer.stubFor(get(urlEqualTo("/current"))
                 .willReturn(jsonResponse(200, "{\"version\":\"1.0.0\"}")));
 
-        HttpJsonCurrentSource source = new HttpJsonCurrentSource(
-                clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty(), false), "/version", false, SEMVER_PARSER);
+        CurrentVersionSource source = new HttpJsonCurrentSourceFactory().create(
+                source("http://localhost:8089/current", Optional.empty()), SEMVER_PARSER);
 
-        VersionValue result = source.version();
-
-        assertEquals("1.0.0", result.value());
+        assertEquals("1.0.0", source.version().value());
     }
 
     @Test
-    void read_throws_whenUpstreamReturnsNon2xx() {
+    void version_throwsAVersionFetchException_whenUpstreamReturnsNon2xx() {
+        // A non-2xx is the http-json kind's own failure (unlike http-header's status-blindness),
+        // mapped to a thrown exception so the service's per-app loop can count this app as failed.
         wireMockServer.stubFor(get(urlEqualTo("/current"))
                 .willReturn(jsonResponse(403, "{\"message\":\"forbidden\"}")));
 
-        HttpJsonCurrentSource source = new HttpJsonCurrentSource(
-                clientFactory.build("http://localhost:8089/current", Optional.empty(), Optional.empty(), false), "/version", false, SEMVER_PARSER);
+        CurrentVersionSource source = new HttpJsonCurrentSourceFactory().create(
+                source("http://localhost:8089/current", Optional.empty()), SEMVER_PARSER);
 
-        // A non-2xx is mapped to a thrown exception by the reused VersionResponseExceptionMapper,
-        // so the service's per-app loop can count this app as failed.
-        assertThrows(RuntimeException.class, source::version);
+        VersionFetchException ex = assertThrows(VersionFetchException.class, source::version);
+        assertEquals(403, ex.status());
+        assertTrue(ex.getMessage().contains("forbidden"), "must carry the body; was: " + ex.getMessage());
     }
 
-    // --- Basic auth end-to-end (factory path) ------------------------------------------------
-
     @Test
-    void factoryCreate_withValidHarborBasicAuthConfig_endToEnd_readsHarborVersion() {
-        // Drives the FULL production path the dev application.yml entry exercises:
-        // HttpJsonCurrentSourceFactory.create(cfg) -> real HttpJsonCurrentVersionClientFactory -> BasicAuthFilter
-        // -> real HTTP call through WireMock. Catch-all 401 registered FIRST — see the
-        // "last registered wins" note on WireMock stub ordering: the more specific withBasicAuth
+    void version_withValidHarborBasicAuthConfig_endToEnd_readsHarborVersion() {
+        // Catch-all 401 registered FIRST — "last registered wins": the more specific withBasicAuth
         // stub (registered second) is applied to a matching authenticated request.
         wireMockServer.stubFor(get(urlEqualTo("/systeminfo"))
                 .willReturn(aResponse().withStatus(401)));
         wireMockServer.stubFor(get(urlEqualTo("/systeminfo"))
                 .withBasicAuth("harbor-bot", "s3cr3t")
-                .willReturn(jsonResponse(200, "{\"harbor_version\":\"v2.13.0\"}")));
+                .willReturn(jsonResponse(200, "{\"harbor_version\":\"v2.13.0-6b7ecba1\"}")));
 
-        HttpJsonCurrentSourceFactory httpFactory = new HttpJsonCurrentSourceFactory(clientFactory);
-        CurrentVersionSource result = httpFactory.create(harborConfig(
-                Optional.of("harbor-bot"), Optional.of("s3cr3t")), SEMVER_PARSER);
+        CurrentVersionSource source = new HttpJsonCurrentSourceFactory().create(
+                new FakeVersionSource(Optional.of("http://localhost:8089/systeminfo"),
+                        Optional.of("/harbor_version"), Optional.of(true),
+                        Optional.of(basicAuth("harbor-bot", "s3cr3t"))),
+                SEMVER_PARSER);
 
-        assertInstanceOf(HttpJsonCurrentSource.class, result);
-        // The 'v' prefix is trimmed by the Version primitive (see Version.trimInput).
-        assertEquals("2.13.0", result.version().value());
+        // The 'v' prefix is trimmed by the Version primitive; strip-prerelease drops the build hash.
+        assertEquals("2.13.0", source.version().value());
     }
 
-    // --- Bearer auth end-to-end (factory path) -----------------------------------------------
-
+    /**
+     * Proves {@code type: http-json} resolves through {@code VersionSourceResolver} with no central
+     * dispatcher edited (ADR-0005) — the factory is genuinely discovered as a CDI bean, not merely
+     * {@code new}-able.
+     */
     @Test
-    void factoryCreate_withValidBearerAuthConfig_endToEnd_readsTheVersion() {
-        // Drives the FULL production path: HttpJsonCurrentSourceFactory.create(cfg) -> real
-        // HttpJsonCurrentVersionClientFactory -> BearerAuthFilter -> real HTTP call through WireMock.
-        // Catch-all 401 registered FIRST, specific bearer-matching 200 stub registered LAST.
-        wireMockServer.stubFor(get(urlEqualTo("/current"))
-                .willReturn(aResponse().withStatus(401)));
-        wireMockServer.stubFor(get(urlEqualTo("/current"))
-                .withHeader("Authorization", equalTo("Bearer gh-token"))
-                .willReturn(jsonResponse(200, "{\"version\":\"v3.1.0\"}")));
+    void httpJsonCurrentSourceFactory_isDiscoveredAsACdiBean_exactlyOnce() {
+        List<CurrentVersionSourceFactory> matching = StreamSupport.stream(factories.spliterator(), false)
+                .filter(factory -> "http-json".equals(factory.type()))
+                .collect(Collectors.toList());
 
-        HttpJsonCurrentSourceFactory httpFactory = new HttpJsonCurrentSourceFactory(clientFactory);
-        CurrentVersionSource result = httpFactory.create(bearerConfig(Optional.of("gh-token")), SEMVER_PARSER);
-
-        assertInstanceOf(HttpJsonCurrentSource.class, result);
-        assertEquals("3.1.0", result.version().value());
+        assertEquals(1, matching.size(),
+                "expected exactly one CDI-discovered CurrentVersionSourceFactory for 'http-json', found: "
+                        + matching);
     }
 
-    private static ApplicationConfigLoader.VersionSource bearerConfig(Optional<String> token) {
-        return new ApplicationConfigLoader.VersionSource() {
-            @Override
-            public Optional<String> type() {
-                return Optional.of("http-json");
-            }
-
-            @Override
-            public Map<String, String> labels() {
-                return Map.of();
-            }
-
-            @Override
-            public Optional<String> url() {
-                return Optional.of("http://localhost:8089/current");
-            }
-
-            @Override
-            public Optional<String> regex() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> versionHeader() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> host() { return Optional.empty(); }
-
-            @Override
-            public Optional<Integer> port() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> user() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> privateKey() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> privateKeyFile() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> hostKey() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> knownHosts() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> releaseField() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> repo() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> namespace() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> workload() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> container() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> versionKey() {
-                return Optional.of("/version");
-            }
-
-            @Override
-            public Optional<Boolean> stripPrerelease() {
-                return Optional.of(false);
-            }
-
-            @Override
-            public Optional<ApplicationConfigLoader.VersionSource.Auth> auth() {
-                return Optional.of(new ApplicationConfigLoader.VersionSource.Auth() {
-                    @Override
-                    public Optional<String> type() {
-                        return Optional.of("bearer");
-                    }
-
-                    @Override
-                    public Optional<String> username() {
-                        return Optional.empty();
-                    }
-
-                    @Override
-                    public Optional<String> password() {
-                        return Optional.empty();
-                    }
-
-                    @Override
-                    public Optional<String> token() {
-                        return token;
-                    }
-
-                    @Override
-                    public Optional<String> tokenFile() {
-                        return Optional.empty();
-                    }
-                });
-            }
-
-            @Override
-            public Optional<Integer> pageSize() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<Integer> maxTags() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> prereleaseFilter() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> caCert() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<Boolean> insecureSkipTlsVerify() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> registry() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> metric() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> versionLabel() {
-                return Optional.empty();
-            }
-        };
+    private static ApplicationConfigLoader.VersionSource source(String url, Optional<String> versionKey) {
+        return new FakeVersionSource(Optional.of(url), versionKey, Optional.empty(), Optional.empty());
     }
 
-    private static ApplicationConfigLoader.VersionSource harborConfig(
-            Optional<String> username, Optional<String> password) {
-        return new ApplicationConfigLoader.VersionSource() {
+    private static Auth basicAuth(String username, String password) {
+        return new Auth() {
             @Override
             public Optional<String> type() {
-                return Optional.of("http-json");
+                return Optional.of("basic");
             }
 
             @Override
-            public Map<String, String> labels() {
-                return Map.of();
+            public Optional<String> username() {
+                return Optional.of(username);
             }
 
             @Override
-            public Optional<String> url() {
-                return Optional.of("http://localhost:8089/systeminfo");
+            public Optional<String> password() {
+                return Optional.of(password);
             }
 
             @Override
-            public Optional<String> regex() {
+            public Optional<String> token() {
                 return Optional.empty();
             }
 
             @Override
-            public Optional<String> versionHeader() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> host() { return Optional.empty(); }
-
-            @Override
-            public Optional<Integer> port() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> user() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> privateKey() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> privateKeyFile() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> hostKey() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> knownHosts() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> releaseField() { return Optional.empty(); }
-
-            @Override
-            public Optional<String> repo() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> namespace() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> workload() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> container() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> versionKey() {
-                return Optional.of("/harbor_version");
-            }
-
-            @Override
-            public Optional<Boolean> stripPrerelease() {
-                return Optional.of(true);
-            }
-
-            @Override
-            public Optional<ApplicationConfigLoader.VersionSource.Auth> auth() {
-                return Optional.of(new ApplicationConfigLoader.VersionSource.Auth() {
-                    @Override
-                    public Optional<String> type() {
-                        return Optional.of("basic");
-                    }
-
-                    @Override
-                    public Optional<String> username() {
-                        return username;
-                    }
-
-                    @Override
-                    public Optional<String> password() {
-                        return password;
-                    }
-
-                    @Override
-                    public Optional<String> token() {
-                        return Optional.empty();
-                    }
-
-                    @Override
-                    public Optional<String> tokenFile() {
-                        return Optional.empty();
-                    }
-                });
-            }
-
-            @Override
-            public Optional<Integer> pageSize() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<Integer> maxTags() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> caCert() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<Boolean> insecureSkipTlsVerify() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> registry() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> metric() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> versionLabel() {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<String> prereleaseFilter() {
+            public Optional<String> tokenFile() {
                 return Optional.empty();
             }
         };
@@ -455,5 +168,164 @@ class HttpJsonCurrentSourceIT {
                 .withStatus(status)
                 .withHeader("Content-Type", "application/json")
                 .withBody(body);
+    }
+
+    /**
+     * Fully implements {@link ApplicationConfigLoader.VersionSource}, defaulting every field not
+     * exercised here to {@link Optional#empty()}. {@code type()} is fixed to {@code "http-json"}.
+     */
+    private static final class FakeVersionSource implements ApplicationConfigLoader.VersionSource {
+        private final Optional<String> url;
+        private final Optional<String> versionKey;
+        private final Optional<Boolean> stripPrerelease;
+        private final Optional<Auth> auth;
+
+        FakeVersionSource(Optional<String> url, Optional<String> versionKey, Optional<Boolean> stripPrerelease,
+                Optional<Auth> auth) {
+            this.url = url;
+            this.versionKey = versionKey;
+            this.stripPrerelease = stripPrerelease;
+            this.auth = auth;
+        }
+
+        @Override
+        public Optional<String> type() {
+            return Optional.of("http-json");
+        }
+
+        @Override
+        public Map<String, String> labels() {
+            return Map.of();
+        }
+
+        @Override
+        public Optional<String> url() {
+            return url;
+        }
+
+        @Override
+        public Optional<String> versionKey() {
+            return versionKey;
+        }
+
+        @Override
+        public Optional<Boolean> stripPrerelease() {
+            return stripPrerelease;
+        }
+
+        @Override
+        public Optional<Auth> auth() {
+            return auth;
+        }
+
+        @Override
+        public Optional<String> regex() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> versionHeader() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> caCert() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<Boolean> insecureSkipTlsVerify() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> repo() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> namespace() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> workload() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> container() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<Integer> pageSize() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> host() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<Integer> port() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> user() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> privateKey() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> privateKeyFile() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> hostKey() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> knownHosts() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> releaseField() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<Integer> maxTags() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> prereleaseFilter() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> registry() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> metric() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> versionLabel() {
+            return Optional.empty();
+        }
     }
 }

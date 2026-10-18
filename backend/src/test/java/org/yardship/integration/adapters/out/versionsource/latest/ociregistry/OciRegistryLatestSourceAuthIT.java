@@ -74,8 +74,8 @@ class OciRegistryLatestSourceAuthIT {
     static final int CROSS_ORIGIN_PORT = 8095;
     static WireMockServer crossOriginWireMockServer;
 
-    // An HTTPS-only server (self-signed CN=localhost cert, same fixture as HttpJsonCurrentSourceTlsIT /
-    // HttpJsonCurrentSourceRedirectIT) used only by the HTTPS-to-HTTP downgrade-refusal tests below.
+    // An HTTPS-only server (self-signed CN=localhost cert, same fixture as HttpTransportIT)
+    // used only by the HTTPS-to-HTTP downgrade-refusal tests below.
     // Deliberately untrusted: OciRegistryLatestSource has no truststore/insecure-skip-tls-verify
     // configuration knob (unlike the `http-json` current source), so any contact with this server fails
     // TLS trust regardless of hop position. That is fine for these tests — the property under test

@@ -9,7 +9,7 @@ import java.util.OptionalInt;
 
 /**
  * A pure, HTTP-free, version-free parser of the Prometheus text-exposition format, sitting beside
- * {@link HttpPrometheusCurrentSource} exactly as {@code OsReleaseParser} sits beside
+ * {@link HttpPrometheusVersionExtractor} exactly as {@code OsReleaseParser} sits beside
  * {@code SshOsReleaseCurrentSource}. It performs no I/O and holds no state: body text and a metric
  * name in, matching samples' label maps out, in document order.
  *
