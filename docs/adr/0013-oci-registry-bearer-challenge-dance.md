@@ -1,5 +1,11 @@
 # The oci-registry latest source authenticates by obeying the registry's own bearer challenge
 
+> **Amended by [ADR-0040](0040-latest-leg-on-the-shared-http-transport.md):** every GET of the
+> dance — probe, mint, authenticated pages — now goes through the shared `HttpTransport`, so the
+> kind also reads `ca-cert` and `insecure-skip-tls-verify`, and the once-only retry on a dropped
+> connection that lived only here is now the transport's for every kind. The dance itself, and
+> the `basic`-only credential rule, are unchanged.
+
 The `oci-registry` latest source reads an app's latest version from the published
 image tags of any OCI-spec registry (`GET /v2/<repo>/tags/list`). The endpoint is
 uniform across registries, but **authentication is not**: Docker Hub, GHCR and

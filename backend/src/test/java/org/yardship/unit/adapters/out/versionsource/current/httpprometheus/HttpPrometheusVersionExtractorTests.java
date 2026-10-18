@@ -9,6 +9,7 @@ import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.domain.primitives.VersionValue;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,6 +40,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * guarantee.
  */
 class HttpPrometheusVersionExtractorTests {
+
+    private static final URI RESPONSE_URI = URI.create("http://localhost:8089/current");
 
     private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
     private static final String URL = "https://blackbox.example.com/metrics";
@@ -530,7 +533,7 @@ class HttpPrometheusVersionExtractorTests {
     }
 
     private static HttpGetResponse ok(String body) {
-        return new HttpGetResponse(200, Map.of("Content-Type", List.of("text/plain")), body);
+        return new HttpGetResponse(RESPONSE_URI, 200, Map.of("Content-Type", List.of("text/plain")), body);
     }
 
     // -----------------------------------------------------------------------
@@ -542,7 +545,7 @@ class HttpPrometheusVersionExtractorTests {
     void extract_throwsAVersionFetchException_onANon2xxResponse_namingTheStatusAndTheUrl_butNeverTheBody() {
         HttpPrometheusVersionExtractor extractor = new HttpPrometheusVersionExtractor(
                 URL, METRIC, DEFAULT_VERSION_LABEL, Map.of(), Optional.empty(), false, SEMVER_PARSER);
-        HttpGetResponse forbidden = new HttpGetResponse(403, Map.of(), "<html>" + SENTINEL + "</html>");
+        HttpGetResponse forbidden = new HttpGetResponse(RESPONSE_URI, 403, Map.of(), "<html>" + SENTINEL + "</html>");
 
         VersionFetchException ex = assertThrows(VersionFetchException.class, () -> extractor.extract(forbidden));
 
@@ -559,7 +562,7 @@ class HttpPrometheusVersionExtractorTests {
         // A login page that happens to echo a metrics-shaped body is still a login page.
         HttpPrometheusVersionExtractor extractor = new HttpPrometheusVersionExtractor(
                 URL, METRIC, DEFAULT_VERSION_LABEL, Map.of(), Optional.empty(), false, SEMVER_PARSER);
-        HttpGetResponse unauthorized = new HttpGetResponse(401, Map.of(),
+        HttpGetResponse unauthorized = new HttpGetResponse(RESPONSE_URI, 401, Map.of(),
                 "blackbox_exporter_build_info{version=\"0.25.0\"} 1\n");
 
         assertThrows(VersionFetchException.class, () -> extractor.extract(unauthorized));

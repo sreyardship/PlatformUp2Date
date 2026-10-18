@@ -14,12 +14,11 @@ import static org.mockito.Mockito.when;
 /**
  * Unit tests for {@link BearerAuthFilter} — the scheme-generic {@code ClientRequestFilter} that
  * emits {@code Authorization: Bearer <token>}. It generalizes the GitHub-specific
- * {@code GithubAuthFilter} into this shared filter so both the {@code latest} leg
- * ({@code GithubReleaseLatestSource}) and the {@code http} {@code current} leg
- * ({@code HttpJsonCurrentSourceFactory}, {@code auth.type: bearer}) can register the SAME filter class.
- * The "to whom do I send this token" boundary documentation now lives on the sources that register
- * the filter, not on the filter itself — see {@code GithubReleaseLatestSource} and
- * {@code HttpJsonCurrentSourceFactory} Javadoc.
+ * {@code GithubAuthFilter} into this shared filter so both legs
+ * ({@code GithubReleaseLatestSourceFactory}'s fleet-wide token, and any kind's
+ * {@code auth.type: bearer}) render the SAME filter class onto the shared {@code HttpTransport}. The
+ * "to whom do I send this token" boundary documentation lives on the factories that build the
+ * filter, not on the filter itself.
  *
  * <p>Mirrors {@code BasicAuthFilterTests}'s shape: {@code quarkus-junit5-mockito} is on the test
  * classpath, so {@link ClientRequestContext} is mocked here rather than hand-rolled.

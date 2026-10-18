@@ -37,7 +37,7 @@ public class HttpJsonCurrentSourceFactory implements CurrentVersionSourceFactory
     private static final String DEFAULT_VERSION_KEY = "/version";
     private static final String KIND_LABEL = "http-json";
 
-    private final HttpTransportConfig transportConfig = new HttpTransportConfig(KIND_LABEL);
+    private final HttpTransportConfig transportConfig = HttpTransportConfig.forCurrentSource(KIND_LABEL);
 
     @Override
     public String type() {
@@ -53,10 +53,8 @@ public class HttpJsonCurrentSourceFactory implements CurrentVersionSourceFactory
         String versionKey = cfg.versionKey().orElse(DEFAULT_VERSION_KEY);
         validatePointerSyntax(versionKey);
         boolean stripPrerelease = cfg.stripPrerelease().orElse(false);
-        boolean insecureSkipTlsVerify = cfg.insecureSkipTlsVerify().orElse(false);
 
-        HttpTransportConfig.Resolution resolution =
-                transportConfig.resolve(cfg.auth(), cfg.caCert(), insecureSkipTlsVerify, url);
+        HttpTransportConfig.Resolution resolution = transportConfig.resolve(cfg, url);
         if (resolution.failureMessage().isPresent()) {
             return new FailedCurrentSource(resolution.failureMessage().get());
         }

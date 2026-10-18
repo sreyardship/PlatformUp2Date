@@ -8,8 +8,10 @@ status: accepted
 > "extracting a shared seam" rejected below has since been taken for the current leg. The
 > `PrometheusBodyFetch` seam and its transport are gone; this kind now fetches through the one
 > shared `HttpTransport` and keeps its 2xx gate in `HttpPrometheusVersionExtractor`. The
-> decision itself — what the kind reads and how — is unchanged. `http-regex` remains a
-> follow-up.
+> decision itself — what the kind reads and how — is unchanged. The `http-regex` follow-up
+> landed in [ADR-0040](0040-latest-leg-on-the-shared-http-transport.md): the "shared seam with
+> `http-regex`" rejected below was rejected because it would grant `http-regex` a hardening it did
+> not offer; ADR-0040 grants exactly that hardening on purpose, so the two do not conflict.
 
 
 > **Amended by [ADR-0034](0034-conf-check-removed-the-backend-proves-the-config.md):** the `conf-check` CLI has been removed, and with

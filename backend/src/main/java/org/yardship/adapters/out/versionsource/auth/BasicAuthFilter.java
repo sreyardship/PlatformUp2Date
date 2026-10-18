@@ -8,9 +8,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 /**
- * Adds {@code Authorization: Basic <base64(username:password)>} to outbound requests so the
- * {@code http-json} current source can authenticate against an upstream that requires HTTP Basic auth
- * (see ADR-0008).
+ * Adds {@code Authorization: Basic <base64(username:password)>} to outbound requests: the
+ * {@code auth.type: basic} credential of any HTTP kind on either leg (ADR-0008), and the realm
+ * credential of the {@code oci-registry} bearer dance (ADR-0013). Rendered onto each GET by
+ * {@link AuthorizationHeaderRenderer} for the shared {@code HttpTransport}.
  *
  * <p><b>Residual assumption:</b> like {@link BearerAuthFilter}, this trusts that the credential
  * belongs to the configured {@code url}. There is no host check here — the credential is sent to
@@ -28,17 +29,8 @@ public class BasicAuthFilter implements ClientRequestFilter {
 
     @Override
     public void filter(ClientRequestContext requestContext) {
-        requestContext.getHeaders().putSingle(HttpHeaders.AUTHORIZATION, basicHeaderValue(username, password));
-    }
-
-    /**
-     * The {@code Authorization} header value for a {@code username}/{@code password} pair — shared
-     * with adapters that attach the same credential outside the JAX-RS filter chain (e.g. a
-     * hand-rolled redirect transport that needs the exact same header format on re-issued requests).
-     */
-    public static String basicHeaderValue(String username, String password) {
         String credential = Base64.getEncoder()
                 .encodeToString((username + ":" + password).getBytes(StandardCharsets.UTF_8));
-        return "Basic " + credential;
+        requestContext.getHeaders().putSingle(HttpHeaders.AUTHORIZATION, "Basic " + credential);
     }
 }

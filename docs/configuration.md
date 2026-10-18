@@ -181,9 +181,14 @@ A latest source reads the newest version published upstream.
 
 | `type` | Reads the version from | Credentials |
 |---|---|---|
-| [`github-release`](#github-release) | GitHub Releases | none for public repos |
-| [`oci-registry`](#oci-registry) | image tags in an OCI registry | none for public repos |
-| [`http-regex`](#http-regex) | a regex over a web page | none |
+| [`github-release`](#github-release) | GitHub Releases | none for public repos; `github.token` or `auth` otherwise |
+| [`oci-registry`](#oci-registry) | image tags in an OCI registry | none for public repos; `auth.type: basic` otherwise |
+| [`http-regex`](#http-regex) | a regex over a web page | none; `auth` if the page needs it |
+
+Every latest source fetches through the same transport as the HTTP current
+sources, so `ca-cert` and `insecure-skip-tls-verify` work as in
+[`http-json`](#http-json) for all three, and `auth` does for `github-release`
+and `http-regex`.
 
 #### `github-release`
 
@@ -193,9 +198,19 @@ Picks the largest release by version. Skips draft and prerelease releases.
 |---|---|---|---|
 | `repo` | `owner/repo` (exactly one `/`) | yes | — |
 | `page-size` | int, 1–100 | no | `30` |
+| `ca-cert` | path to PEM file | no | absent → JVM default trust |
+| `insecure-skip-tls-verify` | boolean | no | `false` |
+| `auth.type` | `basic` \| `bearer` | if `auth` is set | — |
+| `auth.username` / `auth.password` | string | for `auth.type: basic` | — |
+| `auth.token` | string | for `auth.type: bearer`, exactly one of `token`/`token-file` | — |
+| `auth.token-file` | path | for `auth.type: bearer`, exactly one of `token`/`token-file` | — |
 
-`page-size` is how many recent releases are checked. Uses the top-level
-`github.token` and `github.api-base-url` keys.
+- `page-size` is how many recent releases are checked. Uses the top-level
+  `github.api-base-url` key.
+- Without an `auth` block the top-level `github.token` is sent as a bearer
+  token, if set. An `auth` block on the app wins over `github.token`.
+- `auth.token-file`, `ca-cert` and `insecure-skip-tls-verify` work as in
+  `http-json`.
 
 #### `oci-registry`
 
@@ -211,13 +226,17 @@ Picks the largest tag over the full tag list, using the app's
 | `max-tags` | int | no | `1000` |
 | `prerelease-filter` | string | no | absent → only tags without a prerelease part |
 | `strip-prerelease` | boolean | no | `false` |
+| `ca-cert` | path to PEM file | no | absent → JVM default trust |
+| `insecure-skip-tls-verify` | boolean | no | `false` |
 | `auth.type` | `basic` (only) | no | absent → anonymous |
 | `auth.username` / `auth.password` | string | if `auth` is set | — |
 
 - The URL is `https://{registry}/v2/{repo}`. Add `http://` or `https://` to
   `registry` to choose the scheme yourself, e.g. for a local test registry.
 - Tags past `max-tags` are ignored, with a warning.
-- `bearer` and `token-file` auth are not supported.
+- `bearer` and `token-file` auth are not supported. The `basic` credential is
+  sent to the token realm the registry advertises, not to `tags/list` itself.
+- `ca-cert` and `insecure-skip-tls-verify` work as in `http-json`.
 - `prerelease-filter` cannot be used with `version-scheme: dotnet`. This applies
   to any `latest` type, not only `oci-registry`.
 
@@ -230,6 +249,15 @@ The largest wins.
 |---|---|---|---|
 | `url` | string | yes | — |
 | `regex` | regex with ≥1 capture group | yes | — |
+| `ca-cert` | path to PEM file | no | absent → JVM default trust |
+| `insecure-skip-tls-verify` | boolean | no | `false` |
+| `auth.type` | `basic` \| `bearer` | if `auth` is set | — |
+| `auth.username` / `auth.password` | string | for `auth.type: basic` | — |
+| `auth.token` | string | for `auth.type: bearer`, exactly one of `token`/`token-file` | — |
+| `auth.token-file` | path | for `auth.type: bearer`, exactly one of `token`/`token-file` | — |
+
+- `auth.token-file`, `ca-cert` and `insecure-skip-tls-verify` work as in
+  `http-json`.
 
 ## Version schemes
 
@@ -396,7 +424,8 @@ and in the `pu2d_config_error{application, scope}` metric. See
   - Version sources: [0005](adr/0005-version-sources-as-pluggable-factories.md),
     [0031](adr/0031-http-current-source-renamed-http-json.md),
     [0038](adr/0038-current-source-tiers-rank-trust-not-access.md),
-    [0039](adr/0039-one-http-transport-three-extractors.md)
+    [0039](adr/0039-one-http-transport-three-extractors.md),
+    [0040](adr/0040-latest-leg-on-the-shared-http-transport.md)
   - `http-json`: [0007](adr/0007-json-pointer-current-version-extraction.md),
     [0008](adr/0008-authenticated-http-current-source.md),
     [0012](adr/0012-http-current-source-file-token-and-custom-ca.md)

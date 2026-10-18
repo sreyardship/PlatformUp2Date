@@ -18,11 +18,12 @@ import static org.junit.jupiter.api.Assertions.fail;
 /**
  * Black-box integration test that runs against the <em>built</em> artifact — in
  * CI's native pipeline that is the GraalVM native binary. Its job is to catch
- * native-image regressions that JVM-mode unit tests cannot see: e.g. a REST-client
- * provider (the {@code VersionResponseExceptionMapper}) or a DTO that can't be
- * reflectively handled in native. If the {@code ApplicationVersionClient} bean
- * fails to construct in native, the scheduled scrape never populates the cache and
- * {@code /api/v1/version} stays empty ({@code {}}), which fails this test.
+ * native-image regressions that JVM-mode unit tests cannot see: e.g. a DTO the
+ * version sources deserialise reflectively ({@code GithubReleaseResponseDTO},
+ * {@code TagsListDTO}) that native cannot reach, or an SSL context the shared
+ * {@code HttpTransport} cannot build. If a source cannot be built or read in native,
+ * the scheduled scrape never populates the cache and {@code /api/v1/version} stays
+ * empty ({@code {}}), which fails this test.
  *
  * <p>The {@code good-app} {@code github-release} fixture
  * ({@link WireMockVersionResource}) serves its releases behind a 301 redirect (the

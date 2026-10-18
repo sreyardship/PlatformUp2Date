@@ -26,7 +26,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * construction time with a message naming the offending field), URL assembly ({@code https://}
  * default, explicit {@code http://} prefix honoured), and value-level auth validation:
  * unsupported {@code auth.type} or blank {@code basic} credentials surface as a
- * {@link FailedLatestSource}, never a boot crash.
+ * {@link FailedLatestSource}, never a boot crash. {@code ca-cert} / {@code insecure-skip-tls-verify}
+ * are routed through the shared, kind-labelled {@code HttpTransportConfig} the same way; the
+ * exhaustive matrix of those cases is owned by {@code HttpTransportConfigTests}.
  */
 class OciRegistryLatestSourceFactoryTests {
     private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
@@ -247,6 +249,35 @@ class OciRegistryLatestSourceFactoryTests {
         assertNotNull(result);
     }
 
+    // --- value-level: ca-cert / insecure-skip-tls-verify (shared transport config) --------------
+
+    @Test
+    void create_withABlankCaCert_returnsFailedLatestSource_namingOciRegistryOnTheLatestLeg() {
+        LatestVersionSource result = factory.create(sourceWithTls(Optional.of("   "), Optional.empty()), SEMVER_PARSER);
+
+        assertInstanceOf(FailedLatestSource.class, result);
+        IllegalStateException ex = assertThrows(IllegalStateException.class, result::version);
+        assertTrue(ex.getMessage().contains("The 'oci-registry' latest source's 'ca-cert'"), "was: " + ex.getMessage());
+    }
+
+    @Test
+    void create_withCaCertAndInsecureSkipTlsVerifyTrue_returnsFailedLatestSource_namingBothKeys() {
+        LatestVersionSource result = factory.create(
+                sourceWithTls(Optional.of("/no/such/path/ca.crt"), Optional.of(true)), SEMVER_PARSER);
+
+        assertInstanceOf(FailedLatestSource.class, result,
+                "ca-cert together with insecure-skip-tls-verify: true is ambiguous and must be refused");
+        String message = assertThrows(IllegalStateException.class, result::version).getMessage();
+        assertTrue(message.contains("ca-cert") && message.contains("insecure-skip-tls-verify"), "was: " + message);
+    }
+
+    @Test
+    void create_withInsecureSkipTlsVerifyTrue_andNoCaCert_returnsARealSource() {
+        LatestVersionSource result = factory.create(sourceWithTls(Optional.empty(), Optional.of(true)), SEMVER_PARSER);
+
+        assertFalse(result instanceof FailedLatestSource);
+    }
+
     // --- selection defaults; configured values are covered by the pagination IT ------------
 
     @Test
@@ -315,12 +346,29 @@ class OciRegistryLatestSourceFactoryTests {
         return source(registry, repo, pageSize, maxTags, Optional.empty());
     }
 
+    private static ApplicationConfigLoader.VersionSource sourceWithTls(
+            Optional<String> caCert, Optional<Boolean> insecureSkipTlsVerify) {
+        return source(Optional.of("registry.example.com"), Optional.of("library/nginx"), Optional.empty(),
+                Optional.empty(), Optional.empty(), caCert, insecureSkipTlsVerify);
+    }
+
     private static ApplicationConfigLoader.VersionSource source(
             Optional<String> registry,
             Optional<String> repo,
             Optional<Integer> pageSize,
             Optional<Integer> maxTags,
             Optional<ApplicationConfigLoader.VersionSource.Auth> auth) {
+        return source(registry, repo, pageSize, maxTags, auth, Optional.empty(), Optional.empty());
+    }
+
+    private static ApplicationConfigLoader.VersionSource source(
+            Optional<String> registry,
+            Optional<String> repo,
+            Optional<Integer> pageSize,
+            Optional<Integer> maxTags,
+            Optional<ApplicationConfigLoader.VersionSource.Auth> auth,
+            Optional<String> caCert,
+            Optional<Boolean> insecureSkipTlsVerify) {
         return new ApplicationConfigLoader.VersionSource() {
             @Override
             public Optional<String> type() {
@@ -432,13 +480,13 @@ class OciRegistryLatestSourceFactoryTests {
 
             @Override
             public Optional<String> caCert() {
-                return Optional.empty();
-            }
-            @Override
-            public Optional<Boolean> insecureSkipTlsVerify() {
-                return Optional.empty();
+                return caCert;
             }
 
+            @Override
+            public Optional<Boolean> insecureSkipTlsVerify() {
+                return insecureSkipTlsVerify;
+            }
         };
     }
 

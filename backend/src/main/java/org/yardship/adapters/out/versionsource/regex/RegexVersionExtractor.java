@@ -9,7 +9,8 @@ import java.util.Optional;
 import java.util.regex.PatternSyntaxException;
 
 /**
- * Leg-neutral, shared extraction core factored out of {@code HttpRegexLatestSource}. Delegates
+ * Leg-neutral, shared extraction core behind the {@code http-regex} latest kind and the
+ * {@code http-header} current kind's optional {@code regex}. Delegates
  * pattern compilation and candidate matching to {@link VersionPattern} (validating it compiles and
  * has at least one capture group), and exposes two selection rules over its {@link
  * VersionPattern#rawCandidates}: parse each raw candidate through the app's {@link VersionParser},

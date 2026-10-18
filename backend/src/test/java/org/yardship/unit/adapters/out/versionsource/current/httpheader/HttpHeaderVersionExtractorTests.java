@@ -8,6 +8,7 @@ import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.domain.primitives.VersionValue;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,6 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the header still resolves); {@code HttpHeaderCurrentSourceIT} repeats it against a real server.
  */
 class HttpHeaderVersionExtractorTests {
+
+    private static final URI RESPONSE_URI = URI.create("http://localhost:8089/current");
 
     private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
     private static final String EXTRACTOR_LABEL = "'http-header' current source";
@@ -207,6 +210,6 @@ class HttpHeaderVersionExtractorTests {
     }
 
     private static HttpGetResponse response(int statusCode, Map<String, List<String>> headers, String body) {
-        return new HttpGetResponse(statusCode, headers, body);
+        return new HttpGetResponse(RESPONSE_URI, statusCode, headers, body);
     }
 }

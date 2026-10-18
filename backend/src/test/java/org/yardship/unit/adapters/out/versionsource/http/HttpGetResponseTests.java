@@ -3,6 +3,7 @@ package org.yardship.unit.adapters.out.versionsource.http;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.http.HttpGetResponse;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -14,9 +15,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Unit tests for {@link HttpGetResponse}, the final-response view every extractor reads: the
  * 2xx test the {@code http-json} and {@code http-prometheus} extractors gate on, and the
- * case-insensitive, first-value header lookup the {@code http-header} extractor reads with.
+ * case-insensitive, first-value header lookup the {@code http-header} extractor reads with, and the
+ * bounded body copy a failure message quotes.
  */
 class HttpGetResponseTests {
+
+    private static final URI RESPONSE_URI = URI.create("http://localhost:8089/current");
 
     @Test
     void isSuccess_isTrueForEvery2xx_andFalseOtherwise() {
@@ -57,11 +61,30 @@ class HttpGetResponseTests {
         assertEquals(Optional.empty(), response.firstHeader("X-Jenkins"));
     }
 
+    @Test
+    void truncatedBody_returnsAShortBodyWhole() {
+        assertEquals("{\"message\":\"forbidden\"}",
+                new HttpGetResponse(RESPONSE_URI, 403, Map.of(), "{\"message\":\"forbidden\"}").truncatedBody());
+    }
+
+    @Test
+    void truncatedBody_boundsALongBody_andSaysSo() {
+        String truncated = new HttpGetResponse(RESPONSE_URI, 500, Map.of(), "x".repeat(2000)).truncatedBody();
+
+        assertTrue(truncated.endsWith("…[truncated]"), "was: " + truncated);
+        assertTrue(truncated.length() < 600, "was " + truncated.length() + " chars");
+    }
+
+    @Test
+    void truncatedBody_namesANullBody() {
+        assertEquals("null", new HttpGetResponse(RESPONSE_URI, 204, Map.of(), null).truncatedBody());
+    }
+
     private static HttpGetResponse response(int status) {
         return response(status, Map.of());
     }
 
     private static HttpGetResponse response(int status, Map<String, List<String>> headers) {
-        return new HttpGetResponse(status, headers, "");
+        return new HttpGetResponse(RESPONSE_URI, status, headers, "");
     }
 }

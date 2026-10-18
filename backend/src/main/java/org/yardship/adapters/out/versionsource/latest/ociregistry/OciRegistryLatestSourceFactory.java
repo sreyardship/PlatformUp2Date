@@ -1,7 +1,10 @@
 package org.yardship.adapters.out.versionsource.latest.ociregistry;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.ws.rs.client.ClientRequestFilter;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
+import org.yardship.adapters.out.versionsource.auth.BasicAuthFilter;
+import org.yardship.adapters.out.versionsource.http.HttpTransportConfig;
 import org.yardship.adapters.out.versionsource.latest.FailedLatestSource;
 import org.yardship.adapters.out.versionsource.latest.LatestVersionSourceFactory;
 import org.yardship.core.domain.primitives.VersionParser;
@@ -11,32 +14,36 @@ import java.util.Optional;
 
 /**
  * Factory for the {@code oci-registry} latest-version kind. Discovered as a CDI bean; validates
- * its own config fragment ({@code oci-registry} requires a non-blank {@code registry} and a
- * non-blank {@code repo}) and constructs a per-app {@link OciRegistryLatestSource}.
+ * its own STRUCTURAL config fragment ({@code oci-registry} requires a non-blank {@code registry} and
+ * a non-blank {@code repo}; a missing/blank value THROWS an {@link IllegalArgumentException} naming
+ * the field, the declared "this config fragment is unusable" signal the resolver records as a
+ * per-app {@code ConfigError} per ADR-0032) and constructs a per-app {@link OciRegistryLatestSource}.
  *
  * <p>This factory OWNS the URL-assembly concern: it builds {@code https://{registry}/v2/{repo}}
  * by default, honouring an explicit {@code http://} prefix on the {@code registry} value for
  * local/test registries.
  *
- * <p>Structural validation (missing/blank {@code registry} or {@code repo}) throws
- * {@link IllegalArgumentException} with a message naming the offending field — surfaces as a
- * boot-time failure, not a per-app scrape error.
- *
- * <p>VALUE-LEVEL auth validation ({@code auth.type} other than {@code basic}, or {@code basic}
- * with missing/blank credentials) returns a {@link FailedLatestSource} instead of throwing, so the
- * offending app fails on every {@link LatestVersionSource#version()} call while every other app
- * keeps scraping normally — mirroring {@code HttpJsonCurrentSourceFactory.validateAuthValue}.
- * The supported auth type is {@code basic} only; {@code bearer} and {@code token-file} send a
- * static token and do not fit the realm-mint flow (ADR-0013).
+ * <p>The {@code ca-cert} / {@code insecure-skip-tls-verify} part of the fragment is delegated to
+ * the shared, kind-labelled {@link HttpTransportConfig} (ADR-0040) — a private Harbor behind a
+ * company CA is configured like any {@code http-json} current source. {@code auth} is NOT: only
+ * {@code basic} fits the realm-mint flow of ADR-0013 ({@code bearer} and {@code token-file} would
+ * send a static token at the resource), so this factory validates it itself and hands the
+ * credential to the source for the token realm, never as the transport's configured credential.
+ * Either VALUE-level problem returns a {@link FailedLatestSource} rather than throwing, so the
+ * offending app fails on every {@link LatestVersionSource#version()} while every other app keeps
+ * scraping normally.
  */
 @ApplicationScoped
 public class OciRegistryLatestSourceFactory implements LatestVersionSourceFactory {
 
+    private static final String KIND_LABEL = "oci-registry";
     private static final String BASIC_AUTH_TYPE = "basic";
+
+    private final HttpTransportConfig transportConfig = HttpTransportConfig.forLatestSource(KIND_LABEL);
 
     @Override
     public String type() {
-        return "oci-registry";
+        return KIND_LABEL;
     }
 
     @Override
@@ -54,20 +61,24 @@ public class OciRegistryLatestSourceFactory implements LatestVersionSourceFactor
         String baseUrl = assembleBaseUrl(registry, repo);
         TagSelection selection = tagSelectionFrom(cfg);
 
-        if (cfg.auth().isEmpty()) {
-            return new OciRegistryLatestSource(baseUrl, Optional.empty(), Optional.empty(), selection, parser);
+        // auth is resolved below under this kind's own basic-only rule, so none is passed here.
+        HttpTransportConfig.Resolution tlsResolution = transportConfig.resolve(
+                Optional.empty(), cfg.caCert(), cfg.insecureSkipTlsVerify().orElse(false), baseUrl + "/tags/list");
+        if (tlsResolution.failureMessage().isPresent()) {
+            return new FailedLatestSource(tlsResolution.failureMessage().get());
         }
 
+        if (cfg.auth().isEmpty()) {
+            return new OciRegistryLatestSource(baseUrl, tlsResolution, Optional.empty(), selection, parser);
+        }
         ApplicationConfigLoader.VersionSource.Auth auth = cfg.auth().get();
         Optional<String> failureMessage = validateAuthValue(auth, registry);
         if (failureMessage.isPresent()) {
             return new FailedLatestSource(failureMessage.get());
         }
-
-        String username = nonBlank(auth.username()).get();
-        String password = nonBlank(auth.password()).get();
-        return new OciRegistryLatestSource(
-                baseUrl, Optional.of(username), Optional.of(password), selection, parser);
+        Optional<ClientRequestFilter> realmCredential =
+                Optional.of(new BasicAuthFilter(nonBlank(auth.username()).get(), nonBlank(auth.password()).get()));
+        return new OciRegistryLatestSource(baseUrl, tlsResolution, realmCredential, selection, parser);
     }
 
     /**

@@ -4,30 +4,36 @@ import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
+import org.yardship.adapters.out.versionsource.ApplicationConfigLoader.VersionSource.Auth;
+import org.yardship.adapters.out.versionsource.latest.FailedLatestSource;
+import org.yardship.adapters.out.versionsource.latest.HttpLatestSource;
 import org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleaseLatestSourceFactory;
+import org.yardship.core.ports.out.LatestVersionSource;
 
 import java.util.Map;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link GithubReleaseLatestSourceFactory} — the factory for the
- * {@code github-release} latest-version kind. Verifies its discriminator and its own config-fragment
- * validation. The {@code github-release} kind is now configured via a {@code repo} field
- * ({@code owner/repo} shape, exactly one {@code /}) instead of a full {@code url} — the factory
- * builds the GitHub API URL itself from the configured repo. {@code page-size} defaults to 30 and
- * must fail fast in {@code create()} outside GitHub's {@code per_page} range of 1–100. The GitHub
- * auth concern and REST-client construction are exercised at the integration level
- * ({@code GithubReleaseLatestSourceIT}); here we only assert the validation contract.
+ * {@code github-release} latest-version kind. Verifies its discriminator, its own STRUCTURAL
+ * config-fragment validation ({@code repo} in {@code owner/repo} shape with exactly one {@code /};
+ * {@code page-size} defaulting to 30 and failing fast outside GitHub's {@code per_page} range of
+ * 1–100 — both THROW an {@link IllegalArgumentException}), and that VALUE-level {@code auth} /
+ * {@code ca-cert} / {@code insecure-skip-tls-verify} problems are routed through the shared,
+ * kind-labelled {@code HttpTransportConfig} into a {@link FailedLatestSource} whose message names
+ * {@code github-release} on the latest leg, never a thrown exception.
  *
- * <p>Note on auth: the factory OWNS the GitHub token concern, so its production constructor (the one
- * CDI uses) takes the configured token. This test constructs it via a token-free / blank-token path;
- * the source keeps a constructor that accepts no token (or an empty {@link Optional}) so
- * the validation contract is unit-testable without a token.
+ * <p>The exhaustive matrix of every individual value-error case is owned by
+ * {@code HttpTransportConfigTests}; what the built transport does on the wire by
+ * {@code HttpTransportIT}; the URL assembled from {@code repo}/{@code page-size} and which
+ * credential reaches GitHub by {@code GithubReleaseLatestSourceIT}. This class proves the WIRING.
  */
 class GithubReleaseLatestSourceFactoryTests {
     private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
@@ -40,8 +46,9 @@ class GithubReleaseLatestSourceFactoryTests {
     }
 
     @Test
-    void create_buildsASource_whenRepoIsWellFormed() {
-        assertNotNull(factory.create(source(Optional.of("go-gitea/gitea"), Optional.empty()), SEMVER_PARSER));
+    void create_buildsAnHttpLatestSource_whenRepoIsWellFormed() {
+        assertInstanceOf(HttpLatestSource.class,
+                factory.create(source(Optional.of("go-gitea/gitea"), Optional.empty()), SEMVER_PARSER));
     }
 
     @Test
@@ -132,8 +139,105 @@ class GithubReleaseLatestSourceFactoryTests {
                 "the validation error must mention 'page-size'; was: " + ex.getMessage());
     }
 
+    // --- value-level: auth / ca-cert / insecure-skip-tls-verify (shared transport config) -------
+
+    @Test
+    void create_withAnInvalidAuthValue_returnsAFailedLatestSource_namingGithubReleaseOnTheLatestLeg() {
+        Auth unsupported = auth("oauth2", Optional.of("user"), Optional.of("pass"));
+
+        LatestVersionSource result = factory.create(sourceWithAuth(unsupported), SEMVER_PARSER);
+
+        assertInstanceOf(FailedLatestSource.class, result);
+        IllegalStateException ex = assertThrows(IllegalStateException.class, result::version);
+        assertTrue(ex.getMessage().contains("The 'github-release' latest source's"),
+                "the FailedLatestSource message must name the kind and the leg; was: " + ex.getMessage());
+    }
+
+    @Test
+    void create_withAValidAuthValue_buildsAnHttpLatestSource() {
+        Auth bearer = auth("bearer", Optional.empty(), Optional.empty());
+
+        assertInstanceOf(HttpLatestSource.class, factory.create(sourceWithAuth(bearer), SEMVER_PARSER));
+    }
+
+    @Test
+    void create_withFailedAuth_doesNotThrow_soOneBadAppCannotBlockTheOthersAtStartup() {
+        Auth unsupported = auth("oauth2", Optional.empty(), Optional.empty());
+
+        assertDoesNotThrow(() -> factory.create(sourceWithAuth(unsupported), SEMVER_PARSER));
+    }
+
+    @Test
+    void create_withABlankCaCert_returnsAFailedLatestSource_namingGithubReleaseOnTheLatestLeg() {
+        LatestVersionSource result = factory.create(sourceWithCaCert("   ", Optional.empty()), SEMVER_PARSER);
+
+        assertInstanceOf(FailedLatestSource.class, result);
+        IllegalStateException ex = assertThrows(IllegalStateException.class, result::version);
+        assertTrue(ex.getMessage().contains("The 'github-release' latest source's 'ca-cert'"),
+                "was: " + ex.getMessage());
+    }
+
+    @Test
+    void create_withCaCertAndInsecureSkipTlsVerifyTrue_returnsAFailedLatestSource_namingBothKeys() {
+        LatestVersionSource result =
+                factory.create(sourceWithCaCert("/no/such/path/ca.crt", Optional.of(true)), SEMVER_PARSER);
+
+        assertInstanceOf(FailedLatestSource.class, result,
+                "ca-cert together with insecure-skip-tls-verify: true is ambiguous and must be refused");
+        String message = assertThrows(IllegalStateException.class, result::version).getMessage();
+        assertTrue(message.contains("ca-cert") && message.contains("insecure-skip-tls-verify"), "was: " + message);
+    }
+
+    // --- helpers -------------------------------------------------------------------------------
+
+    private static ApplicationConfigLoader.VersionSource sourceWithAuth(Auth auth) {
+        return source(Optional.of("go-gitea/gitea"), Optional.empty(), Optional.of(auth), Optional.empty(),
+                Optional.empty());
+    }
+
+    private static ApplicationConfigLoader.VersionSource sourceWithCaCert(
+            String caCert, Optional<Boolean> insecureSkipTlsVerify) {
+        return source(Optional.of("go-gitea/gitea"), Optional.empty(), Optional.empty(), Optional.of(caCert),
+                insecureSkipTlsVerify);
+    }
+
+    private static Auth auth(String type, Optional<String> username, Optional<String> password) {
+        return new Auth() {
+            @Override
+            public Optional<String> type() {
+                return Optional.of(type);
+            }
+
+            @Override
+            public Optional<String> username() {
+                return username;
+            }
+
+            @Override
+            public Optional<String> password() {
+                return password;
+            }
+
+            @Override
+            public Optional<String> token() {
+                return "bearer".equals(type) ? Optional.of("tok") : Optional.empty();
+            }
+
+            @Override
+            public Optional<String> tokenFile() {
+                return Optional.empty();
+            }
+        };
+    }
+
     private static ApplicationConfigLoader.VersionSource source(
             Optional<String> repo, Optional<Integer> pageSize) {
+        return source(repo, pageSize, Optional.empty(), Optional.empty(), Optional.empty());
+    }
+
+    private static ApplicationConfigLoader.VersionSource source(
+            Optional<String> repo, Optional<Integer> pageSize, Optional<Auth> auth, Optional<String> caCert,
+            Optional<Boolean> insecureSkipTlsVerify) {
         return new ApplicationConfigLoader.VersionSource() {
             @Override
             public Optional<String> type() {
@@ -216,7 +320,7 @@ class GithubReleaseLatestSourceFactoryTests {
 
             @Override
             public Optional<ApplicationConfigLoader.VersionSource.Auth> auth() {
-                return Optional.empty();
+                return auth;
             }
 
             @Override
@@ -236,11 +340,12 @@ class GithubReleaseLatestSourceFactoryTests {
 
             @Override
             public Optional<String> caCert() {
-                return Optional.empty();
+                return caCert;
             }
+
             @Override
             public Optional<Boolean> insecureSkipTlsVerify() {
-                return Optional.empty();
+                return insecureSkipTlsVerify;
             }
 
 

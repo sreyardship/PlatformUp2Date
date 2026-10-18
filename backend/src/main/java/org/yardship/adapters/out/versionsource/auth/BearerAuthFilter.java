@@ -7,10 +7,12 @@ import jakarta.ws.rs.core.HttpHeaders;
 /**
  * Adds {@code Authorization: Bearer <token>} to outbound requests.
  *
- * <p>Scheme-generic: this filter knows nothing about which source registers it or which host the
- * request is bound for. The source that registers it owns to whom credentials are sent — see
- * {@link org.yardship.adapters.out.versionsource.latest.githubrelease.GithubReleaseLatestSource} (the {@code latest}
- * leg) and {@code HttpJsonCurrentSourceFactory} (the {@code current} leg, {@code auth.type: bearer}).
+ * <p>Scheme-generic: this filter knows nothing about which source renders it or which host the
+ * request is bound for. The factory that builds it owns to whom the credential is sent — the
+ * {@code auth.type: bearer} credential of any HTTP kind on either leg, the fleet-wide
+ * {@code github.token} of {@code github-release}, and the token the {@code oci-registry} dance mints
+ * (ADR-0013) all travel as this filter, rendered onto each GET by {@link AuthorizationHeaderRenderer}
+ * for the shared {@code HttpTransport}.
  */
 public class BearerAuthFilter implements ClientRequestFilter {
 
@@ -22,15 +24,6 @@ public class BearerAuthFilter implements ClientRequestFilter {
 
     @Override
     public void filter(ClientRequestContext requestContext) {
-        requestContext.getHeaders().putSingle(HttpHeaders.AUTHORIZATION, bearerHeaderValue(token));
-    }
-
-    /**
-     * The {@code Authorization} header value for a bearer {@code token} — shared with adapters
-     * that attach the same credential outside the JAX-RS filter chain (e.g. a hand-rolled redirect
-     * transport that needs the exact same header format on re-issued requests).
-     */
-    public static String bearerHeaderValue(String token) {
-        return "Bearer " + token;
+        requestContext.getHeaders().putSingle(HttpHeaders.AUTHORIZATION, "Bearer " + token);
     }
 }
