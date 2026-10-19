@@ -12,6 +12,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link OciTagSelector} — the pure tag-selection collaborator extracted from
@@ -263,8 +264,11 @@ class OciTagSelectorTests {
 
     @Test
     void select_noFilter_strictParser_throwsForTheSameTwoPartTags() {
-        assertThrows(IllegalStateException.class,
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> selectorNoFilter().select(JELLYFIN_SHAPED_TAGS));
+
+        assertTrue(ex.getMessage().contains("No clean semver tag found"),
+                "strict semver keeps today's 'no clean semver tag' failure; was: " + ex.getMessage());
     }
 
     @Test
