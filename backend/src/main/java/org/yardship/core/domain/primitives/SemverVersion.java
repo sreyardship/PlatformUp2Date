@@ -33,14 +33,14 @@ public final class SemverVersion implements VersionValue {
     }
 
     /**
-     * @param patchOptional when {@code true}, a two-part {@code major.minor} string is accepted and
+     * @param optionalPatch when {@code true}, a two-part {@code major.minor} string is accepted and
      *                      compared as {@code major.minor.0}; one-part and four-plus-part strings
      *                      are rejected either way.
      */
-    public SemverVersion(String input, boolean patchOptional) {
+    public SemverVersion(String input, boolean optionalPatch) {
         input = notNull(input, new InvalidVersionException("Value cannot be null"));
         input = VersionStrings.stripDecoration(input);
-        Matcher twoPart = patchOptional ? TWO_PART.matcher(input) : null;
+        Matcher twoPart = optionalPatch ? TWO_PART.matcher(input) : null;
         this.patchOmitted = twoPart != null && twoPart.matches();
         String strict = patchOmitted
                 ? twoPart.group(1) + ".0" + (twoPart.group(2) == null ? "" : twoPart.group(2))

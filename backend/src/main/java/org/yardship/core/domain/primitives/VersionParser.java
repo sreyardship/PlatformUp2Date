@@ -20,7 +20,7 @@ public class VersionParser {
     private final VersionScheme scheme;
     private final CalverFormat calverFormat; // non-null only for CALVER
     private final boolean dotnetCompareBuild; // read only for DOTNET
-    private final boolean semverOptionalPatch; // read only for SEMVER
+    private final boolean optionalPatch; // read only for SEMVER
 
     /**
      * Builds a parser for a scheme that needs no REQUIRED extra configuration. A {@code DOTNET}
@@ -50,14 +50,14 @@ public class VersionParser {
         this.scheme = scheme;
         this.calverFormat = null;
         this.dotnetCompareBuild = dotnetCompareBuild;
-        this.semverOptionalPatch = false;
+        this.optionalPatch = false;
     }
 
-    private VersionParser(boolean semverOptionalPatch) {
+    private VersionParser(boolean optionalPatch) {
         this.scheme = VersionScheme.SEMVER;
         this.calverFormat = null;
         this.dotnetCompareBuild = true;
-        this.semverOptionalPatch = semverOptionalPatch;
+        this.optionalPatch = optionalPatch;
     }
 
     /**
@@ -81,7 +81,7 @@ public class VersionParser {
     public VersionParser(VersionScheme scheme, String calverFormat) {
         this.scheme = scheme;
         this.dotnetCompareBuild = true;
-        this.semverOptionalPatch = false;
+        this.optionalPatch = false;
         if (scheme == VersionScheme.CALVER) {
             // CalverFormat fail-fasts on null/blank/unknown-token formats — let that surface here.
             this.calverFormat = new CalverFormat(calverFormat);
@@ -98,7 +98,7 @@ public class VersionParser {
      */
     public VersionValue parse(String raw) {
         return switch (scheme) {
-            case SEMVER -> new SemverVersion(raw, semverOptionalPatch);
+            case SEMVER -> new SemverVersion(raw, optionalPatch);
             case CALVER -> new CalverVersion(raw, calverFormat);
             case DOTNET -> new DotnetVersion(raw, dotnetCompareBuild);
         };
