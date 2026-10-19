@@ -2,41 +2,38 @@ package org.yardship.unit.adapters.out.versionsource.latest.httpregex;
 
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
+import org.yardship.adapters.out.versionsource.ApplicationConfigLoader.VersionSource.Auth;
+import org.yardship.adapters.out.versionsource.latest.FailedLatestSource;
+import org.yardship.adapters.out.versionsource.latest.HttpLatestSource;
 import org.yardship.adapters.out.versionsource.latest.httpregex.HttpRegexLatestSourceFactory;
+import org.yardship.core.ports.out.LatestVersionSource;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 
 import java.util.Map;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link HttpRegexLatestSourceFactory} — the factory for the {@code http-regex}
- * latest-version kind. Verifies its type discriminator and its own config-fragment validation.
+ * latest-version kind. Verifies its type discriminator, its own STRUCTURAL config-fragment
+ * validation — {@code url} and {@code regex} non-blank, the regex compiling with at least one
+ * capture group (the kind reads group 1); each THROWS an {@link IllegalArgumentException} — and
+ * that VALUE-level {@code auth} / {@code ca-cert} / {@code insecure-skip-tls-verify} problems are
+ * routed through the shared, kind-labelled {@code HttpTransportConfig} into a
+ * {@link FailedLatestSource} whose message names {@code http-regex} on the latest leg, never a
+ * thrown exception.
  *
- * <p><b>Assumed API surface:</b> {@code HttpRegexLatestSourceFactory} has a no-arg constructor
- * (or a CDI {@code @Inject} constructor that is NOT needed here since the factory itself holds no
- * external dependencies — unlike {@code GithubReleaseLatestSourceFactory} which holds a token). A
- * plain {@code new HttpRegexLatestSourceFactory()} must be sufficient for unit tests.
- *
- * <p><b>Validation contract pinned by these tests:</b>
- * <ul>
- *   <li>{@code url} must be non-blank — absent or blank throws {@link IllegalArgumentException}.</li>
- *   <li>{@code regex} must be non-blank — absent or blank throws {@link IllegalArgumentException}.</li>
- *   <li>{@code regex} must compile — an invalid pattern string throws {@link IllegalArgumentException}.</li>
- *   <li>{@code regex} must have at least one capture group — a pattern with zero groups throws
- *       {@link IllegalArgumentException} (because the source extracts group 1).</li>
- * </ul>
- * These are STRUCTURAL (boot-time) failures, consistent with {@code GithubReleaseLatestSourceFactory}'s
- * treatment of a missing/malformed {@code repo}.
- *
- * <p>The {@link ApplicationConfigLoader.VersionSource} fake below is an anonymous implementation
- * and therefore must implement every method on that interface. Keep it in sync when the config
- * shape changes, as in {@code GithubReleaseLatestSourceFactoryTests}.
+ * <p>The exhaustive matrix of every individual value-error case is owned by
+ * {@code HttpTransportConfigTests}; what the built transport does on the wire by
+ * {@code HttpTransportIT}; the kind's own rule end to end by {@code HttpRegexLatestSourceIT}. This
+ * class proves the WIRING.
  */
 class HttpRegexLatestSourceFactoryTests {
 
@@ -54,8 +51,8 @@ class HttpRegexLatestSourceFactoryTests {
     // --- valid config builds a source -------------------------------------------------------------
 
     @Test
-    void create_buildsASource_whenUrlAndRegexAreBothValid() {
-        assertNotNull(factory.create(
+    void create_buildsAnHttpLatestSource_whenUrlAndRegexAreBothValid() {
+        assertInstanceOf(HttpLatestSource.class, factory.create(
                 source(Optional.of("http://example.com/versions"), Optional.of("Version: (\\S+)")),
                 SEMVER_PARSER),
                 "a non-blank url and a compilable regex with one capture group must succeed");
@@ -137,6 +134,103 @@ class HttpRegexLatestSourceFactoryTests {
                 "the validation error must explain the missing capture group; was: " + ex.getMessage());
     }
 
+    // --- value-level: auth / ca-cert / insecure-skip-tls-verify (shared transport config) -------
+
+    @Test
+    void create_withAnInvalidAuthValue_returnsAFailedLatestSource_namingHttpRegexOnTheLatestLeg() {
+        Auth unsupported = auth("oauth2", Optional.of("user"), Optional.of("pass"));
+
+        LatestVersionSource result = factory.create(
+                source(Optional.of("http://example.com"), Optional.of("(\\S+)"), Optional.of(unsupported),
+                        Optional.empty(), Optional.empty()), SEMVER_PARSER);
+
+        assertInstanceOf(FailedLatestSource.class, result);
+        IllegalStateException ex = assertThrows(IllegalStateException.class, result::version);
+        assertTrue(ex.getMessage().contains("The 'http-regex' latest source's"),
+                "the FailedLatestSource message must name the kind and the leg; was: " + ex.getMessage());
+    }
+
+    @Test
+    void create_withAValidBasicAuthValue_buildsAnHttpLatestSource() {
+        Auth basic = auth("basic", Optional.of("user"), Optional.of("s3cr3t"));
+
+        assertInstanceOf(HttpLatestSource.class, factory.create(
+                source(Optional.of("http://example.com"), Optional.of("(\\S+)"), Optional.of(basic),
+                        Optional.empty(), Optional.empty()), SEMVER_PARSER));
+    }
+
+    @Test
+    void create_withFailedAuth_doesNotThrow_soOneBadAppCannotBlockTheOthersAtStartup() {
+        Auth unsupported = auth("oauth2", Optional.empty(), Optional.empty());
+
+        assertDoesNotThrow(() -> factory.create(
+                source(Optional.of("http://example.com"), Optional.of("(\\S+)"), Optional.of(unsupported),
+                        Optional.empty(), Optional.empty()), SEMVER_PARSER));
+    }
+
+    @Test
+    void create_withABlankCaCert_returnsAFailedLatestSource_namingHttpRegexOnTheLatestLeg() {
+        LatestVersionSource result = factory.create(
+                source(Optional.of("https://example.com"), Optional.of("(\\S+)"), Optional.empty(),
+                        Optional.of("   "), Optional.empty()), SEMVER_PARSER);
+
+        assertInstanceOf(FailedLatestSource.class, result);
+        IllegalStateException ex = assertThrows(IllegalStateException.class, result::version);
+        assertTrue(ex.getMessage().contains("The 'http-regex' latest source's 'ca-cert'"), "was: " + ex.getMessage());
+    }
+
+    @Test
+    void create_withCaCertAndInsecureSkipTlsVerifyTrue_returnsAFailedLatestSource_namingBothKeys() {
+        LatestVersionSource result = factory.create(
+                source(Optional.of("https://example.com"), Optional.of("(\\S+)"), Optional.empty(),
+                        Optional.of("/no/such/path/ca.crt"), Optional.of(true)), SEMVER_PARSER);
+
+        assertInstanceOf(FailedLatestSource.class, result,
+                "ca-cert together with insecure-skip-tls-verify: true is ambiguous and must be refused");
+        String message = assertThrows(IllegalStateException.class, result::version).getMessage();
+        assertTrue(message.contains("ca-cert") && message.contains("insecure-skip-tls-verify"), "was: " + message);
+    }
+
+    @Test
+    void create_checksTheStructuralFragmentFirst_soABadRegexThrowsEvenWhenAuthIsAlsoInvalid() {
+        // A structural error is a ConfigError the resolver records; a value error degrades the app.
+        // Structural wins: the operator fixes the regex first, then sees the auth message.
+        Auth unsupported = auth("oauth2", Optional.empty(), Optional.empty());
+
+        assertThrows(IllegalArgumentException.class, () -> factory.create(
+                source(Optional.of("http://example.com"), Optional.of("no-group"), Optional.of(unsupported),
+                        Optional.empty(), Optional.empty()), SEMVER_PARSER));
+    }
+
+    private static Auth auth(String type, Optional<String> username, Optional<String> password) {
+        return new Auth() {
+            @Override
+            public Optional<String> type() {
+                return Optional.of(type);
+            }
+
+            @Override
+            public Optional<String> username() {
+                return username;
+            }
+
+            @Override
+            public Optional<String> password() {
+                return password;
+            }
+
+            @Override
+            public Optional<String> token() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> tokenFile() {
+                return Optional.empty();
+            }
+        };
+    }
+
     // --- VersionSource fake -----------------------------------------------------------------------
 
     /**
@@ -147,6 +241,12 @@ class HttpRegexLatestSourceFactoryTests {
      */
     private static ApplicationConfigLoader.VersionSource source(
             Optional<String> url, Optional<String> regex) {
+        return source(url, regex, Optional.empty(), Optional.empty(), Optional.empty());
+    }
+
+    private static ApplicationConfigLoader.VersionSource source(
+            Optional<String> url, Optional<String> regex, Optional<Auth> auth, Optional<String> caCert,
+            Optional<Boolean> insecureSkipTlsVerify) {
         return new ApplicationConfigLoader.VersionSource() {
             @Override
             public Optional<String> type() {
@@ -244,7 +344,7 @@ class HttpRegexLatestSourceFactoryTests {
 
             @Override
             public Optional<Auth> auth() {
-                return Optional.empty();
+                return auth;
             }
 
             @Override
@@ -254,11 +354,12 @@ class HttpRegexLatestSourceFactoryTests {
 
             @Override
             public Optional<String> caCert() {
-                return Optional.empty();
+                return caCert;
             }
+
             @Override
             public Optional<Boolean> insecureSkipTlsVerify() {
-                return Optional.empty();
+                return insecureSkipTlsVerify;
             }
 
         };

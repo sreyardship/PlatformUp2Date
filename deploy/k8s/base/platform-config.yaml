@@ -35,6 +35,14 @@ platform-config:
       latest:
         type: github-release
         repo: mastodon/mastodon
+        # Every latest source takes the same transport keys as the http-* current
+        # sources (docs/configuration.md): an app-level auth block (basic|bearer,
+        # token or token-file) overrides the top-level github.token; ca-cert pins
+        # a private CA; insecure-skip-tls-verify is the curl -k escape hatch.
+        # auth:
+        #   type: bearer
+        #   token-file: /var/run/secrets/github/token
+        # ca-cert: /etc/pu2d/ca.crt
 
     - name: gitea
       changelog-url: https://github.com/go-gitea/gitea/releases/tag/v{version}
@@ -45,3 +53,10 @@ platform-config:
         type: oci-registry
         registry: registry-1.docker.io
         repo: gitea/gitea
+        # A private registry behind a company CA takes ca-cert like any http-*
+        # source; auth is basic only and is sent to the registry's token realm.
+        # ca-cert: /etc/pu2d/ca.crt
+        # auth:
+        #   type: basic
+        #   username: ${REGISTRY_USER:}
+        #   password: ${REGISTRY_PASSWORD:}

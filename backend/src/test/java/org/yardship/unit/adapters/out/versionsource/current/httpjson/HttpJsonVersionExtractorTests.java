@@ -8,6 +8,7 @@ import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.domain.primitives.VersionValue;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 
@@ -22,6 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * into it, and optional prerelease stripping. Fed fake {@link HttpGetResponse}s — NO Arc, NO HTTP.
  */
 class HttpJsonVersionExtractorTests {
+
+    private static final URI RESPONSE_URI = URI.create("http://localhost:8089/current");
 
     private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
 
@@ -97,7 +100,7 @@ class HttpJsonVersionExtractorTests {
     @Test
     void extract_throwsAVersionFetchException_onANon2xxResponse_namingTheStatusAndTheBody() {
         HttpJsonVersionExtractor extractor = extractor("/version", false);
-        HttpGetResponse forbidden = new HttpGetResponse(403, Map.of(), "{\"message\":\"forbidden\"}");
+        HttpGetResponse forbidden = new HttpGetResponse(RESPONSE_URI, 403, Map.of(), "{\"message\":\"forbidden\"}");
 
         VersionFetchException ex = assertThrows(VersionFetchException.class, () -> extractor.extract(forbidden));
 
@@ -110,7 +113,7 @@ class HttpJsonVersionExtractorTests {
     void extract_onANon2xxResponse_truncatesALongBodyInTheMessage() {
         HttpJsonVersionExtractor extractor = extractor("/version", false);
         String longBody = "x".repeat(2000);
-        HttpGetResponse error = new HttpGetResponse(500, Map.of(), longBody);
+        HttpGetResponse error = new HttpGetResponse(RESPONSE_URI, 500, Map.of(), longBody);
 
         VersionFetchException ex = assertThrows(VersionFetchException.class, () -> extractor.extract(error));
 
@@ -124,7 +127,7 @@ class HttpJsonVersionExtractorTests {
     @Test
     void extract_throwsAVersionFetchException_whenA2xxBodyIsNotJson() {
         HttpJsonVersionExtractor extractor = extractor("/version", false);
-        HttpGetResponse html = new HttpGetResponse(200, Map.of("Content-Type", List.of("text/html")),
+        HttpGetResponse html = new HttpGetResponse(RESPONSE_URI, 200, Map.of("Content-Type", List.of("text/html")),
                 "<html>login</html>");
 
         VersionFetchException ex = assertThrows(VersionFetchException.class, () -> extractor.extract(html));
@@ -140,6 +143,6 @@ class HttpJsonVersionExtractorTests {
     }
 
     private static HttpGetResponse ok(String body) {
-        return new HttpGetResponse(200, Map.of("Content-Type", List.of("application/json")), body);
+        return new HttpGetResponse(RESPONSE_URI, 200, Map.of("Content-Type", List.of("application/json")), body);
     }
 }

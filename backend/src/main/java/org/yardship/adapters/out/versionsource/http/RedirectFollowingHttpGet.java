@@ -1,10 +1,15 @@
 package org.yardship.adapters.out.versionsource.http;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.SecureRandom;
@@ -14,6 +19,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
@@ -33,12 +39,18 @@ import java.security.cert.X509Certificate;
  *       cross-origin target never receives it;</li>
  *   <li>an HTTPS-to-HTTP downgrade is refused before the HTTP target is ever contacted;</li>
  *   <li>nothing is cached across calls — permanent redirects (301/308) are re-traversed on every
- *       {@link #get(URI, Map)} call, matching a live upstream that may change its target.</li>
+ *       {@link #get(URI, Map)} call, matching a live upstream that may change its target;</li>
+ *   <li>one hop whose connection fails before any response arrives — most commonly the HTTP/1.1
+ *       keep-alive close race, where the server closes an idle connection at the moment the
+ *       client sends on it — is re-sent exactly once, as RFC 9112 §9.3.1 directs for an idempotent
+ *       request. Every request here is a GET, so the retry is always safe. An HTTP error status is
+ *       an answer, not a connection failure, and is never retried; nor is a failure a second
+ *       attempt cannot change — a TLS handshake the configured trust refuses, a host that does not
+ *       resolve, a timeout.</li>
  * </ul>
  *
- * <p>Deliberately generic (URI in, headers in, {@link HttpResponse} out) so any adapter making
- * outbound GETs to a source-controlled upstream can reuse it: the current leg's shared
- * {@link HttpTransport} and the {@code github-release} client both do.
+ * <p>Deliberately generic (URI in, headers in, {@link HttpResponse} out). Constructed in exactly one
+ * place, {@link HttpTransport}, which every HTTP kind on both legs fetches through.
  */
 public class RedirectFollowingHttpGet {
 
@@ -46,14 +58,9 @@ public class RedirectFollowingHttpGet {
     private static final Set<Integer> REDIRECT_STATUSES = Set.of(301, 302, 303, 307, 308);
     private static final String AUTHORIZATION = "Authorization";
     private static final String LOCATION = "Location";
+    private static final Logger LOG = LoggerFactory.getLogger(RedirectFollowingHttpGet.class);
 
     private final HttpClient httpClient;
-
-    public RedirectFollowingHttpGet() {
-        this(HttpClient.newBuilder()
-                .followRedirects(HttpClient.Redirect.NEVER)
-                .build());
-    }
 
     // Visible for testing: lets tests inject a client with custom timeouts/executors if ever needed.
     RedirectFollowingHttpGet(HttpClient httpClient) {
@@ -63,12 +70,9 @@ public class RedirectFollowingHttpGet {
     /**
      * Builds a redirect-following transport whose underlying {@link HttpClient} carries the SAME
      * per-caller TLS configuration on EVERY hop of a redirect chain — the initial request and any
-     * redirected one(s) alike, since both are issued by this one client. This closes the gap the
-     * default (no-arg) constructor leaves: a plain {@link HttpClient#newHttpClient()}-equivalent
-     * default trusts only the JVM's default CA bundle and always verifies hostnames, so a caller
-     * pinning a custom CA (or explicitly opting out of TLS verification) via a per-adapter
-     * truststore/insecure flag would silently lose that configuration the moment a redirect was
-     * followed.
+     * redirected one(s) alike, since both are issued by this one client. A caller pinning a custom
+     * CA (or explicitly opting out of TLS verification) via a per-adapter truststore/insecure flag
+     * must not silently lose that configuration the moment a redirect is followed.
      *
      * <p>{@code trustStore} — when present — REPLACES (not augments) the trust bundle for this
      * client only: a fresh {@link SSLContext} is built from a {@link TrustManagerFactory}
@@ -77,8 +81,7 @@ public class RedirectFollowingHttpGet {
      * responsibility (as it already is at the {@code HttpTransportConfig} boundary) to treat
      * {@code trustStore} and {@code insecureSkipTlsVerify} as mutually exclusive — this method does
      * not itself enforce that. Both {@link Optional#empty()} and {@code insecureSkipTlsVerify=false}
-     * yields the JVM default trust bundle with normal hostname verification, i.e. behaviorally
-     * identical to the no-arg constructor for a plain HTTP caller.
+     * yields the JVM default trust bundle with normal hostname verification.
      */
     public static RedirectFollowingHttpGet withTls(Optional<KeyStore> trustStore, boolean insecureSkipTlsVerify) {
         HttpClient.Builder builder = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER);
@@ -172,8 +175,19 @@ public class RedirectFollowingHttpGet {
     private HttpResponse<String> send(URI uri, Map<String, String> headers) {
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(uri).GET();
         headers.forEach(requestBuilder::header);
+        HttpRequest request = requestBuilder.build();
         try {
-            return httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
+            try {
+                return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            }
+            catch (IOException firstAttempt) {
+                if (!isRetryableConnectionFailure(firstAttempt)) {
+                    throw firstAttempt;
+                }
+                LOG.debug("Connection-level failure fetching '{}'; retrying the idempotent GET once "
+                        + "(RFC 9112 §9.3.1 keep-alive close race)", uri, firstAttempt);
+                return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            }
         }
         catch (IOException e) {
             throw new RuntimeException("Failed to fetch '" + uri + "': " + e.getMessage(), e);
@@ -182,6 +196,18 @@ public class RedirectFollowingHttpGet {
             Thread.currentThread().interrupt();
             throw new RuntimeException("Interrupted fetching '" + uri + "'", e);
         }
+    }
+
+    /**
+     * A dropped or reset connection, an empty response, a refused connect: the shapes the
+     * keep-alive close race takes. Not a TLS refusal (the trust configuration is what it is), not
+     * an unresolvable host, not a timeout — a second attempt only doubles the time to the same
+     * answer.
+     */
+    private static boolean isRetryableConnectionFailure(IOException failure) {
+        return !(failure instanceof SSLException
+                || failure instanceof UnknownHostException
+                || failure instanceof HttpTimeoutException);
     }
 
     private static URI resolve(URI currentUri, String location) {

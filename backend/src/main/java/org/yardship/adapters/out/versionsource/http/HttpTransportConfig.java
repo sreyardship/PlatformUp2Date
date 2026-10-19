@@ -18,18 +18,19 @@ import java.util.Collection;
 import java.util.Optional;
 
 /**
- * Stateless, kind-labelled collaborator shared by every current-leg HTTP factory ({@code
- * http-json}, {@code http-header}, {@code http-prometheus}). Resolves the {@code auth} /
- * {@code ca-cert} / {@code insecure-skip-tls-verify} part of a config fragment into either a
- * value-level failure message (never a thrown exception) or the resolved transport inputs — an
- * optional {@link ClientRequestFilter}, an optional truststore, and the insecure-TLS flag — from
+ * Stateless, kind-labelled collaborator shared by every HTTP factory on both legs ({@code
+ * http-json}, {@code http-header}, {@code http-prometheus} on the current leg; {@code
+ * github-release}, {@code http-regex}, {@code oci-registry} on the latest leg). Resolves the
+ * {@code auth} / {@code ca-cert} / {@code insecure-skip-tls-verify} part of a config fragment into
+ * either a value-level failure message (never a thrown exception) or the resolved transport inputs —
+ * an optional {@link ClientRequestFilter}, an optional truststore, and the insecure-TLS flag — from
  * which {@link HttpTransport#from} builds the one shared transport.
  *
- * <p>The {@code kindLabel} supplied at construction is substituted into every message so wording reads
- * {@code "The 'http-json' current source's ..."} for the {@code http-json} kind and {@code "The
- * 'http-header' current source's ..."} for {@code http-header}, etc. This collaborator introduces no
- * new lifecycle —
- * every current-leg HTTP factory constructs or injects it directly.
+ * <p>The source label fixed at construction is substituted into every message, so wording reads
+ * {@code "The 'http-json' current source's ..."} for {@link #forCurrentSource} and {@code "The
+ * 'http-regex' latest source's ..."} for {@link #forLatestSource}: the operator reads which kind,
+ * on which side of which Application, is misconfigured. This collaborator introduces no new
+ * lifecycle — every factory constructs it directly.
  */
 public class HttpTransportConfig {
 
@@ -38,15 +39,26 @@ public class HttpTransportConfig {
 
     private final Logger logger = LoggerFactory.getLogger(HttpTransportConfig.class);
 
-    private final String kindLabel;
+    /** E.g. {@code "'http-json' current source"}; read as {@code "The " + sourceLabel + " ..."}. */
+    private final String sourceLabel;
 
-    public HttpTransportConfig(String kindLabel) {
-        this.kindLabel = kindLabel;
+    private HttpTransportConfig(String sourceLabel) {
+        this.sourceLabel = sourceLabel;
+    }
+
+    /** For a current-leg kind: messages read {@code "The '<kindLabel>' current source ..."}. */
+    public static HttpTransportConfig forCurrentSource(String kindLabel) {
+        return new HttpTransportConfig("'" + kindLabel + "' current source");
+    }
+
+    /** For a latest-leg kind: messages read {@code "The '<kindLabel>' latest source ..."}. */
+    public static HttpTransportConfig forLatestSource(String kindLabel) {
+        return new HttpTransportConfig("'" + kindLabel + "' latest source");
     }
 
     /**
      * Outcome of {@link #resolve}: either a value-level failure message (mapped to a
-     * {@code FailedCurrentSource} by the caller, never thrown) or the resolved transport inputs.
+     * {@code FailedCurrentSource} / {@code FailedLatestSource} by the caller, never thrown) or the resolved transport inputs.
      *
      * <p>On success, this is the COMPLETE bundle of resolved transport inputs needed to build the
      * transport — {@code authFilter}, {@code trustStore}, AND {@code insecureSkipTlsVerify} — even
@@ -57,7 +69,7 @@ public class HttpTransportConfig {
      *
      * <p>On {@link #failed}, {@code insecureSkipTlsVerify} is always {@code false} — a placeholder,
      * not a resolved value. Every caller of {@link #resolve} MUST check {@link #failureMessage}
-     * first and short-circuit (log + {@code FailedCurrentSource}) before building a transport;
+     * first and short-circuit (log + a {@code Failed…Source}) before building a transport;
      * {@link HttpTransport#from} refuses a failed {@code Resolution} outright.
      */
     public record Resolution(
@@ -75,6 +87,28 @@ public class HttpTransportConfig {
                 boolean insecureSkipTlsVerify) {
             return new Resolution(Optional.empty(), authFilter, trustStore, insecureSkipTlsVerify);
         }
+
+        /**
+         * This resolution with {@code fallback} as its auth filter when the fragment configured no
+         * {@code auth} — how {@code github-release} applies the fleet-wide {@code github.token}
+         * beneath an app's own {@code auth} block. A configured filter is kept; a failed resolution
+         * is returned unchanged.
+         */
+        public Resolution withAuthFilterIfAbsent(Optional<ClientRequestFilter> fallback) {
+            if (failureMessage.isPresent() || authFilter.isPresent()) {
+                return this;
+            }
+            return new Resolution(failureMessage, fallback, trustStore, insecureSkipTlsVerify);
+        }
+    }
+
+    /**
+     * {@link #resolve(Optional, Optional, boolean, String)} over the fragment's own {@code auth},
+     * {@code ca-cert} and {@code insecure-skip-tls-verify} (absent meaning {@code false}) — the
+     * call every HTTP factory makes.
+     */
+    public Resolution resolve(ApplicationConfigLoader.VersionSource cfg, String url) {
+        return resolve(cfg.auth(), cfg.caCert(), cfg.insecureSkipTlsVerify().orElse(false), url);
     }
 
     /**
@@ -89,7 +123,7 @@ public class HttpTransportConfig {
             boolean insecureSkipTlsVerify, String url) {
 
         if (insecureSkipTlsVerify && caCert.isPresent()) {
-            String message = "The '" + kindLabel + "' current source has both 'ca-cert' and "
+            String message = "The " + sourceLabel + " has both 'ca-cert' and "
                     + "'insecure-skip-tls-verify: true'; this is ambiguous and refused, no "
                     + "precedence rule (url: '" + url + "').";
             return Resolution.failed(message);
@@ -102,7 +136,7 @@ public class HttpTransportConfig {
         Optional<KeyStore> trustStore = caCertResolution.trustStore();
 
         if (insecureSkipTlsVerify) {
-            logger.warn("The '" + kindLabel + "' current source has 'insecure-skip-tls-verify' "
+            logger.warn("The " + sourceLabel + " has 'insecure-skip-tls-verify' "
                     + "enabled; TLS certificate and hostname verification are disabled for url '"
                     + url + "'.");
         }
@@ -130,13 +164,13 @@ public class HttpTransportConfig {
     private Optional<String> validateAuthValue(
             ApplicationConfigLoader.VersionSource.Auth auth, String url) {
         if (auth.type().isEmpty()) {
-            return Optional.of("The '" + kindLabel + "' current source has an 'auth' block with no "
+            return Optional.of("The " + sourceLabel + " has an 'auth' block with no "
                     + "'type' configured (url: '" + url + "').");
         }
         String type = auth.type().get();
         if (BASIC_AUTH_TYPE.equals(type)) {
             if (nonBlank(auth.username()).isEmpty() || nonBlank(auth.password()).isEmpty()) {
-                return Optional.of("The '" + kindLabel + "' current source's auth.type 'basic' is "
+                return Optional.of("The " + sourceLabel + "'s auth.type 'basic' is "
                         + "missing a username or password (url: '" + url + "').");
             }
             return Optional.empty();
@@ -145,23 +179,23 @@ public class HttpTransportConfig {
             boolean hasToken = nonBlank(auth.token()).isPresent();
             boolean hasTokenFile = nonBlank(auth.tokenFile()).isPresent();
             if (hasToken && hasTokenFile) {
-                return Optional.of("The '" + kindLabel + "' current source's auth.type 'bearer' has "
+                return Optional.of("The " + sourceLabel + "'s auth.type 'bearer' has "
                         + "both a token and a token-file; this is ambiguous and refused, no "
                         + "precedence rule (url: '" + url + "').");
             }
             if (!hasToken && !hasTokenFile) {
-                return Optional.of("The '" + kindLabel + "' current source's auth.type 'bearer' needs "
+                return Optional.of("The " + sourceLabel + "'s auth.type 'bearer' needs "
                         + "a token or token-file (url: '" + url + "').");
             }
             return Optional.empty();
         }
-        return Optional.of("The '" + kindLabel + "' current source's auth.type '" + type
+        return Optional.of("The " + sourceLabel + "'s auth.type '" + type
                 + "' is not supported (url: '" + url + "').");
     }
 
     /**
      * Outcome of resolving the optional {@code ca-cert}: either a value-level failure message (mapped
-     * to a {@code FailedCurrentSource} by the caller, never thrown) or the truststore to register on
+     * to a {@code Failed…Source} by the caller, never thrown) or the truststore to register on
      * the client ({@link Optional#empty()} when no {@code ca-cert} is configured → JVM default trust).
      */
     private record CaCertResolution(Optional<String> failureMessage, Optional<KeyStore> trustStore) {
@@ -182,7 +216,7 @@ public class HttpTransportConfig {
     /**
      * Resolves the optional, transport-level {@code ca-cert} into a per-client truststore. Absent →
      * no custom truststore (JVM default trust). Present-but-blank, or a file that is missing/unreadable/
-     * not parseable as X.509/yields zero certs → a value-level failure (WARN + {@code FailedCurrentSource}
+     * not parseable as X.509/yields zero certs → a value-level failure (WARN + a {@code Failed…Source}
      * by the caller), NEVER a thrown exception. On success the parsed certs are loaded into a fresh
      * in-memory {@link KeyStore} ({@code load(null, null)}, holding ONLY the supplied CA(s) — it
      * REPLACES, not augments, the JVM bundle for this client only).
@@ -192,7 +226,7 @@ public class HttpTransportConfig {
             return CaCertResolution.noTrustStore();
         }
         if (nonBlank(caCert).isEmpty()) {
-            return CaCertResolution.failed("The '" + kindLabel + "' current source's 'ca-cert' is "
+            return CaCertResolution.failed("The " + sourceLabel + "'s 'ca-cert' is "
                     + "configured but blank (url: '" + url + "').");
         }
         Path path = Path.of(caCert.get());
@@ -200,12 +234,12 @@ public class HttpTransportConfig {
         try (InputStream in = Files.newInputStream(path)) {
             certs = CertificateFactory.getInstance("X.509").generateCertificates(in);
         } catch (Exception ex) {
-            return CaCertResolution.failed("The '" + kindLabel + "' current source's 'ca-cert' could "
+            return CaCertResolution.failed("The " + sourceLabel + "'s 'ca-cert' could "
                     + "not be read as X.509 PEM from '" + path + "' (url: '" + url + "'): "
                     + ex.getMessage());
         }
         if (certs.isEmpty()) {
-            return CaCertResolution.failed("The '" + kindLabel + "' current source's 'ca-cert' at '"
+            return CaCertResolution.failed("The " + sourceLabel + "'s 'ca-cert' at '"
                     + path + "' contained no X.509 certificates (url: '" + url + "').");
         }
         try {
@@ -217,7 +251,7 @@ public class HttpTransportConfig {
             }
             return CaCertResolution.withTrustStore(trustStore);
         } catch (Exception ex) {
-            return CaCertResolution.failed("The '" + kindLabel + "' current source's 'ca-cert' from '"
+            return CaCertResolution.failed("The " + sourceLabel + "'s 'ca-cert' from '"
                     + path + "' could not be loaded into a truststore (url: '" + url + "'): "
                     + ex.getMessage());
         }

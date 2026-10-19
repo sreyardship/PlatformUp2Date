@@ -1,18 +1,16 @@
 package org.yardship.integration.adapters.out.versionsource.latest.ociregistry;
 
-import org.yardship.core.domain.primitives.VersionParser;
-import org.yardship.core.domain.primitives.VersionScheme;
 import com.github.tomakehurst.wiremock.WireMockServer;
-import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.yardship.adapters.out.versionsource.latest.ociregistry.OciRegistryLatestSource;
-import org.yardship.adapters.out.versionsource.latest.ociregistry.TagSelection;
+import org.yardship.adapters.out.versionsource.latest.ociregistry.OciRegistryLatestSourceFactory;
+import org.yardship.core.domain.primitives.VersionParser;
+import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.domain.primitives.VersionValue;
-
-import java.util.Optional;
+import org.yardship.core.ports.out.LatestVersionSource;
+import org.yardship.integration.adapters.out.versionsource.latest.LatestSourceFragment;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
@@ -22,8 +20,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Integration tests for the {@code prerelease-filter} and {@code strip-prerelease} behavior of
- * {@link OciRegistryLatestSource} (ADR-0014).
+ * Integration tests for the {@code prerelease-filter} and {@code strip-prerelease} behavior of the
+ * {@code oci-registry} kind (ADR-0014), built end to end through
+ * {@link OciRegistryLatestSourceFactory#create} so both knobs are read from a real config fragment.
+ * Plain JUnit.
  *
  * <p>Uses a standalone WireMock server on port 8093, distinct from the no-challenge tests on 8090
  * ({@link OciRegistryLatestSourceIT}), the bearer-dance tests on 8091
@@ -34,14 +34,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * are wired correctly through the HTTP layer, plus the no-match error path. Exact-match semantics,
  * ranking, and strip logic are owned by
  * {@link org.yardship.unit.adapters.out.versionsource.latest.ociregistry.OciTagSelectorTests}.
- *
- * <p>{@code @QuarkusTest} is required because {@link io.quarkus.rest.client.reactive.QuarkusRestClientBuilder}
- * needs a running Quarkus context.
  */
-@QuarkusTest
 class OciRegistryLatestSourcePrereleaseFilterIT {
     private static final VersionParser SEMVER_PARSER = new VersionParser(VersionScheme.SEMVER);
-
 
     static final int PORT = 8093;
     static final String BASE_URL = "http://localhost:" + PORT;
@@ -49,6 +44,8 @@ class OciRegistryLatestSourcePrereleaseFilterIT {
     static final String TAGS_PATH = "/v2/" + REPO + "/tags/list";
 
     static WireMockServer wireMockServer;
+
+    private final OciRegistryLatestSourceFactory factory = new OciRegistryLatestSourceFactory();
 
     @BeforeAll
     static void startWireMock() {
@@ -70,19 +67,14 @@ class OciRegistryLatestSourcePrereleaseFilterIT {
 
     @Test
     void withAlpineFilter_selectsLargestAlpineTag_andReportsFullTagValue() {
-        // Tags: clean "1.0.0", both alpine variants, a non-alpine variant, and "latest".
-        // filter=alpine → only "1.20.0-alpine" and "1.22.0-alpine" qualify; largest wins.
-        // Expected: "1.22.0-alpine" (FULL tag, not just "1.22.0").
+        // filter=alpine → only "1.20.0-alpine" and "1.22.0-alpine" qualify; largest wins, reported
+        // as the FULL tag, not just "1.22.0".
         wireMockServer.stubFor(get(urlPathEqualTo(TAGS_PATH))
                 .willReturn(jsonResponse(200, tagsListBody(
                         "1.0.0", "1.20.0-alpine", "1.22.0-alpine",
                         "1.22.0-alpine3.16", "1.22.0-debian", "latest"))));
 
-        OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
-                BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
-                new TagSelection(100, 1000, Optional.of("alpine"), false), SEMVER_PARSER);
-
-        VersionValue result = latestSource.version();
+        VersionValue result = source("alpine", false).version();
 
         assertEquals("1.22.0-alpine", result.value(),
                 "filter=alpine must report the largest -alpine tag as its full value");
@@ -92,14 +84,11 @@ class OciRegistryLatestSourcePrereleaseFilterIT {
 
     @Test
     void withAlpineFilter_throws_whenNoTagMatchesFilter() {
-        // Registry has only clean and debian tags — no -alpine tags → per-app scrape failure.
         wireMockServer.stubFor(get(urlPathEqualTo(TAGS_PATH))
                 .willReturn(jsonResponse(200, tagsListBody(
                         "1.22.0", "1.22.0-debian", "latest"))));
 
-        OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
-                BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
-                new TagSelection(100, 1000, Optional.of("alpine"), false), SEMVER_PARSER);
+        LatestVersionSource latestSource = source("alpine", false);
 
         assertThrows(RuntimeException.class, latestSource::version,
                 "no tag matches filter=alpine → must throw as a per-app scrape failure");
@@ -109,26 +98,26 @@ class OciRegistryLatestSourcePrereleaseFilterIT {
 
     @Test
     void withAlpineFilter_andStripPrerelease_reportsStrippedVersion() {
-        // filter=alpine + strip=true:
-        //   - SELECTION: picks the largest -alpine tag → "1.22.0-alpine" (full tag, correct ranking)
-        //   - REPORT:    strips the prerelease → "1.22.0"
-        // The returned version must omit the selected tag's prerelease suffix.
+        // SELECTION picks the largest -alpine tag ("1.22.0-alpine"); REPORT strips it to "1.22.0".
         wireMockServer.stubFor(get(urlPathEqualTo(TAGS_PATH))
                 .willReturn(jsonResponse(200, tagsListBody(
                         "1.0.0", "1.20.0-alpine", "1.22.0-alpine",
                         "1.22.0-alpine3.16", "1.22.0-debian", "latest"))));
 
-        OciRegistryLatestSource latestSource = new OciRegistryLatestSource(
-                BASE_URL + "/v2/" + REPO, Optional.empty(), Optional.empty(),
-                new TagSelection(100, 1000, Optional.of("alpine"), true), SEMVER_PARSER);
-
-        VersionValue result = latestSource.version();
+        VersionValue result = source("alpine", true).version();
 
         assertEquals("1.22.0", result.value(),
                 "filter=alpine strip=true: selection picks 1.22.0-alpine, stripped to 1.22.0");
     }
 
     // ---- helpers -------------------------------------------------------------------------------
+
+    private LatestVersionSource source(String prereleaseFilter, boolean stripPrerelease) {
+        return factory.create(
+                LatestSourceFragment.ofType("oci-registry").registry(BASE_URL).repo(REPO)
+                        .prereleaseFilter(prereleaseFilter).stripPrerelease(stripPrerelease),
+                SEMVER_PARSER);
+    }
 
     private static String tagsListBody(String... tags) {
         String joined = String.join("\", \"", tags);

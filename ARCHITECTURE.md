@@ -106,8 +106,8 @@ selected per application by a discriminated config:
 
 - `CurrentVersionSource` → `HttpCurrentSource`, `K8sImageCurrentSource`,
   `SshOsReleaseCurrentSource`, …
-- `LatestVersionSource` → `GithubReleaseLatestSource`, `OciRegistryLatestSource`,
-  `HttpRegexLatestSource`, …
+- `LatestVersionSource` → `HttpLatestSource` (github-release, http-regex),
+  `OciRegistryLatestSource`, …
 
 The core service (`ApplicationVersionService`) stays oblivious to deployment substrate; it
 only asks "current?" and "latest?" and compares. Each application is configured as simply

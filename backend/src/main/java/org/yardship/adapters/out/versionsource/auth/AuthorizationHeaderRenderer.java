@@ -17,9 +17,8 @@ import java.util.Optional;
 
 /**
  * Renders a {@link ClientRequestFilter} into a literal {@code Authorization} header value, for the
- * shared current-leg {@code HttpTransport}, which talks over a plain {@code java.net.http} client
- * rather than a JAX-RS client with a native filter chain, and so needs a header map, not a filter
- * to register.
+ * shared {@code HttpTransport}, which talks over a plain {@code java.net.http} client rather than a
+ * JAX-RS client with a native filter chain, and so needs a header map, not a filter to register.
  *
  * <p>Invokes {@code filter} against a minimal {@link ClientRequestContext} stand-in that only
  * implements {@link ClientRequestContext#getHeaders()}, then reads back whatever

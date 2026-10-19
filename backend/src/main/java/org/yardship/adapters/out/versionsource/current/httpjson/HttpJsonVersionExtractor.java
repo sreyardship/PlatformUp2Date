@@ -24,7 +24,6 @@ import org.yardship.core.domain.primitives.VersionValue;
 public final class HttpJsonVersionExtractor implements HttpVersionExtractor {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private static final int MAX_BODY = 512;
 
     private final String versionKey;
     private final boolean stripPrerelease;
@@ -40,7 +39,7 @@ public final class HttpJsonVersionExtractor implements HttpVersionExtractor {
     public VersionValue extract(HttpGetResponse response) {
         if (!response.isSuccess()) {
             throw new VersionFetchException(
-                    "HTTP " + response.status() + " response: " + truncate(response.body()),
+                    "HTTP " + response.status() + " response: " + response.truncatedBody(),
                     response.status(), response.body());
         }
         JsonNode root = parseBody(response);
@@ -49,7 +48,7 @@ public final class HttpJsonVersionExtractor implements HttpVersionExtractor {
             throw new IllegalStateException(
                     "The 'http-json' current source's version-key '" + versionKey
                             + "' did not resolve to a text value in the upstream response. Body: "
-                            + truncate(root.toString()));
+                            + response.truncatedBody());
         }
         VersionValue version = parser.parse(node.textValue());
         return stripPrerelease ? version.withoutPreRelease() : version;
@@ -63,15 +62,5 @@ public final class HttpJsonVersionExtractor implements HttpVersionExtractor {
                     "Failed to parse the 'http-json' current source's JSON response: " + e.getMessage(),
                     response.status(), response.body());
         }
-    }
-
-    private static String truncate(String body) {
-        if (body == null) {
-            return "null";
-        }
-        if (body.length() <= MAX_BODY) {
-            return body;
-        }
-        return body.substring(0, MAX_BODY) + "…[truncated]";
     }
 }

@@ -4,6 +4,12 @@ status: accepted
 
 # Upstream versions without a release API are read by a generic http-regex source
 
+> **Amended by [ADR-0040](0040-latest-leg-on-the-shared-http-transport.md):** the consequence
+> below that `http-regex` "starts unauthenticated over the public CA" is no longer the case: the
+> kind fetches through the shared `HttpTransport` and reads `auth`, `ca-cert` and
+> `insecure-skip-tls-verify` like every other HTTP kind. The decision itself — one generic
+> url-plus-regex kind, largest match wins — is unchanged.
+
 Neither Ubuntu nor OpenWRT publishes GitHub releases, so the `github-release`
 latest source does not reach them. Their upstream version *is* available, just not
 as a clean API: Ubuntu exposes a flat text feed at

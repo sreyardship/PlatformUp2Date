@@ -109,27 +109,29 @@ public interface ApplicationConfigLoader {
 
         /**
          * Optional path to a PEM file holding a custom certificate authority used to verify the TLS
-         * server certificate of the {@code http-json} current source's {@code url}. A transport concern
-         * (sibling of {@link #url()}), deliberately NOT under {@link #auth()}. Absent leaves the JVM
-         * default trust bundle in place for this app, preserving the default behavior for existing
-         * app. When present, the {@code HttpJsonCurrentSourceFactory} reads the PEM once at boot, loads
-         * its X.509 certificate(s) into an in-memory truststore and pins it onto THIS app's REST
-         * client only ({@code curl --cacert} semantics: replace, not augment) — never a JVM-global
-         * truststore. A present-but-blank value, or a path that is missing/unreadable/not parseable as
-         * X.509/yields zero certs, is a value-level misconfiguration the factory maps to a
-         * {@code FailedCurrentSource}, never a boot crash.
+         * server certificate of an HTTP kind's endpoint — every HTTP kind on either leg
+         * ({@code http-json}, {@code http-header}, {@code http-prometheus}; {@code github-release},
+         * {@code http-regex}, {@code oci-registry}) reads it through the shared
+         * {@code HttpTransportConfig} (ADR-0039, ADR-0040). A transport concern (sibling of
+         * {@link #url()}), deliberately NOT under {@link #auth()}. Absent leaves the JVM default trust
+         * bundle in place for this app. When present, the factory reads the PEM once at boot, loads its
+         * X.509 certificate(s) into an in-memory truststore and pins it onto THIS app's transport only
+         * ({@code curl --cacert} semantics: replace, not augment) — never a JVM-global truststore. A
+         * present-but-blank value, or a path that is missing/unreadable/not parseable as X.509/yields
+         * zero certs, is a value-level misconfiguration the factory maps to a {@code FailedCurrentSource}
+         * or {@code FailedLatestSource}, never a boot crash.
          */
         Optional<String> caCert();
 
         /**
-         * Optional flag read only by the {@code http-json} current source: when {@code true}, the built
-         * REST client trusts ANY TLS server certificate and does not verify the server hostname
-         * against it — full {@code curl -k} semantics, scoped to THIS app's client only (never a
-         * JVM-global TLS setting). A transport concern (sibling of {@link #url()} and
+         * Optional flag read by every HTTP kind on either leg (see {@link #caCert()}): when
+         * {@code true}, the built transport trusts ANY TLS server certificate and does not verify the
+         * server hostname against it — full {@code curl -k} semantics, scoped to THIS app's transport
+         * only (never a JVM-global TLS setting). A transport concern (sibling of {@link #url()} and
          * {@link #caCert()}). Absent defaults to {@code false}, preserving standard TLS behavior for
          * every existing app. Mutually exclusive with {@link #caCert()}: configuring both is refused
-         * by the {@code HttpJsonCurrentSourceFactory} as a value-level misconfiguration (mapped to a
-         * {@code FailedCurrentSource}, never a boot crash) rather than silently picking one.
+         * by the factory as a value-level misconfiguration (mapped to a {@code Failed…Source}, never a
+         * boot crash) rather than silently picking one.
          */
         Optional<Boolean> insecureSkipTlsVerify();
 
@@ -244,11 +246,14 @@ public interface ApplicationConfigLoader {
         Map<String, String> labels();
 
         /**
-         * Optional per-app authentication fragment for the {@code http-json} current source (ADR-0008).
-         * Absent leaves the request unauthenticated. Username, password, and token values are
-         * env-expandable (e.g. {@code ${HARBOR_USER:}}), so an unset variable resolves to a blank
-         * value rather than failing to bind at boot. The consuming factory treats missing or blank
-         * credentials as value-level misconfiguration.
+         * Optional per-app authentication fragment for every HTTP kind on either leg (ADR-0008,
+         * ADR-0040): {@code basic} or {@code bearer} for the current kinds, {@code github-release} and
+         * {@code http-regex}; {@code basic} only for {@code oci-registry}, whose credential goes to the
+         * token realm (ADR-0013). For {@code github-release} it overrides the fleet-wide
+         * {@link Github#token()}. Absent leaves the request unauthenticated. Username, password, and
+         * token values are env-expandable (e.g. {@code ${HARBOR_USER:}}), so an unset variable resolves
+         * to a blank value rather than failing to bind at boot. The consuming factory treats missing or
+         * blank credentials as value-level misconfiguration.
          */
         Optional<Auth> auth();
 
@@ -338,9 +343,9 @@ public interface ApplicationConfigLoader {
          * scheme-specific credential fields. {@code type()} is declared {@link Optional} (issue 02
          * / ADR-0032) — the last survivor of ADR-0008's retired "malformed structure fails the
          * boot" rule — so a configured {@code auth:} block missing {@code type} binds cleanly and
-         * becomes a {@code ConfigError} scoped to the affected side ({@code CURRENT} for the HTTP
-         * current-leg kinds via {@code HttpTransportConfig}, {@code LATEST} for {@code
-         * oci-registry}) rather than a SmallRye binding failure.
+         * becomes a {@code ConfigError} scoped to the affected side ({@code CURRENT} or
+         * {@code LATEST}, via {@code HttpTransportConfig} for every HTTP kind and {@code
+         * oci-registry}'s own basic-only rule) rather than a SmallRye binding failure.
          */
         interface Auth {
             Optional<String> type();
@@ -387,9 +392,10 @@ public interface ApplicationConfigLoader {
 
     interface Github {
         /**
-         * Optional GitHub token. Resolved from the environment via SmallRye expansion
-         * (e.g. {@code ${GITHUB_TOKEN:}}), so an unset variable yields an empty/absent
-         * token rather than a startup failure.
+         * Optional fleet-wide GitHub token, sent as {@code Authorization: Bearer} by every
+         * {@code github-release} source whose own fragment has no {@code auth} block. Resolved from
+         * the environment via SmallRye expansion (e.g. {@code ${GITHUB_TOKEN:}}), so an unset
+         * variable yields an empty/absent token rather than a startup failure.
          */
         Optional<String> token();
 

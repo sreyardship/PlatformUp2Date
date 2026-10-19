@@ -4,6 +4,12 @@ status: accepted
 
 # One HTTP transport, three extractors: the current-leg HTTP kinds share a deep module
 
+> **Amended by [ADR-0040](0040-latest-leg-on-the-shared-http-transport.md):** the option
+> "fold `github-release` and `http-regex` in now", deferred below, has since been taken, and
+> `oci-registry` with it. `HttpTransport` now serves both legs, so its javadoc and
+> `HttpTransportConfig`'s messages name the leg; `HttpGetResponse` carries the final hop's URI.
+> The decision itself — one transport, per-kind extractors — is unchanged.
+
 `http-json`, `http-header` and `http-prometheus` all make the same configured GET. Each
 kind had its own copy of it: a fetch interface (`HttpJsonCurrentVersionClient`,
 `HttpHeaderFetch` + `HttpHeaderResponse`, `PrometheusBodyFetch`), a transport class behind

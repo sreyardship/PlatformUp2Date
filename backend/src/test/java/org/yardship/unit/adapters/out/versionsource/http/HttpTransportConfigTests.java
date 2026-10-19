@@ -39,7 +39,7 @@ class HttpTransportConfigTests {
 
     private static final String URL = "https://localhost:8443/current";
 
-    private final HttpTransportConfig transportConfig = new HttpTransportConfig("http-json");
+    private final HttpTransportConfig transportConfig = HttpTransportConfig.forCurrentSource("http-json");
 
     // --- No auth, no ca-cert: the fully-absent fragment ---------------------------------------
 
@@ -403,7 +403,7 @@ class HttpTransportConfigTests {
     void resolve_namesTheConfiguredKindLabel_inAuthFailureMessages_forHttp() {
         Auth unknown = auth("oauth2", Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
 
-        HttpTransportConfig httpConfig = new HttpTransportConfig("http-json");
+        HttpTransportConfig httpConfig = HttpTransportConfig.forCurrentSource("http-json");
         HttpTransportConfig.Resolution resolution =
                 httpConfig.resolve(Optional.of(unknown), Optional.empty(), false, URL);
 
@@ -415,7 +415,7 @@ class HttpTransportConfigTests {
     void resolve_namesTheConfiguredKindLabel_inAuthFailureMessages_forHttpHeader() {
         Auth unknown = auth("oauth2", Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
 
-        HttpTransportConfig httpHeaderConfig = new HttpTransportConfig("http-header");
+        HttpTransportConfig httpHeaderConfig = HttpTransportConfig.forCurrentSource("http-header");
         HttpTransportConfig.Resolution resolution =
                 httpHeaderConfig.resolve(Optional.of(unknown), Optional.empty(), false, URL);
 
@@ -425,7 +425,7 @@ class HttpTransportConfigTests {
 
     @Test
     void resolve_namesTheConfiguredKindLabel_inTheCaCertAndInsecureAmbiguityMessage_forHttp() {
-        HttpTransportConfig httpConfig = new HttpTransportConfig("http-json");
+        HttpTransportConfig httpConfig = HttpTransportConfig.forCurrentSource("http-json");
         HttpTransportConfig.Resolution resolution =
                 httpConfig.resolve(Optional.empty(), Optional.of("/no/such/path/ca.crt"), true, URL);
 
@@ -435,12 +435,77 @@ class HttpTransportConfigTests {
 
     @Test
     void resolve_namesTheConfiguredKindLabel_inTheCaCertAndInsecureAmbiguityMessage_forHttpHeader() {
-        HttpTransportConfig httpHeaderConfig = new HttpTransportConfig("http-header");
+        HttpTransportConfig httpHeaderConfig = HttpTransportConfig.forCurrentSource("http-header");
         HttpTransportConfig.Resolution resolution =
                 httpHeaderConfig.resolve(Optional.empty(), Optional.of("/no/such/path/ca.crt"), true, URL);
 
         assertTrue(resolution.failureMessage().get().contains("The 'http-header' current source has"),
                 "was: " + resolution.failureMessage().get());
+    }
+
+    @Test
+    void forLatestSource_namesTheKindAndTheLatestLeg_inAuthFailureMessages() {
+        Auth unknown = auth("oauth2", Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+
+        HttpTransportConfig.Resolution resolution = HttpTransportConfig.forLatestSource("http-regex")
+                .resolve(Optional.of(unknown), Optional.empty(), false, URL);
+
+        assertEquals("The 'http-regex' latest source's auth.type 'oauth2' is not supported (url: '" + URL + "').",
+                resolution.failureMessage().get());
+    }
+
+    @Test
+    void forLatestSource_namesTheKindAndTheLatestLeg_inTheCaCertAndInsecureAmbiguityMessage() {
+        HttpTransportConfig.Resolution resolution = HttpTransportConfig.forLatestSource("github-release")
+                .resolve(Optional.empty(), Optional.of("/no/such/path/ca.crt"), true, URL);
+
+        assertTrue(resolution.failureMessage().get().startsWith("The 'github-release' latest source has both"),
+                "was: " + resolution.failureMessage().get());
+    }
+
+    // --- withAuthFilterIfAbsent: the fleet-wide github.token beneath an app's own auth ----------
+
+    @Test
+    void withAuthFilterIfAbsent_fillsAnAbsentAuthFilter_andKeepsTheTlsInputs() {
+        HttpTransportConfig.Resolution resolved = transportConfig.resolve(Optional.empty(), Optional.empty(), true, URL);
+        ClientRequestFilter fallback = new BearerAuthFilter("fleet-token");
+
+        HttpTransportConfig.Resolution withFallback = resolved.withAuthFilterIfAbsent(Optional.of(fallback));
+
+        assertEquals(Optional.of(fallback), withFallback.authFilter());
+        assertTrue(withFallback.insecureSkipTlsVerify(), "the TLS inputs must be carried over unchanged");
+        assertTrue(withFallback.failureMessage().isEmpty());
+    }
+
+    @Test
+    void withAuthFilterIfAbsent_keepsAConfiguredAuthFilter() {
+        Auth basic = auth("basic", Optional.of("user"), Optional.of("s3cr3t"), Optional.empty(), Optional.empty());
+        HttpTransportConfig.Resolution resolved = transportConfig.resolve(Optional.of(basic), Optional.empty(), false, URL);
+
+        HttpTransportConfig.Resolution withFallback =
+                resolved.withAuthFilterIfAbsent(Optional.of(new BearerAuthFilter("fleet-token")));
+
+        assertInstanceOf(BasicAuthFilter.class, withFallback.authFilter().get(),
+                "an app's own auth block wins over the fallback");
+    }
+
+    @Test
+    void withAuthFilterIfAbsent_leavesAFailedResolutionFailed() {
+        Auth unknown = auth("oauth2", Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+        HttpTransportConfig.Resolution failed = transportConfig.resolve(Optional.of(unknown), Optional.empty(), false, URL);
+
+        HttpTransportConfig.Resolution still = failed.withAuthFilterIfAbsent(Optional.of(new BearerAuthFilter("t")));
+
+        assertTrue(still.failureMessage().isPresent());
+        assertEquals(Optional.empty(), still.authFilter());
+    }
+
+    @Test
+    void resolve_overTheFragment_readsAuthCaCertAndInsecureFromIt_defaultingInsecureToFalse() {
+        HttpTransportConfig.Resolution resolution = transportConfig.resolve(fragment(Optional.empty()), URL);
+
+        assertTrue(resolution.failureMessage().isEmpty());
+        assertFalse(resolution.insecureSkipTlsVerify());
     }
 
     // --- helpers -----------------------------------------------------------------------------
@@ -522,6 +587,41 @@ class HttpTransportConfigTests {
             public Optional<String> tokenFile() {
                 return tokenFile;
             }
+        };
+    }
+
+    /** A fragment with only the transport keys set; everything else absent. */
+    private static org.yardship.adapters.out.versionsource.ApplicationConfigLoader.VersionSource fragment(
+            Optional<Boolean> insecureSkipTlsVerify) {
+        return new org.yardship.adapters.out.versionsource.ApplicationConfigLoader.VersionSource() {
+            @Override public Optional<String> type() { return Optional.of("http-json"); }
+            @Override public java.util.Map<String, String> labels() { return java.util.Map.of(); }
+            @Override public Optional<String> url() { return Optional.of(URL); }
+            @Override public Optional<Auth> auth() { return Optional.empty(); }
+            @Override public Optional<String> caCert() { return Optional.empty(); }
+            @Override public Optional<Boolean> insecureSkipTlsVerify() { return insecureSkipTlsVerify; }
+            @Override public Optional<String> regex() { return Optional.empty(); }
+            @Override public Optional<String> versionHeader() { return Optional.empty(); }
+            @Override public Optional<String> versionKey() { return Optional.empty(); }
+            @Override public Optional<Boolean> stripPrerelease() { return Optional.empty(); }
+            @Override public Optional<String> repo() { return Optional.empty(); }
+            @Override public Optional<String> registry() { return Optional.empty(); }
+            @Override public Optional<String> metric() { return Optional.empty(); }
+            @Override public Optional<String> versionLabel() { return Optional.empty(); }
+            @Override public Optional<String> namespace() { return Optional.empty(); }
+            @Override public Optional<String> workload() { return Optional.empty(); }
+            @Override public Optional<String> container() { return Optional.empty(); }
+            @Override public Optional<Integer> pageSize() { return Optional.empty(); }
+            @Override public Optional<Integer> maxTags() { return Optional.empty(); }
+            @Override public Optional<String> prereleaseFilter() { return Optional.empty(); }
+            @Override public Optional<String> host() { return Optional.empty(); }
+            @Override public Optional<Integer> port() { return Optional.empty(); }
+            @Override public Optional<String> user() { return Optional.empty(); }
+            @Override public Optional<String> privateKey() { return Optional.empty(); }
+            @Override public Optional<String> privateKeyFile() { return Optional.empty(); }
+            @Override public Optional<String> hostKey() { return Optional.empty(); }
+            @Override public Optional<String> knownHosts() { return Optional.empty(); }
+            @Override public Optional<String> releaseField() { return Optional.empty(); }
         };
     }
 }

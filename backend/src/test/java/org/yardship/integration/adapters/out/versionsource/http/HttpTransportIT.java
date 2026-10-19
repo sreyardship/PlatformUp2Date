@@ -1,6 +1,7 @@
 package org.yardship.integration.adapters.out.versionsource.http;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.http.Fault;
 import jakarta.ws.rs.client.ClientRequestFilter;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -17,6 +18,7 @@ import org.yardship.adapters.out.versionsource.http.InsecureRedirectException;
 import org.yardship.adapters.out.versionsource.http.TooManyRedirectsException;
 
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
@@ -31,17 +33,20 @@ import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
+import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * The one place the shared current-leg {@link HttpTransport} is proven against real servers:
- * redirects and the ADR-0029 credential-origin and downgrade rules, auth rendering (including
- * {@code FileBearerAuthFilter}'s per-request re-read), and per-client TLS trust on every hop.
- * {@code http-json}, {@code http-header} and {@code http-prometheus} all fetch through this class,
- * so none of this is re-proven per kind; each kind's own IT covers only its extraction rule end to
- * end through its factory.
+ * The one place the shared {@link HttpTransport} is proven against real servers: redirects and the
+ * ADR-0029 credential-origin and downgrade rules, auth rendering (including
+ * {@code FileBearerAuthFilter}'s per-request re-read), per-client TLS trust on every hop, the
+ * once-only retry on a connection-level failure, and the follow-up GET at a URI learned from an
+ * earlier response. Every HTTP kind on both legs — {@code http-json}, {@code http-header},
+ * {@code http-prometheus}, {@code github-release}, {@code http-regex}, {@code oci-registry} — fetches
+ * through this class, so none of this is re-proven per kind; each kind's own IT covers only its
+ * extraction rule end to end through its factory.
  *
  * <p>Plain JUnit — the transport needs no CDI. Three WireMock servers: a same-origin HTTP server
  * on 8089, a second HTTP server on 8092 standing in for a different origin (a redirect
@@ -218,6 +223,129 @@ class HttpTransportIT {
         assertThrows(TooManyRedirectsException.class, plain("http://localhost:8089/a")::get);
     }
 
+    @Test
+    void get_reportsTheFinalHopsUri_soARelativeReferenceInItsHeadersResolvesAgainstIt() {
+        // RFC 8288: a relative Link target is resolved against the URI of the response that carried
+        // it — the canonical (post-redirect) endpoint, not the origin the caller configured. The
+        // oci-registry pagination loop depends on this when page one is served via a redirect.
+        wireMockServer.stubFor(get(urlEqualTo("/v2/repo/tags/list")).willReturn(aResponse()
+                .withStatus(302)
+                .withHeader("Location", "/v2/repo/canonical/tags/list")));
+        wireMockServer.stubFor(get(urlEqualTo("/v2/repo/canonical/tags/list")).willReturn(aResponse()
+                .withStatus(200)
+                .withHeader("Link", "<list?n=2&last=1.1.0>; rel=\"next\"")));
+
+        HttpGetResponse response = plain("http://localhost:8089/v2/repo/tags/list").get();
+
+        assertEquals(URI.create("http://localhost:8089/v2/repo/canonical/tags/list"), response.uri());
+        assertEquals(URI.create("http://localhost:8089/v2/repo/canonical/tags/list?n=2&last=1.1.0"),
+                response.uri().resolve("list?n=2&last=1.1.0"));
+    }
+
+    // --- a follow-up GET at a learned URI, with an explicit credential ---------------------------
+
+    @Test
+    void get_atALearnedUri_withAnExplicitCredential_sendsThatCredential_notTheConfiguredOne() {
+        // The oci-registry dance (ADR-0013) learns its token realm from a 401 and its next page
+        // from a Link header, and mints the Bearer it then carries: it drives the transport by URI
+        // with a per-call credential. The configured credential (here: none) does not leak onto
+        // that call, and the configured URL is not what is fetched.
+        wireMockServer.stubFor(get(urlEqualTo("/token")).willReturn(aResponse().withStatus(401)));
+        wireMockServer.stubFor(get(urlEqualTo("/token"))
+                .withBasicAuth("user", "s3cr3t")
+                .willReturn(aResponse().withStatus(200).withBody("{\"token\":\"minted\"}")));
+
+        HttpGetResponse response = plain("http://localhost:8089/v2/repo/tags/list")
+                .get(URI.create("http://localhost:8089/token"), Optional.of(new BasicAuthFilter("user", "s3cr3t")));
+
+        assertEquals(200, response.status());
+        assertEquals("{\"token\":\"minted\"}", response.body());
+        wireMockServer.verify(0, getRequestedFor(urlEqualTo("/v2/repo/tags/list")));
+    }
+
+    @Test
+    void get_atALearnedUri_withoutACredential_sendsNoAuthorizationHeader_evenWhenOneIsConfigured() {
+        // The anonymous probe of the oci dance must stay anonymous: the realm credential is for the
+        // realm, never the resource (ADR-0013).
+        wireMockServer.stubFor(get(urlEqualTo("/probe")).willReturn(aResponse().withStatus(401)));
+
+        withAuth("http://localhost:8089/configured", new BearerAuthFilter("configured-token"))
+                .get(URI.create("http://localhost:8089/probe"), Optional.empty());
+
+        wireMockServer.verify(getRequestedFor(urlEqualTo("/probe")).withHeader("Authorization", absent()));
+    }
+
+    @Test
+    void get_atALearnedUri_stillAppliesTheRedirectAndCredentialRules() {
+        wireMockServer.stubFor(get(urlEqualTo("/learned")).willReturn(aResponse()
+                .withStatus(301)
+                .withHeader("Location", "http://localhost:8092/learned")));
+        crossOriginWireMockServer.stubFor(get(urlEqualTo("/learned")).willReturn(aResponse()
+                .withStatus(200).withBody("public")));
+
+        HttpGetResponse response = plain("http://localhost:8089/configured")
+                .get(URI.create("http://localhost:8089/learned"), Optional.of(new BearerAuthFilter("minted")));
+
+        assertEquals("public", response.body());
+        wireMockServer.verify(getRequestedFor(urlEqualTo("/learned"))
+                .withHeader("Authorization", equalTo("Bearer minted")));
+        crossOriginWireMockServer.verify(getRequestedFor(urlEqualTo("/learned"))
+                .withHeader("Authorization", absent()));
+    }
+
+    // --- connection-level failures are retried once (RFC 9112 §9.3.1) -----------------------------
+
+    @Test
+    void get_retriesOnce_whenTheConnectionDropsOnTheFirstAttempt() {
+        // The HTTP/1.1 keep-alive close race: the server closes a connection at the moment the
+        // client sends on it. Every GET the transport makes is idempotent, so RFC 9112 §9.3.1 says
+        // to retry it automatically. First request: connection torn down without a response;
+        // second request: a clean 200.
+        wireMockServer.stubFor(get(urlEqualTo("/flaky")).inScenario("drop")
+                .whenScenarioStateIs(STARTED)
+                .willReturn(aResponse().withFault(Fault.EMPTY_RESPONSE))
+                .willSetStateTo("recovered"));
+        wireMockServer.stubFor(get(urlEqualTo("/flaky")).inScenario("drop")
+                .whenScenarioStateIs("recovered")
+                .willReturn(aResponse().withStatus(200).withBody("ok")));
+
+        assertEquals("ok", plain("http://localhost:8089/flaky").get().body(),
+                "a single connection drop must be absorbed by the idempotent-GET retry");
+    }
+
+    @Test
+    void get_retriesOnce_whenTheConnectionResetsOnTheFirstAttempt() {
+        wireMockServer.stubFor(get(urlEqualTo("/flaky")).inScenario("reset")
+                .whenScenarioStateIs(STARTED)
+                .willReturn(aResponse().withFault(Fault.CONNECTION_RESET_BY_PEER))
+                .willSetStateTo("recovered"));
+        wireMockServer.stubFor(get(urlEqualTo("/flaky")).inScenario("reset")
+                .whenScenarioStateIs("recovered")
+                .willReturn(aResponse().withStatus(200).withBody("ok")));
+
+        assertEquals("ok", plain("http://localhost:8089/flaky").get().body(),
+                "a single connection reset must be absorbed by the idempotent-GET retry");
+    }
+
+    @Test
+    void get_failsAfterASecondConnectionFailure_withExactlyOneRetry() {
+        wireMockServer.stubFor(get(urlEqualTo("/dead")).willReturn(aResponse().withFault(Fault.EMPTY_RESPONSE)));
+
+        assertThrows(RuntimeException.class, plain("http://localhost:8089/dead")::get,
+                "a persistently failing connection must surface as a scrape failure after one retry");
+        wireMockServer.verify(2, getRequestedFor(urlEqualTo("/dead")));
+    }
+
+    @Test
+    void get_doesNotRetry_anHttpErrorStatus() {
+        // Only a transport-level (I/O) failure is retried. A 500 is an answer, not a failure to
+        // get one; retrying it would double the load on an upstream that is already struggling.
+        wireMockServer.stubFor(get(urlEqualTo("/error")).willReturn(aResponse().withStatus(500)));
+
+        assertEquals(500, plain("http://localhost:8089/error").get().status());
+        wireMockServer.verify(1, getRequestedFor(urlEqualTo("/error")));
+    }
+
     // --- auth rendering ----------------------------------------------------------------------------
 
     @Test
@@ -354,7 +482,7 @@ class HttpTransportIT {
         httpsWireMockServer.stubFor(get(urlEqualTo("/current")).willReturn(aResponse().withStatus(200).withBody("ok")));
         String url = httpsBaseUrl + "/current";
 
-        HttpTransportConfig.Resolution resolution = new HttpTransportConfig("http-json")
+        HttpTransportConfig.Resolution resolution = HttpTransportConfig.forCurrentSource("http-json")
                 .resolve(Optional.empty(), Optional.of(pem.toString()), false, url);
         assertFalse(resolution.failureMessage().isPresent(), () -> resolution.failureMessage().get());
 
@@ -367,7 +495,7 @@ class HttpTransportIT {
         httpsWireMockServer.stubFor(get(urlEqualTo("/current")).willReturn(aResponse().withStatus(200).withBody("ok")));
         String url = httpsBaseUrl + "/current";
 
-        HttpTransportConfig.Resolution resolution = new HttpTransportConfig("http-header")
+        HttpTransportConfig.Resolution resolution = HttpTransportConfig.forCurrentSource("http-header")
                 .resolve(Optional.empty(), Optional.empty(), true, url);
         assertFalse(resolution.failureMessage().isPresent(), () -> resolution.failureMessage().get());
 

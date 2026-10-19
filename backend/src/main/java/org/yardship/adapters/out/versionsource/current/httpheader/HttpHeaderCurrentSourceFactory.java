@@ -44,7 +44,7 @@ public class HttpHeaderCurrentSourceFactory implements CurrentVersionSourceFacto
     private static final String KIND_LABEL = "http-header";
     private static final String EXTRACTOR_LABEL = "'http-header' current source";
 
-    private final HttpTransportConfig transportConfig = new HttpTransportConfig(KIND_LABEL);
+    private final HttpTransportConfig transportConfig = HttpTransportConfig.forCurrentSource(KIND_LABEL);
 
     @Override
     public String type() {
@@ -61,10 +61,9 @@ public class HttpHeaderCurrentSourceFactory implements CurrentVersionSourceFacto
                 .filter(value -> !value.isBlank())
                 .map(pattern -> new RegexVersionExtractor(EXTRACTOR_LABEL, pattern, parser));
         boolean stripPrerelease = cfg.stripPrerelease().orElse(false);
-        boolean insecureSkipTlsVerify = cfg.insecureSkipTlsVerify().orElse(false);
 
         HttpTransportConfig.Resolution resolution =
-                transportConfig.resolve(cfg.auth(), cfg.caCert(), insecureSkipTlsVerify, url);
+                transportConfig.resolve(cfg, url);
         if (resolution.failureMessage().isPresent()) {
             return new FailedCurrentSource(resolution.failureMessage().get());
         }
