@@ -92,5 +92,11 @@ for `equals` is unchanged from today's semver value.
   `dotnet-compare-build`.
 - An app with the knob on can see a two-part floating tag (e.g. a registry's
   `1.27`) as a version; that is why the knob is per app and off by default.
-- Declaring the knob on a `calver` or `dotnet` app is meaningless; refusing that
-  combination is a separate decision, recorded with its implementation.
+- Declaring the knob on a `calver` or `dotnet` app is refused: it records one
+  APP-scope config error naming the app, the scheme and the key, that app's
+  parser is absent and both its sides degrade, and sibling apps are unaffected
+  (ADR-0032). The refusal mirrors `prerelease-filter` under `dotnet`
+  (ADR-0036). A silent no-op would hide a declaration that says something false
+  about the app, unlike `strip-prerelease` under `dotnet`, which is merely
+  inert. The knob is refused whenever it is present, `false` included: the
+  declaration is wrong whatever its value.

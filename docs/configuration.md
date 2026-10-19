@@ -34,7 +34,7 @@ One entry per Application under `apps[]`:
 | `version-scheme` | `semver` \| `calver` \| `dotnet` | no | `semver` | Used by both sides, so they can always be compared. Case-insensitive. See [Version schemes](#version-schemes). |
 | `calver-format` | string | if `version-scheme: calver` | — | e.g. `YY.0M.MICRO`. See [Calver format](#calver-format). |
 | `dotnet-compare-build` | boolean | no | `true` | Only for `version-scheme: dotnet`. `false` compares only major and minor. See [Dotnet versions](#dotnet-versions). |
-| `semver-optional-patch` | boolean | no | `false` | Only for `version-scheme: semver`. `true` also accepts `major.minor` versions such as `12.2`. See [Semver without a patch](#semver-without-a-patch). |
+| `semver-optional-patch` | boolean | no | `false` | Only for `version-scheme: semver`; a config error on other schemes. `true` also accepts `major.minor` versions such as `12.2`. See [Semver without a patch](#semver-without-a-patch). |
 | `changelog-url` | string (template) | no | absent → no link | See [Changelog link templates](#changelog-link-templates). |
 
 ## Version sources
@@ -296,6 +296,8 @@ upstreams publish two-part versions on purpose. Jellyfin, since 12.0, tags
   `12.2`.
 - Leave it off for other apps: with it on, a floating two-part registry tag such
   as `1.27` would also count as a version.
+- The key is a config error on a `calver` or `dotnet` app, even set to `false`.
+  It says the app is semver, so it is refused rather than ignored.
 
 ### Calver format
 
@@ -432,8 +434,8 @@ Login is on only when both `OIDC_AUTHORITY` and `OIDC_CLIENT_ID` are set. See
   and other apps are not affected. What breaks depends on the key:
   - a `current` or `latest` key → that side stops updating and keeps its last
     version;
-  - `version-scheme`, `calver-format` or `prerelease-filter` on a `dotnet`
-    app → both sides;
+  - `version-scheme`, `calver-format`, `prerelease-filter` on a `dotnet` app,
+    or `semver-optional-patch` on a `calver` or `dotnet` app → both sides;
   - `changelog-url` → only the changelog link is hidden.
 - **A valid value that finds no version** (a regex with no match, a missing
   header, an unreachable URL) makes the scrape fail. It is not a config error.
