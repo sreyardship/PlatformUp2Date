@@ -14,6 +14,7 @@ import org.yardship.core.domain.primitives.VersionScheme;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -32,8 +33,10 @@ import java.util.Optional;
  * Version scheme is declared once per app and shared by both legs, so neither leg is parseable.
  *
  * <p>The same APP-scope path refuses a scheme/source-knob combination the scheme can never satisfy:
- * {@code version-scheme: dotnet} with a {@code prerelease-filter} (ADR-0036). See {@link
- * #refusePrereleaseFilterUnderDotnet}.
+ * {@code version-scheme: dotnet} with a {@code prerelease-filter} (ADR-0036), and a scheme
+ * companion declared on the wrong scheme: {@code semver-optional-patch} on a {@code calver} or
+ * {@code dotnet} app (ADR-0041). See {@link #refusePrereleaseFilterUnderDotnet} and {@link
+ * #refuseOptionalPatchOutsideSemver}.
  */
 @ApplicationScoped
 @Startup
@@ -59,6 +62,7 @@ public class VersionParsers implements ConfigErrorSource {
             app.name().ifPresent(name -> {
                 try {
                     refusePrereleaseFilterUnderDotnet(app, name);
+                    refuseOptionalPatchOutsideSemver(app, name);
                     parsers.put(name, buildParser(app));
                 } catch (IllegalArgumentException declaredConfigError) {
                     errors.add(new ConfigError(
@@ -136,6 +140,29 @@ public class VersionParsers implements ConfigErrorSource {
                         + prereleaseFilter.get() + "). A dotnet version has no pre-release segment, "
                         + "so no tag could ever match the filter. Remove the filter, or use a scheme "
                         + "with pre-release segments.");
+    }
+
+    /**
+     * Refuses {@code semver-optional-patch} on any app whose {@code version-scheme} is not {@code
+     * semver}, at APP scope (ADR-0041).
+     *
+     * <p>The knob declares "this app is semver whose patch may be omitted". On a {@code calver} or
+     * {@code dotnet} app that statement is false, so ignoring it would hide a declaration that says
+     * something untrue about the app. Unlike {@code strip-prerelease} under dotnet, which is merely
+     * inert, this is refused. The refusal is keyed on the knob being <em>present</em>, whatever its
+     * value: {@code semver-optional-patch: false} on a calver app is just as wrong a declaration.
+     */
+    private static void refuseOptionalPatchOutsideSemver(
+            ApplicationConfigLoader.AppConfig app, String name) {
+        VersionScheme scheme = app.versionScheme();
+        if (scheme == VersionScheme.SEMVER || app.semverOptionalPatch().isEmpty()) {
+            return;
+        }
+        String schemeName = scheme.name().toLowerCase(Locale.ROOT);
+        throw new IllegalArgumentException(
+                "App '" + name + "' declares 'semver-optional-patch' under 'version-scheme: "
+                        + schemeName + "'. The key only applies to 'version-scheme: semver'. "
+                        + "Remove it, or declare the app's scheme as semver.");
     }
 
     private static VersionParser buildParser(ApplicationConfigLoader.AppConfig app) {

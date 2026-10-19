@@ -428,6 +428,79 @@ class VersionParsersTests {
                 "a sibling semver app keeps strict parsing");
     }
 
+    // --- ADR-0041: semver-optional-patch on a non-semver app is refused at APP scope ---------
+
+    @Test
+    void calverAppWithOptionalPatch_recordsOneAppScopeConfigError_namingAppSchemeAndKey() {
+        ApplicationConfigLoader.AppConfig app = appWithOptionalPatch(
+                "openwrt", VersionScheme.CALVER, "YY.0M.MICRO", Optional.of(true));
+
+        VersionParsers parsers = new VersionParsers(List.of(app));
+
+        assertEquals(1, parsers.configErrors().size(),
+                "the meaningless declaration must record exactly one config error, not throw");
+        ConfigError error = parsers.configErrors().get(0);
+        assertEquals("openwrt", error.application());
+        assertEquals(ConfigErrorScope.APP, error.scope());
+        assertTrue(error.reason().contains("openwrt"),
+                "the reason must name the offending app; was: " + error.reason());
+        assertTrue(error.reason().contains("calver"),
+                "the reason must name the offending scheme; was: " + error.reason());
+        assertTrue(error.reason().contains("semver-optional-patch"),
+                "the reason must name the offending key; was: " + error.reason());
+        assertTrue(parsers.forApp("openwrt").isEmpty(),
+                "a refused app gets no parser, so VersionSourceResolver degrades both its legs");
+    }
+
+    @Test
+    void dotnetAppWithOptionalPatch_recordsOneAppScopeConfigError_namingAppSchemeAndKey() {
+        ApplicationConfigLoader.AppConfig app =
+                appWithOptionalPatch("sonarr", VersionScheme.DOTNET, null, Optional.of(true));
+
+        VersionParsers parsers = new VersionParsers(List.of(app));
+
+        assertEquals(1, parsers.configErrors().size());
+        ConfigError error = parsers.configErrors().get(0);
+        assertEquals("sonarr", error.application());
+        assertEquals(ConfigErrorScope.APP, error.scope());
+        assertTrue(error.reason().contains("sonarr"),
+                "the reason must name the offending app; was: " + error.reason());
+        assertTrue(error.reason().contains("dotnet"),
+                "the reason must name the offending scheme; was: " + error.reason());
+        assertTrue(error.reason().contains("semver-optional-patch"),
+                "the reason must name the offending key; was: " + error.reason());
+        assertTrue(parsers.forApp("sonarr").isEmpty());
+    }
+
+    @Test
+    void nonSemverAppWithOptionalPatchFalse_isRefusedToo() {
+        // The declaration is wrong whatever its value: 'false' still claims the app is semver.
+        ApplicationConfigLoader.AppConfig app = appWithOptionalPatch(
+                "openwrt", VersionScheme.CALVER, "YY.0M.MICRO", Optional.of(false));
+
+        VersionParsers parsers = new VersionParsers(List.of(app));
+
+        assertEquals(1, parsers.configErrors().size());
+        assertTrue(parsers.configErrors().get(0).reason().contains("semver-optional-patch"));
+        assertTrue(parsers.forApp("openwrt").isEmpty());
+    }
+
+    @Test
+    void nonSemverAppWithOptionalPatch_leavesEveryOtherAppMonitoringNormally() {
+        ApplicationConfigLoader.AppConfig broken =
+                appWithOptionalPatch("sonarr", VersionScheme.DOTNET, null, Optional.of(true));
+        ApplicationConfigLoader.AppConfig healthyDotnet = dotnetApp("radarr", Optional.empty());
+        ApplicationConfigLoader.AppConfig healthyJellyfin = semverApp("jellyfin", Optional.of(true));
+
+        VersionParsers parsers =
+                new VersionParsers(List.of(broken, healthyDotnet, healthyJellyfin));
+
+        assertEquals(1, parsers.configErrors().size(), "only the misdeclared app is affected");
+        assertEquals("sonarr", parsers.configErrors().get(0).application());
+        assertTrue(parsers.forApp("radarr").isPresent());
+        assertEquals("12.2", parsers.forApp("jellyfin").orElseThrow().parse("v12.2").value());
+    }
+
     // --- fakes --------------------------------------------------------------------------------
 
     private static ApplicationConfigLoader.AppConfig unnamedApp(
@@ -464,6 +537,13 @@ class VersionParsersTests {
     private static ApplicationConfigLoader.AppConfig semverApp(
             String name, Optional<Boolean> semverOptionalPatch) {
         return namedOrUnnamed(Optional.of(name), VersionScheme.SEMVER, null, Optional.empty(),
+                Optional.empty(), semverOptionalPatch);
+    }
+
+    private static ApplicationConfigLoader.AppConfig appWithOptionalPatch(
+            String name, VersionScheme versionScheme, String calverFormat,
+            Optional<Boolean> semverOptionalPatch) {
+        return namedOrUnnamed(Optional.of(name), versionScheme, calverFormat, Optional.empty(),
                 Optional.empty(), semverOptionalPatch);
     }
 
