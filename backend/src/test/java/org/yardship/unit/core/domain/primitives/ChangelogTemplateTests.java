@@ -6,6 +6,7 @@ import org.yardship.core.domain.primitives.CalverVersion;
 import org.yardship.core.domain.primitives.ChangelogTemplate;
 import org.yardship.core.domain.primitives.DotnetVersion;
 import org.yardship.core.domain.primitives.SemverVersion;
+import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 
 import java.util.Optional;
@@ -108,6 +109,20 @@ class ChangelogTemplateTests {
         String resolved = template.resolve(new DotnetVersion("4.0.17.2952"));
 
         assertEquals("https://example.test/4/0/17/2952", resolved);
+    }
+
+    @Test
+    void resolve_semverOmittedPatch_rendersAsZero_whileVersionRendersAsPublished() {
+        // semver-optional-patch (ADR-0041): v12.2 is compared as 12.2.0, so {patch} renders 0 —
+        // never a hole — while {version} keeps the string upstream published.
+        ChangelogTemplate template = new ChangelogTemplate(
+                "https://example.test/{version}/{major}/{minor}/{patch}",
+                VersionScheme.SEMVER,
+                Optional.empty());
+
+        String resolved = template.resolve(VersionParser.semver(true).parse("v12.2"));
+
+        assertEquals("https://example.test/12.2/12/2/0", resolved);
     }
 
     @Test

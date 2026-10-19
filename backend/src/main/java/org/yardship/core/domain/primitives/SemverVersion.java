@@ -4,22 +4,49 @@ import org.semver4j.Semver;
 import org.semver4j.SemverException;
 import org.yardship.core.domain.exceptions.InvalidVersionException;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import static org.yardship.core.domain.primitives.DomainValidator.notNull;
 
 /**
  * Semver-backed {@link VersionValue}. Trims a leading {@code v}, rejects unparseable input with
  * {@link InvalidVersionException}, and ignores build metadata for ordering. Build metadata remains
  * significant for {@code equals}/{@code hashCode}, per semver4j's contract.
+ *
+ * <p>Under {@code semver-optional-patch} (ADR-0041) a two-part {@code major.minor[-pre][+build]}
+ * string is also accepted: it is completed to {@code major.minor.0} before semver4j sees it, so
+ * ordering, grading, equality and pre-release handling are exactly those of the padded value, while
+ * {@link #value()} still displays the string as published.
  */
 public final class SemverVersion implements VersionValue {
 
-    private final Semver semver;
+    // major.minor, then an optional pre-release and/or build suffix — but no third component.
+    private static final Pattern TWO_PART = Pattern.compile("^(\\d+\\.\\d+)([-+].*)?$");
 
+    private final Semver semver;
+    private final boolean patchOmitted; // display-only: the published string had no patch
+
+    /** Strict semver: a two-part string is rejected. */
     public SemverVersion(String input) {
+        this(input, false);
+    }
+
+    /**
+     * @param optionalPatch when {@code true}, a two-part {@code major.minor} string is accepted and
+     *                      compared as {@code major.minor.0}; one-part and four-plus-part strings
+     *                      are rejected either way.
+     */
+    public SemverVersion(String input, boolean optionalPatch) {
         input = notNull(input, new InvalidVersionException("Value cannot be null"));
         input = VersionStrings.stripDecoration(input);
+        Matcher twoPart = optionalPatch ? TWO_PART.matcher(input) : null;
+        this.patchOmitted = twoPart != null && twoPart.matches();
+        String strict = patchOmitted
+                ? twoPart.group(1) + ".0" + (twoPart.group(2) == null ? "" : twoPart.group(2))
+                : input;
         try {
-            this.semver = new Semver(input);
+            this.semver = new Semver(strict);
         } catch (SemverException ex) {
             throw new InvalidVersionException("Unable to parse version input: '" + input + "'");
         }
@@ -27,8 +54,9 @@ public final class SemverVersion implements VersionValue {
 
     // Private constructor used by withoutPreRelease() — skips the trim/validate cycle since the
     // Semver instance was produced internally from an already-valid semver4j value.
-    private SemverVersion(Semver semver) {
+    private SemverVersion(Semver semver, boolean patchOmitted) {
         this.semver = semver;
+        this.patchOmitted = patchOmitted;
     }
 
     @Override
@@ -49,7 +77,16 @@ public final class SemverVersion implements VersionValue {
 
     @Override
     public String value() {
-        return semver.getVersion();
+        if (!patchOmitted) {
+            return semver.getVersion();
+        }
+        StringBuilder published = new StringBuilder()
+                .append(semver.getMajor()).append('.').append(semver.getMinor());
+        preReleaseSegment().ifPresent(pre -> published.append('-').append(pre));
+        if (!semver.getBuild().isEmpty()) {
+            published.append('+').append(String.join(".", semver.getBuild()));
+        }
+        return published.toString();
     }
 
     @Override
@@ -88,7 +125,7 @@ public final class SemverVersion implements VersionValue {
      */
     @Override
     public VersionValue withoutPreRelease() {
-        return new SemverVersion(semver.withClearedPreRelease());
+        return new SemverVersion(semver.withClearedPreRelease(), patchOmitted);
     }
 
     @Override
@@ -105,7 +142,7 @@ public final class SemverVersion implements VersionValue {
 
     @Override
     public String toString() {
-        return semver.toString();
+        return value();
     }
 
     private static SemverVersion castToSemverVersion(VersionValue v) {

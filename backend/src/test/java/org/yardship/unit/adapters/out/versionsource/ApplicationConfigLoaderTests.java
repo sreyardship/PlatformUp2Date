@@ -281,6 +281,32 @@ class ApplicationConfigLoaderTests {
                 app.changelogUrl().get());
     }
 
+    // --- App-level semver-optional-patch (ADR-0041) -------------------------------------------
+
+    @Test
+    void semverOptionalPatch_isEmpty_whenAbsentFromConfig() {
+        AppConfig app = configLoader.apps().getFirst();
+
+        assertTrue(app.semverOptionalPatch().isEmpty(),
+                "test-app declares no 'semver-optional-patch', so the knob must be absent");
+    }
+
+    @Test
+    void semverOptionalPatch_bindsAtAppLevel_siblingOfVersionScheme_whenPresent() {
+        Map<String, String> props = baseProps();
+        props.put("platform-config.apps[0].name", "jellyfin");
+        props.put("platform-config.apps[0].version-scheme", "semver");
+        props.put("platform-config.apps[0].semver-optional-patch", "true");
+        props.put("platform-config.apps[0].current.type", "http-json");
+        props.put("platform-config.apps[0].current.url", "https://example.test/System/Info/Public");
+        props.put("platform-config.apps[0].latest.type", "github-release");
+        props.put("platform-config.apps[0].latest.repo", "jellyfin/jellyfin");
+
+        AppConfig app = bind(props).apps().getFirst();
+
+        assertEquals(Optional.of(true), app.semverOptionalPatch());
+    }
+
     private static ApplicationConfigLoader bind(Map<String, String> props) {
         SmallRyeConfig config = new SmallRyeConfigBuilder()
                 .withMapping(ApplicationConfigLoader.class)

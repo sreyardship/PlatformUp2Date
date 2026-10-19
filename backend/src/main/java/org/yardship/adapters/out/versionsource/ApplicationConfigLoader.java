@@ -79,6 +79,16 @@ public interface ApplicationConfigLoader {
         Optional<Boolean> dotnetCompareBuild();
 
         /**
+         * Whether a {@code semver} app's versions may omit the patch component — {@code 12.2} is
+         * accepted and compared as {@code 12.2.0}, while still displayed as published (ADR-0041).
+         * Honoured only when {@link #versionScheme()} is {@code semver}; refused (an APP-scope
+         * config error) under every other scheme, whatever its value. Defaults FACTORY-SIDE to
+         * {@code false} in {@code VersionParsers}, so every semver app stays strict unless it opts
+         * in (Jellyfin publishes two-digit tags such as {@code v12.2}).
+         */
+        Optional<Boolean> semverOptionalPatch();
+
+        /**
          * Optional app-level changelog URL template (ADR-0021), sibling of {@link #versionScheme()}
          * — NOT a {@link VersionSource} field, since the changelog link is a property of the app,
          * not of either version-source leg. Absent leaves {@code changelogUrl} {@code null} on the

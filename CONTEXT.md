@@ -78,7 +78,9 @@ severity is assigned. Comparing across schemes — or across two different calve
 formats — is a configuration error, never a silent guess. A scheme may declare a
 component outside the comparison: under `dotnet` the revision is parsed and
 displayed but never compared, so a revision-only difference is not Drift (see
-`docs/adr/0036`).
+`docs/adr/0036`). A `semver` Application may declare `semver-optional-patch`, under which
+`major.minor` (Jellyfin's `12.2`) is also a semver version, compared as
+`major.minor.0` and displayed as published (see `docs/adr/0041`).
 _Avoid_: Version format, versioning style, version type, coercion
 
 **Manual scrape** (a.k.a. **scrape trigger**):

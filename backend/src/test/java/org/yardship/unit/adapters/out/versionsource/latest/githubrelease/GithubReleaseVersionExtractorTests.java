@@ -177,6 +177,38 @@ class GithubReleaseVersionExtractorTests {
 
     // --- fixtures -----------------------------------------------------------------------------------
 
+    // --- semver-optional-patch (ADR-0041): Jellyfin's two-digit release tags ----------------
+
+    @Test
+    void extract_selectsTheTwoPartTag_underAnOptionalPatchParser() {
+        GithubReleaseVersionExtractor optionalPatch =
+                new GithubReleaseVersionExtractor(VersionParser.semver(true));
+
+        VersionValue result = optionalPatch.extract(jellyfinShapedReleases());
+
+        assertEquals("12.2", result.value(),
+                "v12.2 wins: the rc is a flagged prerelease, '12', 'unstable' and the date tag are not "
+                        + "two- or three-part semver");
+    }
+
+    @Test
+    void extract_throws_forTheSameTwoPartTags_underAStrictParser() {
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> extractor.extract(jellyfinShapedReleases()));
+
+        assertTrue(ex.getMessage().contains("No release with a parseable"),
+                "strict semver keeps today's 'no parseable tag' failure; was: " + ex.getMessage());
+    }
+
+    private static HttpGetResponse jellyfinShapedReleases() {
+        return ok(
+                release("v12.2", "n", false, false),
+                release("v12.0-rc7", "n", true, false),
+                release("12", "n", false, false),
+                release("unstable", "n", false, false),
+                release("2026101212", "n", false, false));
+    }
+
     private static HttpGetResponse ok(String... releases) {
         return json(200, "[" + String.join(",", releases) + "]");
     }
