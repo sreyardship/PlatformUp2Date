@@ -163,4 +163,84 @@ public class VersionParserTests {
                 () -> parser.parse("not-a-calver-version"),
                 "A version string not matching the calver format must throw InvalidVersionException at parse()");
     }
+
+    // -----------------------------------------------------------------------
+    // semver-optional-patch: two-part semver, opt-in per app
+    // -----------------------------------------------------------------------
+
+    @Test
+    void optionalPatchSemverParser_acceptsTwoPartVersion_displayingItAsPublished() {
+        VersionParser parser = VersionParser.semver(true);
+
+        VersionValue result = parser.parse("v12.2");
+
+        assertInstanceOf(SemverVersion.class, result);
+        assertEquals("12.2", result.value(), "only the leading v is stripped; no .0 is displayed");
+    }
+
+    @Test
+    void optionalPatchSemverParser_treatsTwoPartVersionAsEqualToItsZeroPatch() {
+        VersionParser parser = VersionParser.semver(true);
+
+        VersionValue twoPart = parser.parse("v12.2");
+        VersionValue threePart = parser.parse("12.2.0");
+
+        assertEquals(twoPart, threePart, "12.2 and 12.2.0 are the same release");
+        assertEquals(twoPart.hashCode(), threePart.hashCode());
+        assertFalse(twoPart.isOlderThan(threePart));
+        assertFalse(threePart.isOlderThan(twoPart));
+        assertEquals("12.2.0", threePart.value(), "a published patch is displayed as published");
+    }
+
+    @Test
+    void strictSemverParser_rejectsTwoPartVersion_whenOptionalPatchIsOff() {
+        assertThrows(InvalidVersionException.class,
+                () -> new VersionParser(VersionScheme.SEMVER).parse("12.2"),
+                "the plain scheme constructor keeps today's strict semver");
+        assertThrows(InvalidVersionException.class,
+                () -> VersionParser.semver(false).parse("12.2"));
+    }
+
+    @Test
+    void optionalPatchSemverParser_rejectsOnePartVersion() {
+        assertThrows(InvalidVersionException.class,
+                () -> VersionParser.semver(true).parse("12"),
+                "a floating major tag such as Docker Hub's '12' is never a version");
+    }
+
+    @Test
+    void optionalPatchSemverParser_rejectsFourPartVersion() {
+        assertThrows(InvalidVersionException.class,
+                () -> VersionParser.semver(true).parse("1.2.3.4"));
+    }
+
+    @Test
+    void optionalPatchSemverParser_acceptsTwoPartVersionWithBuildMetadata() {
+        VersionValue result = VersionParser.semver(true).parse("12.2+build.5");
+
+        assertEquals("12.2+build.5", result.value());
+        assertFalse(result.isOlderThan(VersionParser.semver(true).parse("12.2.0")),
+                "build metadata does not affect ordering");
+    }
+
+    @Test
+    void optionalPatchSemverParser_ordersAPublishedPatchAboveTheTwoPartVersion() {
+        VersionParser parser = VersionParser.semver(true);
+
+        assertTrue(parser.parse("12.2").isOlderThan(parser.parse("12.2.1")));
+    }
+
+    @Test
+    void optionalPatchSemverParser_carriesPreReleaseOfTwoPartVersion_andStripsIt() {
+        VersionValue rc = VersionParser.semver(true).parse("v12.0-rc7");
+
+        assertEquals("12.0-rc7", rc.value());
+        assertEquals(java.util.Optional.of("rc7"), rc.preReleaseSegment());
+        assertTrue(rc.isOlderThan(VersionParser.semver(true).parse("12.0")),
+                "a pre-release orders below its release");
+        VersionValue stripped = rc.withoutPreRelease();
+        assertEquals("12.0", stripped.value(), "the stripped value keeps the published two-part shape");
+        assertTrue(stripped.preReleaseSegment().isEmpty());
+        assertEquals(VersionParser.semver(true).parse("12.0.0"), stripped);
+    }
 }

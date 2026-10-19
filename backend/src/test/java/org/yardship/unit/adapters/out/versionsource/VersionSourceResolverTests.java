@@ -779,6 +779,11 @@ class VersionSourceResolverTests {
             }
 
             @Override
+            public Optional<Boolean> semverOptionalPatch() {
+                return Optional.empty();
+            }
+
+            @Override
             public Optional<String> changelogUrl() {
                 return changelogUrl;
             }
@@ -825,6 +830,11 @@ class VersionSourceResolverTests {
             }
 
             @Override
+            public Optional<Boolean> semverOptionalPatch() {
+                return Optional.empty();
+            }
+
+            @Override
             public Optional<String> changelogUrl() {
                 return Optional.of(changelogUrl);
             }
@@ -863,6 +873,11 @@ class VersionSourceResolverTests {
 
             @Override
             public Optional<Boolean> dotnetCompareBuild() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<Boolean> semverOptionalPatch() {
                 return Optional.empty();
             }
 

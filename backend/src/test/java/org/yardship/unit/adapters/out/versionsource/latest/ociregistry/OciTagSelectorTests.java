@@ -241,4 +241,41 @@ class OciTagSelectorTests {
 
         assertEquals("4.0.20.3014", result.value());
     }
+
+    // --- semver-optional-patch (ADR-0041) ------------------------------------------------------
+
+    private static final VersionParser OPTIONAL_PATCH_PARSER = VersionParser.semver(true);
+
+    private static final List<String> JELLYFIN_SHAPED_TAGS =
+            List.of("v12.2", "v12.0-rc7", "12", "unstable", "2026101212", "latest");
+
+    @Test
+    void select_noFilter_optionalPatchParser_selectsTheTwoPartTag() {
+        OciTagSelector selector = new OciTagSelector(
+                new TagSelection(100, 1000, Optional.empty(), false),
+                OPTIONAL_PATCH_PARSER, REGISTRY_CONTEXT);
+
+        VersionValue result = selector.select(JELLYFIN_SHAPED_TAGS);
+
+        assertEquals("12.2", result.value(),
+                "the two-part prerelease is skipped and the floating '12' is never a version");
+    }
+
+    @Test
+    void select_noFilter_strictParser_throwsForTheSameTwoPartTags() {
+        assertThrows(IllegalStateException.class,
+                () -> selectorNoFilter().select(JELLYFIN_SHAPED_TAGS));
+    }
+
+    @Test
+    void select_withFilterAndStrip_optionalPatchParser_matchesAndStripsATwoPartVariantTag() {
+        OciTagSelector selector = new OciTagSelector(
+                new TagSelection(100, 1000, Optional.of("alpine"), true),
+                OPTIONAL_PATCH_PARSER, REGISTRY_CONTEXT);
+
+        VersionValue result = selector.select(List.of("12.1-alpine", "12.2-alpine", "12.2", "12"));
+
+        assertEquals("12.2", result.value(),
+                "12.2-alpine matches the filter and is reported stripped, in its published shape");
+    }
 }

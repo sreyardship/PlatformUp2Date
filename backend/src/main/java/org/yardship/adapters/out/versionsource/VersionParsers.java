@@ -20,7 +20,7 @@ import java.util.Optional;
 /**
  * Per-app {@link VersionParser} lookup, built eagerly at startup from {@link
  * ApplicationConfigLoader}'s per-app {@code version-scheme} config and its scheme-specific
- * companions ({@code calver-format}, {@code dotnet-compare-build}).
+ * companions ({@code calver-format}, {@code dotnet-compare-build}, {@code semver-optional-patch}).
  *
  * <p>This is the single place parser construction happens; {@code VersionSourceResolver} consumes
  * this bean instead of building parsers inline, so current and latest legs for a given app always
@@ -141,7 +141,9 @@ public class VersionParsers implements ConfigErrorSource {
     private static VersionParser buildParser(ApplicationConfigLoader.AppConfig app) {
         try {
             return switch (app.versionScheme()) {
-                case SEMVER -> new VersionParser(VersionScheme.SEMVER);
+                // semver-optional-patch defaults to false: semver stays strict unless the app
+                // opts in, so a floating registry tag such as '1.27' cannot leak in (ADR-0041).
+                case SEMVER -> VersionParser.semver(app.semverOptionalPatch().orElse(false));
                 case CALVER -> new VersionParser(VersionScheme.CALVER, app.calverFormat().orElse(null));
                 // dotnet-compare-build defaults to true here, beside the code that reads it: the
                 // motivating Sonarr 4.0.17 -> 4.0.20 upgrade must read as drift (ADR-0036).

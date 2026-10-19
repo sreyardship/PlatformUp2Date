@@ -4,8 +4,9 @@ package org.yardship.core.domain.primitives;
  * Domain service that turns a raw version string into a {@link VersionValue}.
  *
  * <p>One instance is built per monitored app (from its configured {@link VersionScheme}, plus a
- * {@code calver-format} when the scheme is {@link VersionScheme#CALVER} or a
- * {@code dotnet-compare-build} flag when it is {@link VersionScheme#DOTNET}) and shared by both the
+ * {@code calver-format} when the scheme is {@link VersionScheme#CALVER}, a
+ * {@code dotnet-compare-build} flag when it is {@link VersionScheme#DOTNET}, or a
+ * {@code semver-optional-patch} flag when it is {@link VersionScheme#SEMVER}) and shared by both the
  * current and latest legs. Sharing ensures the two sides always produce commensurable values that
  * can be compared with each other.
  *
@@ -19,6 +20,7 @@ public class VersionParser {
     private final VersionScheme scheme;
     private final CalverFormat calverFormat; // non-null only for CALVER
     private final boolean dotnetCompareBuild; // read only for DOTNET
+    private final boolean semverOptionalPatch; // read only for SEMVER
 
     /**
      * Builds a parser for a scheme that needs no REQUIRED extra configuration. A {@code DOTNET}
@@ -48,6 +50,24 @@ public class VersionParser {
         this.scheme = scheme;
         this.calverFormat = null;
         this.dotnetCompareBuild = dotnetCompareBuild;
+        this.semverOptionalPatch = false;
+    }
+
+    private VersionParser(boolean semverOptionalPatch) {
+        this.scheme = VersionScheme.SEMVER;
+        this.calverFormat = null;
+        this.dotnetCompareBuild = true;
+        this.semverOptionalPatch = semverOptionalPatch;
+    }
+
+    /**
+     * Builds a {@link VersionScheme#SEMVER} parser, supplying the {@code semver-optional-patch} flag.
+     * {@code false} is today's strict semver, identical to {@code new VersionParser(SEMVER)};
+     * {@code true} also accepts {@code major.minor[-pre][+build]}, treated as {@code major.minor.0}
+     * for comparison while displaying the string as published (ADR-0041).
+     */
+    public static VersionParser semver(boolean optionalPatch) {
+        return new VersionParser(optionalPatch);
     }
 
     /**
@@ -61,6 +81,7 @@ public class VersionParser {
     public VersionParser(VersionScheme scheme, String calverFormat) {
         this.scheme = scheme;
         this.dotnetCompareBuild = true;
+        this.semverOptionalPatch = false;
         if (scheme == VersionScheme.CALVER) {
             // CalverFormat fail-fasts on null/blank/unknown-token formats — let that surface here.
             this.calverFormat = new CalverFormat(calverFormat);
@@ -77,7 +98,7 @@ public class VersionParser {
      */
     public VersionValue parse(String raw) {
         return switch (scheme) {
-            case SEMVER -> new SemverVersion(raw);
+            case SEMVER -> new SemverVersion(raw, semverOptionalPatch);
             case CALVER -> new CalverVersion(raw, calverFormat);
             case DOTNET -> new DotnetVersion(raw, dotnetCompareBuild);
         };

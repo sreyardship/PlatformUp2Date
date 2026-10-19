@@ -311,6 +311,11 @@ class VersionParsersTests {
             }
 
             @Override
+            public Optional<Boolean> semverOptionalPatch() {
+                return Optional.empty();
+            }
+
+            @Override
             public Optional<String> changelogUrl() {
                 return Optional.empty();
             }
@@ -329,6 +334,98 @@ class VersionParsersTests {
             assertFalse(logs.recordsAtLevel(java.util.logging.Level.SEVERE).isEmpty(),
                     "an undeclared RuntimeException must be logged at ERROR (java.util.logging SEVERE)");
         }
+    }
+
+    // --- ADR-0041: semver-optional-patch accepts two-part semver, opt-in per app ---------------
+
+    @Test
+    void semverParser_rejectsTwoPartVersion_whenOptionalPatchIsAbsent() {
+        VersionParsers parsers = new VersionParsers(List.of(semverApp("argo-cd", Optional.empty())));
+        VersionParser parser = parsers.forApp("argo-cd").orElseThrow();
+
+        assertThrows(InvalidVersionException.class, () -> parser.parse("12.2"),
+                "semver-optional-patch defaults to off, so semver stays strict");
+    }
+
+    @Test
+    void semverParser_rejectsTwoPartVersion_whenOptionalPatchIsFalse() {
+        VersionParsers parsers =
+                new VersionParsers(List.of(semverApp("argo-cd", Optional.of(false))));
+        VersionParser parser = parsers.forApp("argo-cd").orElseThrow();
+
+        assertThrows(InvalidVersionException.class, () -> parser.parse("1.27"));
+    }
+
+    @Test
+    void semverParser_acceptsTwoPartVersion_whenOptionalPatchIsTrue() {
+        VersionParsers parsers =
+                new VersionParsers(List.of(semverApp("jellyfin", Optional.of(true))));
+        VersionParser parser = parsers.forApp("jellyfin").orElseThrow();
+
+        VersionValue latest = parser.parse("v12.2");
+        assertEquals(VersionScheme.SEMVER, latest.scheme());
+        assertEquals("12.2", latest.value(), "displayed as published, minus the leading v");
+        assertTrue(parsers.configErrors().isEmpty());
+    }
+
+    @Test
+    void optionalPatchApp_readsUpToDate_whenTagIsTwoPartAndApiReportsZeroPatch() {
+        VersionParser parser = new VersionParsers(List.of(semverApp("jellyfin", Optional.of(true))))
+                .forApp("jellyfin").orElseThrow();
+
+        VersionValue latest = parser.parse("v12.2");
+        VersionValue current = parser.parse("12.2.0");
+
+        assertEquals(latest, current);
+        assertFalse(current.isOlderThan(latest));
+        assertEquals(VersionValue.Diff.NONE, current.diff(latest));
+    }
+
+    @Test
+    void optionalPatchApp_gradesPatch_whenAThreePartReleaseFollowsATwoPartOne() {
+        VersionParser parser = new VersionParsers(List.of(semverApp("jellyfin", Optional.of(true))))
+                .forApp("jellyfin").orElseThrow();
+
+        VersionValue current = parser.parse("12.2");
+        VersionValue latest = parser.parse("12.2.1");
+
+        assertTrue(current.isOlderThan(latest), "a published patch is newer than the two-part tag");
+        assertEquals(VersionValue.Diff.PATCH, current.diff(latest));
+    }
+
+    @Test
+    void optionalPatchApp_gradesMinor_betweenTwoPartReleases() {
+        VersionParser parser = new VersionParsers(List.of(semverApp("jellyfin", Optional.of(true))))
+                .forApp("jellyfin").orElseThrow();
+
+        assertEquals(VersionValue.Diff.MINOR, parser.parse("12.1").diff(parser.parse("12.2")));
+    }
+
+    @Test
+    void optionalPatchApp_gradesMajor_acrossTheTwoDigitSchemeChange() {
+        VersionParser parser = new VersionParsers(List.of(semverApp("jellyfin", Optional.of(true))))
+                .forApp("jellyfin").orElseThrow();
+
+        assertEquals(VersionValue.Diff.MAJOR, parser.parse("10.11.11").diff(parser.parse("12.2")));
+    }
+
+    @Test
+    void optionalPatchApp_recognisesTwoPartPreRelease() {
+        VersionParser parser = new VersionParsers(List.of(semverApp("jellyfin", Optional.of(true))))
+                .forApp("jellyfin").orElseThrow();
+
+        assertEquals(Optional.of("rc7"), parser.parse("v12.0-rc7").preReleaseSegment());
+    }
+
+    @Test
+    void optionalPatch_isScopedToItsOwnApp() {
+        VersionParsers parsers = new VersionParsers(List.of(
+                semverApp("jellyfin", Optional.of(true)), semverApp("argo-cd", Optional.empty())));
+
+        parsers.forApp("jellyfin").orElseThrow().parse("12.2");
+        assertThrows(InvalidVersionException.class,
+                () -> parsers.forApp("argo-cd").orElseThrow().parse("12.2"),
+                "a sibling semver app keeps strict parsing");
     }
 
     // --- fakes --------------------------------------------------------------------------------
@@ -360,6 +457,20 @@ class VersionParsersTests {
     private static ApplicationConfigLoader.AppConfig namedOrUnnamed(
             Optional<String> name, VersionScheme versionScheme, String calverFormat,
             Optional<Boolean> dotnetCompareBuild, Optional<String> prereleaseFilter) {
+        return namedOrUnnamed(name, versionScheme, calverFormat, dotnetCompareBuild,
+                prereleaseFilter, Optional.empty());
+    }
+
+    private static ApplicationConfigLoader.AppConfig semverApp(
+            String name, Optional<Boolean> semverOptionalPatch) {
+        return namedOrUnnamed(Optional.of(name), VersionScheme.SEMVER, null, Optional.empty(),
+                Optional.empty(), semverOptionalPatch);
+    }
+
+    private static ApplicationConfigLoader.AppConfig namedOrUnnamed(
+            Optional<String> name, VersionScheme versionScheme, String calverFormat,
+            Optional<Boolean> dotnetCompareBuild, Optional<String> prereleaseFilter,
+            Optional<Boolean> semverOptionalPatch) {
         return new ApplicationConfigLoader.AppConfig() {
             @Override
             public Optional<String> name() {
@@ -389,6 +500,11 @@ class VersionParsersTests {
             @Override
             public Optional<Boolean> dotnetCompareBuild() {
                 return dotnetCompareBuild;
+            }
+
+            @Override
+            public Optional<Boolean> semverOptionalPatch() {
+                return semverOptionalPatch;
             }
 
             @Override

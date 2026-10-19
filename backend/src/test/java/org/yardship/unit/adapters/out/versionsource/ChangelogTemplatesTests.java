@@ -223,6 +223,11 @@ class ChangelogTemplatesTests {
             }
 
             @Override
+            public Optional<Boolean> semverOptionalPatch() {
+                return Optional.empty();
+            }
+
+            @Override
             public Optional<String> changelogUrl() {
                 return Optional.of("https://example.test/{version}");
             }
@@ -311,6 +316,11 @@ class ChangelogTemplatesTests {
 
             @Override
             public Optional<Boolean> dotnetCompareBuild() {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<Boolean> semverOptionalPatch() {
                 return Optional.empty();
             }
 
