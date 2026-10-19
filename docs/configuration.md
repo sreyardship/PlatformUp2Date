@@ -34,6 +34,7 @@ One entry per Application under `apps[]`:
 | `version-scheme` | `semver` \| `calver` \| `dotnet` | no | `semver` | Used by both sides, so they can always be compared. Case-insensitive. See [Version schemes](#version-schemes). |
 | `calver-format` | string | if `version-scheme: calver` | — | e.g. `YY.0M.MICRO`. See [Calver format](#calver-format). |
 | `dotnet-compare-build` | boolean | no | `true` | Only for `version-scheme: dotnet`. `false` compares only major and minor. See [Dotnet versions](#dotnet-versions). |
+| `semver-optional-patch` | boolean | no | `false` | Only for `version-scheme: semver`. `true` also accepts `major.minor` versions such as `12.2`. See [Semver without a patch](#semver-without-a-patch). |
 | `changelog-url` | string (template) | no | absent → no link | See [Changelog link templates](#changelog-link-templates). |
 
 ## Version sources
@@ -261,6 +262,41 @@ The largest wins.
 
 ## Version schemes
 
+### Semver without a patch
+
+`version-scheme: semver` is strict by default: `12.2` is rejected. Some
+upstreams publish two-part versions on purpose. Jellyfin, since 12.0, tags
+`v12.2` while its API reports `12.2.0`. For such an app, set
+`semver-optional-patch: true`:
+
+```yaml
+- name: jellyfin
+  version-scheme: semver
+  semver-optional-patch: true
+  changelog-url: https://github.com/jellyfin/jellyfin/releases/tag/v{version}
+  current:
+    type: http-json
+    url: http://jellyfin.media.svc:8096/System/Info/Public
+    version-key: /Version
+  latest:
+    type: github-release
+    repo: jellyfin/jellyfin
+```
+
+- `major.minor[-prerelease][+build]` is accepted and compared as
+  `major.minor.0`. `v12.2` equals `12.2.0`, so the app above is up to date.
+- A version with a patch is read as normal semver. `12.2.1` is newer than
+  `12.2`, and the step grades `PATCH`.
+- Drift, prereleases, `prerelease-filter` and `strip-prerelease` work as for any
+  semver app. `v12.0-rc7` is a prerelease; `12.2-alpine` matches the filter
+  `alpine`.
+- One part (`12`) and four or more parts are still rejected, so Docker Hub's
+  floating `12` tag is never chosen as latest.
+- The version is shown as published, minus a leading `v`. `v12.2` shows as
+  `12.2`.
+- Leave it off for other apps: with it on, a floating two-part registry tag such
+  as `1.27` would also count as a version.
+
 ### Calver format
 
 `calver-format` uses the calver.org tokens `YYYY`, `YY`, `0Y`, `MM`, `0M`, `WW`,
@@ -304,6 +340,8 @@ version when the link is read. Placeholders:
 | `{major}` `{minor}` `{build}` `{revision}` | `dotnet` (`{patch}` is not allowed) |
 | any token in the app's own `calver-format`, e.g. `{YY}` `{0M}` `{MICRO}` | `calver` |
 
+- `semver` with `semver-optional-patch`: a missing patch is filled in as `0`,
+  so `12.2` gives `{patch}` = `0`. `{version}` is `12.2`.
 - `dotnet`: missing parts are filled in as `0`, so `6.2` gives `{build}` = `0`
   and `{revision}` = `0`.
 - `calver`: values are the text exactly as shown in the version, zero-padding
@@ -440,7 +478,8 @@ and in the `pu2d_config_error{application, scope}` metric. See
   - `http-regex`: [0017](adr/0017-http-regex-latest-source.md)
   - Version schemes: [0015](adr/0015-calver-as-a-first-class-version-scheme.md),
     [0022](adr/0022-version-scheme-authority-is-configuration.md),
-    [0036](adr/0036-dotnet-as-a-third-version-scheme.md)
+    [0036](adr/0036-dotnet-as-a-third-version-scheme.md),
+    [0041](adr/0041-semver-optional-patch.md)
   - Changelog links: [0021](adr/0021-changelog-link-is-a-template-projection.md)
   - Surface authentication: [0026](adr/0026-mcp-endpoint-oauth-resource-server.md),
     [0028](adr/0028-web-and-mcp-surfaces-role-gated-behind-one-issuer.md)

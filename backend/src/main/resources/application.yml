@@ -339,6 +339,27 @@ quarkus:
       #     type: github-release
       #     repo: Sonarr/Sonarr
       #
+      # --- Jellyfin (semver-optional-patch + http-json + github-release) — DO NOT enable under %dev ---
+      #
+      # This block documents the shape an operator copies into the PRODUCTION ConfigMap
+      # (apps/service-spaces/platformup2date/app/ in the jumziCluster repo). Commented out for the
+      # same reason as the examples above: local dev has no reachable Jellyfin.
+      #
+      # Since 12.0 Jellyfin tags two-digit versions (v12.2) while its API reports 12.2.0. Strict
+      # semver rejects v12.2; semver-optional-patch: true accepts it as 12.2.0 for comparison and
+      # still displays 12.2 (see docs/adr/0041). A one-part tag such as 12 is still rejected.
+      # - name: jellyfin
+      #   version-scheme: semver
+      #   semver-optional-patch: true
+      #   changelog-url: https://github.com/jellyfin/jellyfin/releases/tag/v{version}
+      #   current:
+      #     type: http-json
+      #     url: http://jellyfin.media.svc:8096/System/Info/Public
+      #     version-key: /Version
+      #   latest:
+      #     type: github-release
+      #     repo: jellyfin/jellyfin
+      #
       # --- Jenkins (http-header + http-regex) — DO NOT enable under %dev ---
       #
       # This block documents the shape an operator copies into the PRODUCTION ConfigMap
