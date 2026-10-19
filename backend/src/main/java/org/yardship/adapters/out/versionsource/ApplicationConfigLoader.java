@@ -81,7 +81,8 @@ public interface ApplicationConfigLoader {
         /**
          * Whether a {@code semver} app's versions may omit the patch component — {@code 12.2} is
          * accepted and compared as {@code 12.2.0}, while still displayed as published (ADR-0041).
-         * Read only when {@link #versionScheme()} is {@code semver}. Defaults FACTORY-SIDE to
+         * Honoured only when {@link #versionScheme()} is {@code semver}; refused (an APP-scope
+         * config error) under every other scheme, whatever its value. Defaults FACTORY-SIDE to
          * {@code false} in {@code VersionParsers}, so every semver app stays strict unless it opts
          * in (Jellyfin publishes two-digit tags such as {@code v12.2}).
          */

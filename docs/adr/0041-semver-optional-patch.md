@@ -12,8 +12,9 @@ the minor release."* Strict semver rejects every two-part tag, so the latest leg
 fails with "no parseable tag" forever, and no existing declaration fixes it
 honestly.
 
-We add a per-Application boolean, `semver-optional-patch`, default `false`, read
-only under `version-scheme: semver`:
+We add a per-Application boolean, `semver-optional-patch`, default `false`,
+honoured only under `version-scheme: semver` and refused (an APP-scope config
+error) under other schemes:
 
 ```yaml
 - name: jellyfin
