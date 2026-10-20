@@ -1,28 +1,30 @@
 # Deploying to Kubernetes
 
-The README's quick start (`compose.quickstart.yml`) is for trying the tool out
-locally. This page is for running it for real, on your own cluster.
+The README quick start (`compose.quickstart.yml`) lets you try the tool on
+your machine. This page tells you how to run the tool on your own cluster.
 
-Kubernetes is the primary deployment target (it's where the tool is developed
-and run) but nothing requires it: both images are plain OCI images that run on
-any OCI-compatible runtime (Docker, Podman, containerd), as the compose
-quickstart shows. The one Kubernetes specific piece is the `k8s-image` current
-source, which reads workloads from the Kubernetes API and auto-configures
-in-cluster. But it's not necessarily dependent on where PlatformUp2Date 
-lives, it's just a bit easier to setup if it runs in a k8s cluster.
+Kubernetes is the primary deployment target. The tool is developed and run on
+Kubernetes. But the tool does not need Kubernetes. The two images are standard
+OCI images. They run on all OCI-compatible runtimes (Docker, Podman,
+containerd). The compose quick start shows this. Only the `k8s-image` current
+source is specific to Kubernetes. It reads workloads from the Kubernetes API.
+When the backend runs in a cluster, this source configures itself. The backend
+does not have to run in the cluster that it reads. But setup is easier when it
+does.
 
-The backend is designed to run highly available. All scrape state lives in
-Valkey and every surface (REST, frontend, metrics, MCP) is a stateless
-projection of it, so replicas are interchangeable: run as many as you like
-with no session affinity, and a scrape on any replica updates what all of
-them serve (see [`docs/adr/0003`](adr/0003-scrape-state-centralised-in-valkey.md)
-and [`docs/adr/0004`](adr/0004-mcp-transport-stateless-for-ha.md)).
+The backend is designed for high availability. All scrape state is in Valkey.
+Each surface (REST, frontend, metrics, MCP) is a stateless projection of that
+state. Thus, replicas are interchangeable. Run as many replicas as you want.
+Session affinity is not necessary. A scrape on one replica updates the data
+that all replicas serve. See
+[`docs/adr/0003`](adr/0003-scrape-state-centralised-in-valkey.md) and
+[`docs/adr/0004`](adr/0004-mcp-transport-stateless-for-ha.md).
 
 ## The shipped manifests
 
-Deployable manifests live under [`deploy/k8s/`](../deploy/k8s/) as a kustomize
-tree (kustomize-only; see
-[`docs/adr/0027`](adr/0027-deploy-manifests-are-kustomize-only.md)):
+The deployable manifests are in [`deploy/k8s/`](../deploy/k8s/). They are a
+kustomize tree. Only kustomize is supported. See
+[`docs/adr/0027`](adr/0027-deploy-manifests-are-kustomize-only.md).
 
 ```
 deploy/k8s/
@@ -41,20 +43,28 @@ deploy/k8s/
 kubectl apply -k deploy/k8s/overlays/quickstart
 ```
 
-This creates the `platformup2date` namespace and serves the UI through a
-host-less, class-less Ingress on your cluster's default IngressClass (k3s and
-minikube ship one; elsewhere patch `ingressClassName` as shown in
-[`overlays/quickstart/ingress.yaml`](../deploy/k8s/overlays/quickstart/ingress.yaml)).
-The routing contract is: `/api` → backend **unstripped**, everything else →
-frontend; the frontend's `API_BASE_URL` stays empty so browser calls are
-same-origin (no CORS).
+This command creates the `platformup2date` namespace. It serves the UI through
+an Ingress that has no host and no class. The Ingress uses the default
+IngressClass of your cluster. k3s and minikube have a default IngressClass. On
+other clusters, patch `ingressClassName`. See
+[`overlays/quickstart/ingress.yaml`](../deploy/k8s/overlays/quickstart/ingress.yaml)
+for an example.
+
+The routing contract is:
+
+- `/api` goes to the backend. The path is not stripped.
+- All other paths go to the frontend.
+
+The frontend `API_BASE_URL` stays empty. Thus, browser calls are same-origin,
+and CORS is not necessary.
 
 ### Run it for real: write an overlay
 
-Reference the base as a remote base, pinned to an immutable release tag. No
-stable release exists yet, so this example explicitly uses the current release
-candidate, `v1.0.0-rc.4`. Replace it with a stable release tag when one is
-available (and review prerelease changes before using it in production):
+Use the base as a remote base. Pin it to an immutable release tag. There is no
+stable release yet. Thus, this example uses the current release candidate,
+`v1.0.0-rc.7`. Replace it with a stable release tag when one is available.
+Review the prerelease changes before you use a release candidate in
+production.
 
 ```yaml
 # kustomization.yaml
@@ -63,7 +73,7 @@ kind: Kustomization
 namespace: my-namespace
 
 resources:
-  - https://github.com/sreyardship/PlatformUp2Date//deploy/k8s/base?ref=v1.0.0-rc.4
+  - https://github.com/sreyardship/PlatformUp2Date//deploy/k8s/base?ref=v1.0.0-rc.7
   - namespace.yaml
 
 # Your real monitoring config, replacing the sample wholesale. The generated
@@ -75,37 +85,37 @@ configMapGenerator:
       - platform-config.yaml
 ```
 
-Argo CD and Flux both consume this directly (it's a plain kustomization).
+Argo CD and Flux can use this file directly. It is a standard kustomization.
 
 - **Credentials** (`GITHUB_TOKEN`, `HARBOR_USER`/`HARBOR_PASS`, …) need no
-  patching at all: the backend Deployment carries an `optional: true`
-  `envFrom` hook on a Secret named `platformup2date-env`. Create it and its
-  keys become env vars:
+  patch. The backend Deployment has an `envFrom` entry with `optional: true`.
+  It points to a Secret named `platformup2date-env`. Create the Secret. Each
+  key becomes an environment variable:
 
   ```bash
   kubectl -n my-namespace create secret generic platformup2date-env \
     --from-literal=GITHUB_TOKEN=ghp_…
   ```
 
-  File-shaped secrets (the `ssh-os-release` private key, custom CAs) stay
-  volume mounts — add the Secret volume and `volumeMounts` patch in your
-  overlay (see [`configuration.md`](configuration.md#ssh-os-release)
-  for the paths the config expects).
-- **Ingress**: the base ships none (the quickstart's Ingress lives in the
-  overlay). Add your own Ingress/HTTPRoute honouring the routing contract
-  above.
+  Secrets that are files (the `ssh-os-release` private key, custom CAs) stay
+  volume mounts. Add the Secret volume and a `volumeMounts` patch in your
+  overlay. See [`configuration.md`](configuration.md#ssh-os-release) for the
+  paths that the config expects.
+- **Ingress**: the base has no Ingress. The quick start Ingress is in the
+  overlay. Add your own Ingress or HTTPRoute. Obey the routing contract above.
 
 ### Valkey: bundled or bring your own
 
-The base deliberately bundles **no** datastore. The quickstart adds
-`components/valkey`: a single replica, no persistence. That's honest for this
-workload, since scrape state is rebuildable (losing the pod costs one
-re-scrape; only the fleet staleness clock and manual-scrape budgets reset).
+The base has **no** datastore. This is by design. The quick start adds
+`components/valkey`: one replica, no persistence. This is sufficient for this
+workload. Scrape state can be rebuilt. If the pod is lost, one re-scrape
+restores the state. Only the fleet staleness clock and the manual-scrape
+budgets reset.
 
-For an HA datastore, run your own Valkey/Redis (operator, managed service,
-Sentinel — anything Redis-API-compatible) and point the backend at it with an
-env patch; the storage adapter uses only simple single-key commands, so
-standalone, Sentinel and cluster topologies all work:
+For an HA datastore, run your own Valkey or Redis. An operator, a managed
+service, or Sentinel are all applicable. The storage adapter uses only simple
+single-key commands. Thus, standalone, Sentinel, and cluster topologies all
+work. Point the backend at your datastore with an env patch:
 
 ```yaml
 patches:
@@ -124,33 +134,38 @@ patches:
                     value: redis://my-valkey:6379
 ```
 
-For Sentinel, set `QUARKUS_REDIS_CLIENT_TYPE=sentinel`,
-`QUARKUS_REDIS_HOSTS=redis://sentinel-0:26379,redis://sentinel-1:26379,…` and
-`QUARKUS_REDIS_MASTER_NAME=<master>` instead. One caveat: with async
-replication a failover can lose the last few writes; here that means at
-worst one re-scrape, which is what the state model is built to tolerate.
+For Sentinel, set these variables instead:
 
-While Valkey is unreachable the backend fails closed (503) and its readiness
-probe (`/q/health/ready`) reports DOWN, pulling replicas out of rotation until
-it returns.
+- `QUARKUS_REDIS_CLIENT_TYPE=sentinel`
+- `QUARKUS_REDIS_HOSTS=redis://sentinel-0:26379,redis://sentinel-1:26379,…`
+- `QUARKUS_REDIS_MASTER_NAME=<master>`
+
+Note: with async replication, a failover can lose the last writes. Here, the
+worst case is one re-scrape. The state model is designed to tolerate this.
+
+When Valkey is not reachable, the backend fails closed. It returns HTTP 503.
+Its readiness probe (`/q/health/ready`) reports DOWN. Thus, the replicas are
+removed from rotation until Valkey is reachable again.
 
 ### k8s-image RBAC
 
-Only if an app in your config uses the `k8s-image` current source, add
-`components/rbac` to your overlay:
+Add `components/rbac` to your overlay only if an app in your config uses the
+`k8s-image` current source:
 
 ```yaml
 components:
-  - https://github.com/sreyardship/PlatformUp2Date//deploy/k8s/components/rbac?ref=v1.0.0-rc.4
+  - https://github.com/sreyardship/PlatformUp2Date//deploy/k8s/components/rbac?ref=v1.0.0-rc.7
 ```
 
-It grants cluster-wide read-only `get` on Deployments/StatefulSets/DaemonSets
-(no `list`/`watch`, no writes, no secrets) to the `platformup2date`
-ServiceAccount the base always creates. **Namespace caveat**: a
-ClusterRoleBinding subject names a concrete namespace and kustomize's
-`namespace:` transformer does *not* rewrite it (it only rewrites subjects named
-`default`). If you deploy to any namespace not literally called
-`platformup2date`, patch it:
+The component grants cluster-wide read-only `get` on Deployments,
+StatefulSets, and DaemonSets. It does not grant `list`, `watch`, writes, or
+access to secrets. The grant goes to the `platformup2date` ServiceAccount. The
+base always creates this ServiceAccount.
+
+**Namespace caveat**: a ClusterRoleBinding subject names one specific
+namespace. The kustomize `namespace:` transformer does *not* rewrite it. It
+rewrites only subjects that are named `default`. If your namespace is not
+`platformup2date`, patch the subject:
 
 ```yaml
 patches:
@@ -163,27 +178,27 @@ patches:
 
 ## What the backend needs (outside Kubernetes)
 
-Running on plain Docker/Podman/anything-OCI instead? The base manifests wire
-up two things you'll need to reproduce (the compose quickstart shows
-both):
+You can run the backend on Docker, Podman, or another OCI runtime. The base
+manifests set up two things. You must set them up yourself. The compose quick
+start shows both:
 
-- **A reachable Valkey (or Redis-API-compatible) instance.** All scrape state
-  (the observed Applications, the fleet-wide staleness clock, and the
-  manual-scrape budgets) lives centrally in Valkey, not in the JVM. This makes every
-  replica serve the same snapshot, but it is a hard dependency: if Valkey is
-  unreachable, reads and scrape triggers fail closed (503) rather than falling
-  back to a per-instance cache. Point the backend at it with
-  `QUARKUS_REDIS_HOSTS=redis://<host>:6379`.
-- **A mounted `platform-config` file**, supplied via
-  `QUARKUS_CONFIG_LOCATIONS=/config/platform-config.yaml`. Nothing is baked
-  into the image, so changing the watched apps is a config edit,
-  not an image rebuild. See [`configuration.md`](configuration.md) for every
-  key. The `k8s-image` current source auto-configures from the in-cluster
-  ServiceAccount (Fabric8) and needs the RBAC component above; it has no
-  out-of-cluster story. `ssh-os-release` instead needs its private key and
-  known-hosts/host-key mounted (see
-  [`configuration.md`](configuration.md#ssh-os-release))
-  and no Kubernetes RBAC at all.
+- **A reachable Valkey instance** (or a Redis-API-compatible instance). All
+  scrape state is in Valkey, not in the JVM. This includes the observed
+  Applications, the fleet-wide staleness clock, and the manual-scrape budgets.
+  Thus, each replica serves the same snapshot. But Valkey is a hard
+  dependency. If Valkey is not reachable, reads and scrape triggers fail
+  closed with HTTP 503. There is no per-instance cache. Point the backend at
+  Valkey with `QUARKUS_REDIS_HOSTS=redis://<host>:6379`.
+- **A mounted `platform-config` file.** Supply it with
+  `QUARKUS_CONFIG_LOCATIONS=/config/platform-config.yaml`. The image contains
+  no config. To change the monitored apps, edit the config. You do not have to
+  rebuild the image. See [`configuration.md`](configuration.md) for all keys.
+  The `k8s-image` current source configures itself from the in-cluster
+  ServiceAccount (Fabric8). It needs the RBAC component above. It does not work
+  outside a cluster. The `ssh-os-release` source needs its private key and
+  known-hosts or host-key mounted. See
+  [`configuration.md`](configuration.md#ssh-os-release). It does not need
+  Kubernetes RBAC.
 
 ## Build-version endpoints
 
@@ -192,57 +207,62 @@ both):
 | Backend | `GET /api/version` | `{"version":"1.2.3"}` |
 | Frontend (nginx) | `GET /version.json` | `{"version":"1.2.3"}` |
 
-Both return HTTP 200, `Content-Type: application/json`, and
-`Cache-Control: no-store`. They expose only embedded build identity, with no
-credentials or deployment configuration. The existing `/api/v1/version`
-continues to return monitored Applications' statuses, not backend build identity.
+Both endpoints return HTTP 200, `Content-Type: application/json`, and
+`Cache-Control: no-store`. They expose only the embedded build identity. They
+do not expose credentials or deployment configuration. The `/api/v1/version`
+endpoint is different. It returns the statuses of the monitored Applications,
+not the backend build identity.
 
-Both endpoints are anonymously readable even when web/MCP Surface
-authentication is enabled; the `/api/v1*` and `/api/mcp*` role gates are
-unchanged. An external authentication proxy may still restrict them. For
-credential-free version discovery through such a proxy, configure exact-path
-bypasses for `/api/version` and `/version.json`, separately from MCP's bypasses
-below. Honour `no-store` and disable any CDN/proxy caching of these paths;
-otherwise the scraper can observe an earlier artifact rather than the running
-instance.
+Both endpoints are readable without authentication. This is also true when
+web or MCP Surface authentication is on. The `/api/v1*` and `/api/mcp*` role
+gates do not change. An external authentication proxy can still block these
+endpoints. To permit version discovery without credentials through such a
+proxy, configure exact-path bypasses for `/api/version` and `/version.json`.
+Keep these separate from the MCP bypasses below. Obey `no-store`. Disable all
+CDN or proxy caching of these paths. If you do not, the scraper can see an
+earlier artifact instead of the running instance.
 
-No new ingress rule is needed: `/api` still reaches the backend unstripped,
-while the catch-all reaches the frontend. Both shipped nginx configurations
-serve `/version.json` as an exact JSON location; a missing file returns 404,
-not the SPA shell with HTTP 200. The frontend serves its own static identity
-without contacting the backend, so it remains available when the backend is
-unavailable.
+A new ingress rule is not necessary. `/api` goes to the backend, not stripped.
+The catch-all goes to the frontend. Both shipped nginx configurations serve
+`/version.json` as an exact JSON location. If the file is missing, nginx
+returns HTTP 404, not the SPA shell with HTTP 200. The frontend serves its own
+static identity. It does not contact the backend. Thus, the frontend endpoint
+stays available when the backend is not available.
 
-Identity belongs to **the instance that answered**, not all replicas or a
-browser's already-loaded JavaScript bundle. Rolling updates can legitimately
-return different identities on successive requests. There is no rollout
-aggregation or consistency check. Backend identity reads require no scrape,
-Valkey access, or upstream request, but readiness is unchanged: a backend whose
-Valkey readiness fails may be removed from Service routing and therefore be
-unreachable through its Service.
+The identity belongs to **the instance that answered**. It does not belong to
+all replicas or to a JavaScript bundle that a browser already loaded. During a
+rolling update, successive requests can return different identities. This is
+correct. There is no rollout aggregation and no consistency check. A backend
+identity read needs no scrape, no Valkey access, and no upstream request. But
+readiness does not change. If the Valkey readiness check of a backend fails,
+the Service can remove that backend from routing. Then the backend is not
+reachable through its Service.
 
-Release identities come from the tag (leading `v` removed, prerelease/build
-metadata preserved); edge builds report `dev-<full-commit>`, local builds `dev`.
-Runtime variables, mounted config, labels, or retagging cannot override them.
-For build-time injection see [RELEASE.md](../RELEASE.md#embedded-build-identity);
-for opt-in tagged-build monitoring see
+Release identities come from the tag. The leading `v` is removed. Prerelease
+and build metadata are kept. Edge builds report `dev-<full-commit>`. Local
+builds report `dev`. Runtime variables, mounted config, labels, and retagging
+cannot change these identities. For build-time injection, see
+[RELEASE.md](../RELEASE.md#embedded-build-identity). For opt-in monitoring of
+tagged builds, see
 [configuration.md](configuration.md#opt-in-self-monitoring). Development
-identities cannot be compared as ordinary semver releases.
+identities cannot be compared as standard semver releases.
 
 ## MCP endpoint authentication
 
-If you turn on MCP endpoint authentication (`OIDC_ISSUER` +
-`OIDC_AUDIENCE`, see [`configuration.md`](configuration.md#surface-authentication-mcp--web)),
-it has two consequences for anything sitting in front of the backend:
+You turn on MCP endpoint authentication with `OIDC_ISSUER` and
+`OIDC_AUDIENCE`. See
+[`configuration.md`](configuration.md#surface-authentication-mcp--web). This
+has two effects on all components in front of the backend:
 
-- **The shared `HTTPRoute` needs one added rule.** [`docs/adr/0002`](adr/0002-mcp-endpoint-under-api.md)'s
-  "no ingress change needed" holds only while the endpoint is unauthenticated.
-  RFC 9728 protected-resource metadata is served at the host root
-  (`/.well-known/oauth-protected-resource/api/mcp`), outside the `/api`
-  prefix: the existing `/api` PathPrefix rule does not cover it, and the
-  catch-all `/` rule would hand it to the frontend instead of the backend.
-  Add a PathPrefix rule sending `/.well-known/oauth-protected-resource` to
-  the backend, unstripped:
+- **The shared `HTTPRoute` needs one more rule.**
+  [`docs/adr/0002`](adr/0002-mcp-endpoint-under-api.md) says that no ingress
+  change is necessary. This is true only while the endpoint has no
+  authentication. The RFC 9728 protected-resource metadata is served at the
+  host root (`/.well-known/oauth-protected-resource/api/mcp`). This path is
+  outside the `/api` prefix. The `/api` PathPrefix rule does not match it. The
+  catch-all `/` rule sends it to the frontend instead of the backend. Add a
+  PathPrefix rule that sends `/.well-known/oauth-protected-resource` to the
+  backend, not stripped:
 
   ```yaml
   apiVersion: gateway.networking.k8s.io/v1
@@ -274,120 +294,122 @@ it has two consequences for anything sitting in front of the backend:
             port: 80
   ```
 
-  The metadata path is not relocated under `/api`: fighting the well-known
-  convention would break client-side URL derivation, so the extra rule is
-  required rather than optional.
+  The metadata path is not moved under `/api`. A different location would
+  break the URL derivation in clients. Thus, the extra rule is mandatory.
 
-- **Any edge proxy in front of the host must get out of MCP's way.** If
-  `oauth2-proxy` (or similar) still fronts the host for the web UI/REST
-  interim posture below, it must bypass `/api/mcp` and
-  `/.well-known/oauth-protected-resource*` (e.g. oauth2-proxy's
-  `--skip-auth-route`), or it intercepts the challenge/discovery requests
-  before the backend can answer them, breaking native MCP client
-  authentication.
+- **An edge proxy in front of the host must not block MCP.** You can keep
+  `oauth2-proxy` (or a similar proxy) in front of the host for the web UI and
+  REST. See the interim posture below. Then the proxy must bypass `/api/mcp`
+  and `/.well-known/oauth-protected-resource*`. For oauth2-proxy, use
+  `--skip-auth-route`. If the proxy does not bypass these paths, it intercepts
+  the challenge and discovery requests. Then the backend cannot answer them,
+  and native MCP client authentication fails.
 
-> **DCR caveat.** Native client discovery leans on your issuer supporting
-> *dynamic client registration*. If it doesn't, enable DCR or pre-register
-> the client IDs your MCP clients use; otherwise the flow dies mysteriously
-> at registration, which is your IdP's concern, not this app's.
+> **DCR caveat.** Native client discovery needs *dynamic client registration*
+> (DCR) on your issuer. If your issuer does not support DCR, enable it, or
+> pre-register the client IDs that your MCP clients use. If you do not, the
+> flow fails at registration. This is a property of your IdP, not of this
+> app.
 
-With MCP endpoint authentication off (`OIDC_ISSUER` unset, the default),
-neither change applies and the endpoint behaves exactly as described in
+When MCP endpoint authentication is off (`OIDC_ISSUER` not set, the default),
+these two changes do not apply. The endpoint then behaves as described in
 [ADR 0002](adr/0002-mcp-endpoint-under-api.md).
 
 ## Web UI authentication
 
-The web UI and REST API (`/api/v1`) authenticate against the same shared
-issuer as MCP, gated by their own role var (`WEB_OIDC_ROLE`; it has no default,
-and `pu2d-web` is the conventional value — see
-[`configuration.md`](configuration.md#surface-authentication-mcp--web)). Leaving
-that variable unset keeps the surface open. Turning it on has different
-cluster-level consequences than MCP:
+The web UI and the REST API (`/api/v1`) use the same issuer as MCP. They have
+their own role variable, `WEB_OIDC_ROLE`. It has no default. The conventional
+value is `pu2d-web`. See
+[`configuration.md`](configuration.md#surface-authentication-mcp--web). If
+you do not set the variable, the surface stays open. When you turn it on, the
+cluster-level effects are different from MCP:
 
-- **No ingress change is needed.** Unlike MCP's
-  `/.well-known/oauth-protected-resource` HTTPRoute rule above, the SPA
-  discovers the IdP directly from its own runtime config
-  (`OIDC_AUTHORITY`/`OIDC_CLIENT_ID`, injected into `window._env_` the same
-  way `API_BASE_URL` already is). There is no server-side protected-resource
-  metadata document for the web surface, so nothing new needs routing at the
-  host root. The existing `/api` PathPrefix rule (unstripped, to the backend)
-  and the catch-all `/` rule (to the frontend) are unchanged.
-- **Enabling web auth gates `/api/v1`, not the SPA static shell.** The
-  frontend `Service`/`Deployment` still serves the page to anyone: the JS
-  bundle has to load and run before it can redirect an anonymous visitor to
-  the IdP. A BFF or an edge proxy in front of the host *would* hide the page
-  itself; this SPA-as-OIDC-client topology structurally cannot (see
-  [ADR 0028](adr/0028-web-and-mcp-surfaces-role-gated-behind-one-issuer.md)).
-  If hiding the page itself matters to you, that's still an edge-proxy
-  decision, not something this feature does for you.
-- **`/metrics`, `/q/health`, the OpenAPI spec (`/q/openapi`), and build-version
-  endpoints (`/api/version`, `/version.json`) stay open** regardless of
-  web-auth state. Neither Surface's role gate touches them.
-- **Dev-mode CORS**: the Vite dev server serves the SPA from
-  `localhost:3000` while Quarkus serves the API from `localhost:8080` (a
-  cross-origin request in dev only). The `%dev`-scoped CORS block in
-  `application.yml` pins `origins` to that exact dev origin (never `*`) and
-  allows the `authorization` header so the bearer token can be attached.
-  Production is same-origin behind `/api` (no CORS needed there).
-- **Any edge proxy in front of the host must still bypass MCP's paths**
-  (as above) if you keep one for defense-in-depth once web auth is in-app.
-  The two mechanisms are independent and can coexist, but the proxy must not
-  intercept `/api/mcp` or the well-known path.
+- **No ingress change is necessary.** MCP needs the
+  `/.well-known/oauth-protected-resource` HTTPRoute rule above. The SPA does
+  not. The SPA finds the IdP from its own runtime config
+  (`OIDC_AUTHORITY`/`OIDC_CLIENT_ID`). These values go into `window._env_`,
+  the same way as `API_BASE_URL`. The web surface has no server-side
+  protected-resource metadata document. Thus, no new route at the host root is
+  necessary. The `/api` PathPrefix rule (not stripped, to the backend) and the
+  catch-all `/` rule (to the frontend) do not change.
+- **Web auth gates `/api/v1`, not the SPA static shell.** The frontend
+  `Service` and `Deployment` serve the page to everyone. The JS bundle must
+  load and run before it can send an anonymous visitor to the IdP. A BFF or an
+  edge proxy in front of the host *can* hide the page. This SPA-as-OIDC-client
+  topology cannot. See
+  [ADR 0028](adr/0028-web-and-mcp-surfaces-role-gated-behind-one-issuer.md).
+  If you must hide the page, use an edge proxy. This feature does not do it.
+- **These endpoints stay open** when web auth is on or off: `/metrics`,
+  `/q/health`, the OpenAPI spec (`/q/openapi`), and the build-version
+  endpoints (`/api/version`, `/version.json`). No Surface role gate touches
+  them.
+- **Dev-mode CORS**: in dev, the Vite dev server serves the SPA from
+  `localhost:3000`. Quarkus serves the API from `localhost:8080`. This is a
+  cross-origin request. It occurs in dev only. The `%dev` CORS block in
+  `application.yml` pins `origins` to that exact dev origin. It never uses
+  `*`. It permits the `authorization` header, so the bearer token can be
+  attached. Production is same-origin behind `/api`. It does not need CORS.
+- **An edge proxy in front of the host must still bypass the MCP paths**
+  (as above). This applies if you keep a proxy for defense-in-depth after web
+  auth is in the app. The two mechanisms are independent. They can be used
+  together. But the proxy must not intercept `/api/mcp` or the well-known
+  path.
 
-The SPA runs Authorization Code + PKCE (`oidc-client-ts` /
-`react-oidc-context`), holds the access token in memory only (never
-`localStorage`/`sessionStorage`), and silently renews it in the background.
-A caller whose token lacks the role gets a distinct *Not authorized* screen
-(a 403 from the backend, not a login failure) with a log-out action.
+The SPA uses Authorization Code + PKCE (`oidc-client-ts` /
+`react-oidc-context`). It holds the access token in memory only. It never uses
+`localStorage` or `sessionStorage`. It renews the token silently in the
+background. If the token of a caller does not have the role, the SPA shows a
+*Not authorized* screen with a log-out action. This is a 403 from the backend,
+not a login failure.
 
-**IdP prerequisites.** Register the SPA as a **public client with PKCE** (no
-client secret) in your IdP:
+**IdP prerequisites.** Register the SPA in your IdP as a **public client with
+PKCE**. Do not set a client secret. Configure these items:
 
-- redirect URI = the SPA's own origin, `/` (e.g.
-  `https://platformup2date.example.com/`)
-- a matching post-logout / end-session redirect URI: log-out is RP-initiated
-  (it ends the IdP session, not just the local token)
-- silent-renew (refresh) enabled/expected, so a page reload doesn't force a
-  full re-login
-- grant the `pu2d-web` role (or whatever `WEB_OIDC_ROLE` is set to) as a
-  realm/group role to whichever users should reach the app; granting the
-  role is what actually admits a caller, independent of whether they can
-  authenticate against the IdP at all
+- Redirect URI: the origin of the SPA, with path `/` (for example
+  `https://platformup2date.example.com/`).
+- A matching post-logout (end-session) redirect URI. Log-out is RP-initiated.
+  It ends the IdP session, not only the local token.
+- Silent renew (refresh). Enable it, so that a page reload does not cause a
+  full re-login.
+- The `pu2d-web` role (or the value of `WEB_OIDC_ROLE`). Grant it as a realm
+  or group role to the users who can use the app. The role is what admits a
+  caller. Authentication against the IdP alone is not sufficient.
 
-If you leave `WEB_OIDC_ROLE` (or `OIDC_ISSUER` entirely) unset, protect the
-web UI and REST API the same way you would have protected the whole host
-before this feature existed: an edge proxy such as `oauth2-proxy` in front of
-the host, or a private network.
+If you do not set `WEB_OIDC_ROLE` (or `OIDC_ISSUER`), protect the web UI and
+the REST API in another way. Use an edge proxy such as `oauth2-proxy` in
+front of the host, or a private network.
 
 ## Metrics
 
-The backend exposes a Prometheus scrape endpoint at `/metrics`, hand-rendered
-in the Prometheus text exposition format (no Micrometer). Six metric
-families are exported:
+The backend exposes a Prometheus scrape endpoint at `/metrics`. The backend
+renders the Prometheus text exposition format itself. It does not use
+Micrometer. Six metric families are exported:
 
-- `pu2d_application_info` — fleet membership + current/latest version strings.
-- `pu2d_version_drift_level` — how far the deployed version is behind latest
-  (`0`=current, `1`=patch, `2`=minor, `3`=major; a pre-release difference
-  reports as `1`, while a difference in build metadata only is ignored and
-  reports as `0`). Calver apps grade by the category of the changed token:
-  year → `3`, month/week/day → `2`, micro/modifier → `1` (see
-  [`configuration.md`](configuration.md#calver-format)). Dotnet apps grade by
-  changed component: major → `3`, minor → `2`, build → `1`; a difference in the
-  revision only is ignored and reports as `0` (see
-  [`configuration.md`](configuration.md#dotnet-versions)).
-- `pu2d_scrape_last_success_timestamp_seconds` — per-(app, side) freshness.
-- `pu2d_scrape_last_failure_timestamp_seconds` — per-(app, side) failures.
+- `pu2d_application_info` — fleet membership and the current and latest
+  version strings.
+- `pu2d_version_drift_level` — how far the deployed version is behind the
+  latest version. `0` = current, `1` = patch, `2` = minor, `3` = major. A
+  difference in the pre-release part reports `1`. A difference in the build
+  metadata only is ignored and reports `0`. Calver apps grade by the category
+  of the changed token: year → `3`, month/week/day → `2`, micro/modifier →
+  `1`. See [`configuration.md`](configuration.md#calver-format). Dotnet apps
+  grade by the changed component: major → `3`, minor → `2`, build → `1`. A
+  difference in the revision only is ignored and reports `0`. See
+  [`configuration.md`](configuration.md#dotnet-versions).
+- `pu2d_scrape_last_success_timestamp_seconds` — freshness, per app and side.
+- `pu2d_scrape_last_failure_timestamp_seconds` — failures, per app and side.
 - `pu2d_config_error` — one series per recorded configuration defect
-  (ADR-0032), labelled by `application` and `scope` (`CURRENT`, `LATEST`,
-  `APP` or `CHANGELOG`). A clean fleet emits no series, so
-  `sum(pu2d_config_error) > 0` is the alert. The reason is deliberately not a
-  label — free-form operator prose would blow up cardinality; the board and
-  the `list_misconfigured_applications` MCP tool say *why*. Note this family
-  labels `application` where the others label `app`, so joining it to
-  `pu2d_application_info` needs a `label_replace`.
-- `pu2d_config_unnamed_apps` — unlabelled count of apps that bound with no
-  `name` and were dropped from the fleet entirely. They have no identity to
-  label, so this count is the only signal that they exist at all.
+  (ADR-0032). The labels are `application` and `scope` (`CURRENT`, `LATEST`,
+  `APP`, or `CHANGELOG`). A clean fleet emits no series. Thus,
+  `sum(pu2d_config_error) > 0` is the alert. The reason is not a label. This
+  is by design. Free-form operator text would make the cardinality too large.
+  The board and the `list_misconfigured_applications` MCP tool give the
+  reason. Note: this family uses the label `application`. The other families
+  use the label `app`. To join it to `pu2d_application_info`, use
+  `label_replace`.
+- `pu2d_config_unnamed_apps` — a count without labels. It counts apps that
+  were bound without a `name` and were dropped from the fleet. They have no
+  identity to label. Thus, this count is the only signal that they exist.
 
 ```
 # HELP pu2d_version_drift_level How far the deployed version is behind latest (0=current, 1=patch, 2=minor, 3=major)
@@ -398,7 +420,7 @@ pu2d_version_drift_level{app="git-tea"} 0
 
 ### Scraping with Prometheus Operator
 
-Point a `ServiceMonitor` at the backend `Service`'s HTTP port:
+Point a `ServiceMonitor` at the HTTP port of the backend `Service`:
 
 ```yaml
 apiVersion: monitoring.coreos.com/v1
@@ -423,9 +445,10 @@ spec:
 
 ### Example alert rules
 
-Two starting points: page when an app falls a major version behind, and when
-scraping itself has gone quiet. With the default `scrape-interval: 1h`, a
-success timestamp older than six hours means roughly six missed scrapes:
+Here are two starting points. One alert fires when an app is a major version
+behind. One alert fires when scraping has stopped. With the default
+`scrape-interval: 1h`, a success timestamp older than six hours means
+approximately six missed scrapes:
 
 ```yaml
 groups:
@@ -454,27 +477,26 @@ groups:
           summary: 'No successful {{ $labels.side }} scrape for {{ $labels.app }} in over 6h'
 ```
 
-Tune the thresholds to your own scrape interval and patience. For anything
-fancier: I believe in you! You can figure it out, gambare!
+Adjust the thresholds to your own scrape interval and your own tolerance.
 
 ## Grafana dashboard
 
-A default dashboard ships in this repo at [`grafana/platform-up-2-date.json`](../grafana/platform-up-2-date.json).
-It's as close a replica of the frontend as possible. If you already
-run a full Prometheus/Grafana monitoring stack, it might make sense to _not_
-deploy the frontend — although it's quite pretty imo.
+A default dashboard is in this repo at
+[`grafana/platform-up-2-date.json`](../grafana/platform-up-2-date.json). It is
+as near to the frontend as possible. If you already run a full Prometheus and
+Grafana stack, you can choose to not deploy the frontend.
 
 ![The bundled Grafana dashboard](img/grafana-dashboard.png)
 
 ## Container images
 
-Published to GHCR on every merge to `main` (`:edge`, moving) and on every
-`v*` tag (`:X.Y.Z` / `:X.Y` / `:X` / `:latest`):
+The images are published to GHCR on each merge to `main` (`:edge`, moving) and
+on each `v*` tag (`:X.Y.Z` / `:X.Y` / `:X` / `:latest`):
 
 - `ghcr.io/sreyardship/platformup2date/backend`
 - `ghcr.io/sreyardship/platformup2date/frontend`
 
 The frontend image injects `API_BASE_URL` into `window._env_` at container
-start (`docker-entrypoint.d/40-env-config.sh`), not at build time. Set it as
-a plain environment variable on the container/Pod, pointed at wherever the
-backend is actually reachable from a browser.
+start (`docker-entrypoint.d/40-env-config.sh`), not at build time. Set it as a
+standard environment variable on the container or Pod. Point it at the address
+where a browser can reach the backend.
