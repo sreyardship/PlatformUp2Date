@@ -62,9 +62,8 @@ public class HttpPrometheusCurrentSourceFactory implements CurrentVersionSourceF
         String versionLabel = cfg.versionLabel().filter(value -> !value.isBlank()).orElse(DEFAULT_VERSION_LABEL);
         // A blank `regex` is treated as absent (see class Javadoc), consistent with how this
         // factory treats every other optional field.
-        Optional<RegexVersionExtractor> regex = cfg.regex()
-                .filter(value -> !value.isBlank())
-                .map(pattern -> new RegexVersionExtractor(EXTRACTOR_LABEL, pattern, parser));
+        Optional<RegexVersionExtractor> regex =
+                RegexVersionExtractor.optional(EXTRACTOR_LABEL, cfg.regex(), parser);
         boolean stripPrerelease = cfg.stripPrerelease().orElse(false);
 
         HttpTransportConfig.Resolution resolution =

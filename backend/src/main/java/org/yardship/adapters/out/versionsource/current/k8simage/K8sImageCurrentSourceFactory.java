@@ -26,7 +26,7 @@ import java.util.function.Supplier;
 @ApplicationScoped
 public class K8sImageCurrentSourceFactory implements CurrentVersionSourceFactory {
 
-    private static final String SOURCE_LABEL = "'k8s-image' current source";
+    private static final String EXTRACTOR_LABEL = "'k8s-image' current source";
 
     private final KubernetesClient client;
 
@@ -46,9 +46,8 @@ public class K8sImageCurrentSourceFactory implements CurrentVersionSourceFactory
         String workload = required(cfg.workload(), "workload");
         String container = required(cfg.container(), "container");
         boolean stripPrerelease = cfg.stripPrerelease().orElse(false);
-        Optional<RegexVersionExtractor> regex = cfg.regex()
-                .filter(pattern -> !pattern.isBlank())
-                .map(pattern -> new RegexVersionExtractor(SOURCE_LABEL, pattern, parser));
+        Optional<RegexVersionExtractor> regex =
+                RegexVersionExtractor.optional(EXTRACTOR_LABEL, cfg.regex(), parser);
         return new K8sImageCurrentSource(
                 client, namespace, workload, container, stripPrerelease, regex, parser);
     }

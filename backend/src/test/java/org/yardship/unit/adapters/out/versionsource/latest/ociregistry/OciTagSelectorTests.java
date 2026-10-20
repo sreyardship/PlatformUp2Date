@@ -3,6 +3,7 @@ package org.yardship.unit.adapters.out.versionsource.latest.ociregistry;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.latest.ociregistry.OciTagSelector;
 import org.yardship.adapters.out.versionsource.latest.ociregistry.TagSelection;
+import org.yardship.adapters.out.versionsource.regex.RegexVersionExtractor;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionScheme;
 import org.yardship.core.domain.primitives.VersionValue;
@@ -287,22 +288,39 @@ class OciTagSelectorTests {
 
     private static final String LINUXSERVER_DOTNET_REGEX = "^(\\d+(?:\\.\\d+){1,3})-ls\\d+$";
 
+    private static Optional<RegexVersionExtractor> extractor(String regex, VersionParser parser) {
+        return Optional.of(new RegexVersionExtractor("'oci-registry' latest source", regex, parser));
+    }
+
     private static OciTagSelector selectorWithRegex(String regex, VersionParser parser) {
         return new OciTagSelector(
-                new TagSelection(100, 1000, Optional.empty(), false, Optional.of(regex)),
+                new TagSelection(100, 1000, Optional.empty(), false, extractor(regex, parser)),
                 parser, REGISTRY_CONTEXT);
     }
 
     @Test
     void select_withRegex_linuxserverTags_largestCapturedVersionWins() {
         List<String> tags = List.of(
-                "latest", "develop", "version-4.0.15.2941", "4.0.14.2939-ls289",
-                "4.0.15.2941-ls290", "amd64-4.0.15.2941-ls290", "4.0.9.2100-ls250");
+                "latest", "develop", "version-4.0.16.3000", "4.0.14.2939-ls289",
+                "4.0.15.2941-ls290", "amd64-4.0.16.3000-ls300", "4.0.9.2100-ls250");
 
         VersionValue result = selectorWithRegex(LINUXSERVER_DOTNET_REGEX, DOTNET_PARSER).select(tags);
 
         assertEquals("4.0.15.2941", result.value(),
-                "capture group 1 is the version; the -lsN build suffix is not part of it");
+                "capture group 1 is the version; the -lsN build suffix is not part of it, and the "
+                        + "larger version-* and arch-prefixed tags do not match the anchored regex");
+    }
+
+    @Test
+    void select_withRegex_aRebuildOfTheSameUpstreamVersionIsNotDrift() {
+        VersionValue deployed = extractor(LINUXSERVER_DOTNET_REGEX, DOTNET_PARSER).get()
+                .firstIn("4.0.15.2941-ls290").orElseThrow();
+
+        VersionValue latest = selectorWithRegex(LINUXSERVER_DOTNET_REGEX, DOTNET_PARSER)
+                .select(List.of("4.0.15.2941-ls290", "4.0.15.2941-ls291"));
+
+        assertEquals(deployed, latest, "-ls290 and -ls291 are the same upstream release");
+        assertEquals(VersionValue.Diff.NONE, deployed.diff(latest));
     }
 
     @Test
@@ -327,20 +345,11 @@ class OciTagSelectorTests {
     @Test
     void select_withRegexAndFilter_filterAppliesToTheCapturedVersion() {
         OciTagSelector selector = new OciTagSelector(
-                new TagSelection(100, 1000, Optional.of("alpine"), false, Optional.of("^(.+)-ls\\d+$")),
+                new TagSelection(100, 1000, Optional.of("alpine"), false, extractor("^(.+)-ls\\d+$", PARSER)),
                 PARSER, REGISTRY_CONTEXT);
 
         VersionValue result = selector.select(List.of("1.2.3-alpine-ls5", "1.3.0-ls6", "1.1.0-alpine-ls4"));
 
         assertEquals("1.2.3-alpine", result.value());
-    }
-
-    @Test
-    void construct_withRegexWithoutCaptureGroup_throwsIllegalArgument() {
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> selectorWithRegex("\\d+-ls\\d+", PARSER));
-
-        assertTrue(ex.getMessage().contains("'oci-registry' latest source's 'regex'"),
-                "was: " + ex.getMessage());
     }
 }

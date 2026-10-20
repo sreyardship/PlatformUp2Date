@@ -7,6 +7,7 @@ import org.yardship.adapters.out.versionsource.auth.BasicAuthFilter;
 import org.yardship.adapters.out.versionsource.http.HttpTransportConfig;
 import org.yardship.adapters.out.versionsource.latest.FailedLatestSource;
 import org.yardship.adapters.out.versionsource.latest.LatestVersionSourceFactory;
+import org.yardship.adapters.out.versionsource.regex.RegexVersionExtractor;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.ports.out.LatestVersionSource;
 
@@ -32,12 +33,17 @@ import java.util.Optional;
  * Either VALUE-level problem returns a {@link FailedLatestSource} rather than throwing, so the
  * offending app fails on every {@link LatestVersionSource#version()} while every other app keeps
  * scraping normally.
+ *
+ * <p>An optional {@code regex} (ADR-0042) is compiled first, before any value-level check, so a
+ * pattern that does not compile or has no capture group always surfaces as the per-app config error
+ * (an {@link IllegalArgumentException}, ADR-0032). A blank {@code regex} is treated as absent.
  */
 @ApplicationScoped
 public class OciRegistryLatestSourceFactory implements LatestVersionSourceFactory {
 
     private static final String KIND_LABEL = "oci-registry";
     private static final String BASIC_AUTH_TYPE = "basic";
+    private static final String EXTRACTOR_LABEL = "'oci-registry' latest source";
 
     private final HttpTransportConfig transportConfig = HttpTransportConfig.forLatestSource(KIND_LABEL);
 
@@ -59,7 +65,7 @@ public class OciRegistryLatestSourceFactory implements LatestVersionSourceFactor
                 .orElseThrow(() -> new IllegalArgumentException(
                         "The 'oci-registry' latest source requires a non-blank 'repo'."));
         String baseUrl = assembleBaseUrl(registry, repo);
-        TagSelection selection = tagSelectionFrom(cfg);
+        TagSelection selection = tagSelectionFrom(cfg, parser);
 
         // auth is resolved below under this kind's own basic-only rule, so none is passed here.
         HttpTransportConfig.Resolution tlsResolution = transportConfig.resolve(
@@ -109,17 +115,18 @@ public class OciRegistryLatestSourceFactory implements LatestVersionSourceFactor
     /**
      * Maps a config fragment onto the {@link TagSelection} the source uses: {@code page-size}
      * defaults to 100 (the {@code n} query parameter), {@code max-tags} to 1000 (the safety cap),
-     * {@code prerelease-filter} is passed through, and {@code strip-prerelease} defaults to
-     * {@code false} (see ADR-0014). Visible for testing so the defaulting/threading of each leaf is
+     * {@code prerelease-filter} is passed through, {@code strip-prerelease} defaults to
+     * {@code false} (see ADR-0014), and a non-blank {@code regex} is compiled under the app's
+     * parser (ADR-0042), throwing {@link IllegalArgumentException} when it is unusable. Visible for testing so the defaulting/threading of each leaf is
      * asserted directly, rather than only that a non-null source is built.
      */
-    public static TagSelection tagSelectionFrom(ApplicationConfigLoader.VersionSource cfg) {
+    public static TagSelection tagSelectionFrom(ApplicationConfigLoader.VersionSource cfg, VersionParser parser) {
         return new TagSelection(
                 cfg.pageSize().orElse(100),
                 cfg.maxTags().orElse(1000),
                 cfg.prereleaseFilter(),
                 cfg.stripPrerelease().orElse(false),
-                cfg.regex().filter(pattern -> !pattern.isBlank()));
+                RegexVersionExtractor.optional(EXTRACTOR_LABEL, cfg.regex(), parser));
     }
 
     private static String assembleBaseUrl(String registry, String repo) {

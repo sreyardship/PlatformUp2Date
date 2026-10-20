@@ -68,9 +68,9 @@ the regex. So `^(.+)-ls\d+$` with `prerelease-filter: alpine` selects
 
 ## Consequences
 
-- One `regex` key now means "capture group 1 is the version" on four kinds
-  (`http-regex`, `http-header`, `http-prometheus`, and now these two), all
-  through the shared `RegexVersionExtractor`. A bad pattern is a per-app
+- One `regex` key now means "capture group 1 is the version" on five kinds
+  (`http-regex`, `http-header`, `http-prometheus`, `k8s-image` and
+  `oci-registry`), all through the shared `RegexVersionExtractor`. A bad pattern is a per-app
   config error (ADR-0032).
 - `oci-registry` uses first-match per tag, not largest-match: each tag is one
   observation, and the selection across tags is still largest-wins (ADR-0014).

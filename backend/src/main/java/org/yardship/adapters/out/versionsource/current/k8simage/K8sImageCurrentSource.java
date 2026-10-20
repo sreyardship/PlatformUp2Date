@@ -33,8 +33,8 @@ import java.util.Optional;
  * parsed instead of the whole tag (e.g. LinuxServer's {@code 4.0.15.2941-ls290} →
  * {@code 4.0.15.2941}); a tag the regex does not match throws (ADR-0042).
  *
- * <p>A missing workload, an unknown kind, a missing named container, a digest reference, or a
- * non-semver tag all THROW, so the scrape loop isolates and counts that app's failure (same
+ * <p>A missing workload, an unknown kind, a missing named container, a digest reference, a tag
+ * the app's scheme cannot parse, or a tag the configured {@code regex} does not match all THROW, so the scrape loop isolates and counts that app's failure (same
  * isolation as an unreachable HTTP endpoint).
  */
 public class K8sImageCurrentSource implements CurrentVersionSource, Closeable {
@@ -132,8 +132,8 @@ public class K8sImageCurrentSource implements CurrentVersionSource, Closeable {
         if (regex.isPresent()) {
             return regex.get().firstIn(tag)
                     .orElseThrow(() -> new IllegalStateException(
-                            "Image '" + image + "': the configured 'regex' matched nothing in the "
-                                    + "tag that parsed as a version."));
+                            "Image '" + image + "': no match of 'regex' " + regex.get().regex()
+                                    + " in tag '" + tag + "' parsed as a version."));
         }
         return parser.parse(tag);
     }

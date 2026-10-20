@@ -1,6 +1,5 @@
 package org.yardship.adapters.out.versionsource.latest.ociregistry;
 
-import org.yardship.adapters.out.versionsource.regex.RegexVersionExtractor;
 import org.yardship.core.domain.exceptions.InvalidVersionException;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionValue;
@@ -25,23 +24,18 @@ import java.util.Optional;
  * </ul>
  *
  * <p>With a {@link TagSelection#regex() regex}, every tag is first reduced to its capture group 1
- * and tags that do not match are skipped, before either selection rule runs (ADR-0042). The regex
- * is validated at construction: one that does not compile or has no capture group throws an
- * {@link IllegalArgumentException}, the per-app config-error signal (ADR-0032).
+ * and tags that do not match are skipped, before either selection rule runs (ADR-0042).
  */
 public class OciTagSelector {
 
     private final TagSelection selection;
     private final VersionParser parser;
     private final String registryContext;
-    private final Optional<RegexVersionExtractor> regex;
 
     public OciTagSelector(TagSelection selection, VersionParser parser, String registryContext) {
         this.selection = selection;
         this.parser = parser;
         this.registryContext = registryContext;
-        this.regex = selection.regex()
-                .map(pattern -> new RegexVersionExtractor("'oci-registry' latest source", pattern, parser));
     }
 
     /**
@@ -109,12 +103,12 @@ public class OciTagSelector {
     }
 
     private String regexClause() {
-        return selection.regex().map(pattern -> " matching 'regex' " + pattern).orElse("");
+        return selection.regex().map(regex -> " matching 'regex' " + regex.regex()).orElse("");
     }
 
     private Optional<VersionValue> tryParseVersion(String tag) {
-        if (regex.isPresent()) {
-            return regex.get().firstIn(tag);
+        if (selection.regex().isPresent()) {
+            return selection.regex().get().firstIn(tag);
         }
         try {
             return Optional.of(parser.parse(tag));

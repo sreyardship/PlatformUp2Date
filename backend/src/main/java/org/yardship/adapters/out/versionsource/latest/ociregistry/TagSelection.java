@@ -1,5 +1,7 @@
 package org.yardship.adapters.out.versionsource.latest.ociregistry;
 
+import org.yardship.adapters.out.versionsource.regex.RegexVersionExtractor;
+
 import java.util.Optional;
 
 /**
@@ -19,7 +21,7 @@ import java.util.Optional;
  *                         Selection and ranking still use the FULL tag value — only the reported
  *                         result is stripped. Also honoured by the {@code k8s-image} current source
  *                         for the same stripping purpose.
- * @param regex            when present, each tag is read through this pattern first: capture
+ * @param regex            when present, each tag is read through this extractor first: capture
  *                         group 1 is the version string, and a tag that does not match is not a
  *                         candidate. This peels an image publisher's decoration off the tag (e.g.
  *                         LinuxServer's {@code 4.0.15.2941-ls290} → {@code 4.0.15.2941}) and
@@ -31,5 +33,5 @@ public record TagSelection(
         int maxTags,
         Optional<String> prereleaseFilter,
         boolean stripPrerelease,
-        Optional<String> regex) {
+        Optional<RegexVersionExtractor> regex) {
 }

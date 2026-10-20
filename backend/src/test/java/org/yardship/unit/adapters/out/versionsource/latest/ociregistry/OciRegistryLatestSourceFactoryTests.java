@@ -288,7 +288,7 @@ class OciRegistryLatestSourceFactoryTests {
         // assert that defaults ARE applied.
         TagSelection selection = OciRegistryLatestSourceFactory.tagSelectionFrom(source(
                 Optional.of("registry.example.com"), Optional.of("library/nginx"),
-                Optional.empty(), Optional.empty()));
+                Optional.empty(), Optional.empty()), SEMVER_PARSER);
 
         assertTrue(selection.pageSize() > 0, "an absent page-size must fall back to a positive default");
         assertTrue(selection.maxTags() > 0, "an absent max-tags must fall back to a positive default");
@@ -329,15 +329,16 @@ class OciRegistryLatestSourceFactoryTests {
     @Test
     void tagSelectionFrom_threadsAConfiguredRegex() {
         TagSelection selection = OciRegistryLatestSourceFactory.tagSelectionFrom(
-                sourceWithRegex(Optional.of("^(\\d+(?:\\.\\d+){1,3})-ls\\d+$")));
+                sourceWithRegex(Optional.of("^(\\d+(?:\\.\\d+){1,3})-ls\\d+$")), SEMVER_PARSER);
 
-        assertEquals(Optional.of("^(\\d+(?:\\.\\d+){1,3})-ls\\d+$"), selection.regex());
+        assertEquals(Optional.of("^(\\d+(?:\\.\\d+){1,3})-ls\\d+$"),
+                selection.regex().map(extractor -> extractor.regex()));
     }
 
     @Test
     void tagSelectionFrom_treatsABlankRegexAsAbsent() {
         TagSelection selection = OciRegistryLatestSourceFactory.tagSelectionFrom(
-                sourceWithRegex(Optional.of("   ")));
+                sourceWithRegex(Optional.of("   ")), SEMVER_PARSER);
 
         assertEquals(Optional.empty(), selection.regex());
     }
@@ -349,6 +350,17 @@ class OciRegistryLatestSourceFactoryTests {
 
         assertTrue(ex.getMessage().contains("'oci-registry' latest source's 'regex'"),
                 "was: " + ex.getMessage());
+    }
+
+    @Test
+    void create_withBadRegexAndBadCaCert_stillReportsTheRegexConfigError() {
+        // The regex is compiled before the value-level TLS check, so a FailedLatestSource for the
+        // ca-cert cannot mask the config error.
+        ApplicationConfigLoader.VersionSource cfg = sourceWith(Optional.of("registry.example.com"),
+                Optional.of("linuxserver/sonarr"), Optional.empty(), Optional.of("\\d+-ls\\d+"),
+                Optional.of("  "));
+
+        assertThrows(IllegalArgumentException.class, () -> factory.create(cfg, SEMVER_PARSER));
     }
 
     @Test
@@ -533,19 +545,20 @@ class OciRegistryLatestSourceFactoryTests {
             Optional<String> registry,
             Optional<String> repo,
             Optional<String> prereleaseFilter) {
-        return sourceWith(registry, repo, prereleaseFilter, Optional.empty());
+        return sourceWith(registry, repo, prereleaseFilter, Optional.empty(), Optional.empty());
     }
 
     private static ApplicationConfigLoader.VersionSource sourceWithRegex(Optional<String> regex) {
         return sourceWith(Optional.of("registry.example.com"), Optional.of("linuxserver/sonarr"),
-                Optional.empty(), regex);
+                Optional.empty(), regex, Optional.empty());
     }
 
     private static ApplicationConfigLoader.VersionSource sourceWith(
             Optional<String> registry,
             Optional<String> repo,
             Optional<String> prereleaseFilter,
-            Optional<String> regex) {
+            Optional<String> regex,
+            Optional<String> caCert) {
         return new ApplicationConfigLoader.VersionSource() {
             @Override public Optional<String> type() { return Optional.of("oci-registry"); }
             @Override public Map<String, String> labels() { return Map.of(); }
@@ -573,7 +586,7 @@ class OciRegistryLatestSourceFactoryTests {
             @Override public Optional<Integer> pageSize() { return Optional.empty(); }
             @Override public Optional<Integer> maxTags() { return Optional.empty(); }
             @Override public Optional<String> prereleaseFilter() { return prereleaseFilter; }
-            @Override public Optional<String> caCert() { return Optional.empty(); }
+            @Override public Optional<String> caCert() { return caCert; }
             @Override
             public Optional<Boolean> insecureSkipTlsVerify() {
                 return Optional.empty();

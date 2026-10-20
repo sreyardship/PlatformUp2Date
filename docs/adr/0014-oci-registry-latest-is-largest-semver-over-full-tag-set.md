@@ -1,5 +1,7 @@
 # The oci-registry latest source scans the full tag set, capped, not a recent window
 
+> **Amended by [ADR-0042](0042-image-tag-suffixes-are-removed-by-a-source-regex.md):** with an optional `regex`, each tag is first reduced to its capture group 1 and tags that do not match are skipped. The clean-tag rule, `prerelease-filter` and `strip-prerelease` then apply to the captured version, not the raw tag.
+
 The `oci-registry` latest source selects the **largest clean semver** among a
 repository's tags — the same largest-semver rule `github-release` applies
 ([ADR-0010](0010-github-release-latest-is-largest-semver.md)). But the two cannot
