@@ -150,10 +150,14 @@ ServiceAccount and ClusterRole.
 | `namespace` | string | yes | — |
 | `workload` | `kind/name`, e.g. `deployment/argocd-server` | yes | — |
 | `container` | string | yes | — |
+| `regex` | regex with ≥1 capture group | no | absent → the whole tag is used |
 | `strip-prerelease` | boolean | no | `false` |
 
 - `kind` in `workload` must be `deployment`, `statefulset` or `daemonset`
   (case-insensitive).
+- `regex` reads the tag, not the full image reference. Capture group 1 of the
+  first match is the version. A tag it does not match fails the scrape. See
+  [Image tags with a suffix](#image-tags-with-a-suffix).
 - The Kubernetes client needs no config. It uses the backend's ServiceAccount
   in the cluster.
 
@@ -225,6 +229,7 @@ Picks the largest tag over the full tag list, using the app's
 | `repo` | string | yes | — |
 | `page-size` | int | no | `100` |
 | `max-tags` | int | no | `1000` |
+| `regex` | regex with ≥1 capture group | no | absent → every tag is a candidate as-is |
 | `prerelease-filter` | string | no | absent → only tags without a prerelease part |
 | `strip-prerelease` | boolean | no | `false` |
 | `ca-cert` | path to PEM file | no | absent → JVM default trust |
@@ -240,6 +245,9 @@ Picks the largest tag over the full tag list, using the app's
 - `ca-cert` and `insecure-skip-tls-verify` work as in `http-json`.
 - `prerelease-filter` cannot be used with `version-scheme: dotnet`. This applies
   to any `latest` type, not only `oci-registry`.
+- With `regex`, capture group 1 of each tag is its version, and tags that do
+  not match are skipped. `prerelease-filter` and `strip-prerelease` then apply
+  to the captured version. See [Image tags with a suffix](#image-tags-with-a-suffix).
 
 #### `http-regex`
 
@@ -259,6 +267,40 @@ The largest wins.
 
 - `auth.token-file`, `ca-cert` and `insecure-skip-tls-verify` work as in
   `http-json`.
+
+### Image tags with a suffix
+
+Some image publishers add their own suffix to the upstream version.
+[LinuxServer.io](https://www.linuxserver.io/our-images) tags
+`<upstream-version>-ls<N>`, e.g. `4.0.15.2941-ls290`, where `N` is their build
+number. Set the same `regex` on `k8s-image` and `oci-registry` to read only the
+upstream version:
+
+```yaml
+- name: sonarr
+  version-scheme: dotnet
+  changelog-url: https://github.com/Sonarr/Sonarr/releases/tag/v{version}
+  current:
+    type: k8s-image
+    namespace: media
+    workload: deployment/sonarr
+    container: sonarr
+    regex: '^(\d+(?:\.\d+){1,3})-ls\d+$'
+  latest:
+    type: oci-registry
+    registry: lscr.io
+    repo: linuxserver/sonarr
+    regex: '^(\d+(?:\.\d+){1,3})-ls\d+$'
+```
+
+- The version shown is the captured part: `4.0.15.2941`, not the full tag.
+- A new build of the same upstream version (`-ls290` → `-ls291`) is not an
+  update.
+- Floating tags such as `latest`, `develop` and `version-4.0.15.2941` do not
+  match, so they are never chosen as latest.
+- For a semver upstream, use `^(\d+\.\d+\.\d+)-ls\d+$`.
+- Anchor the pattern with `^` and `$`, so only tags of exactly this shape are
+  candidates.
 
 ## Version schemes
 
@@ -477,6 +519,8 @@ and in the `pu2d_config_error{application, scope}` metric. See
     [0011](adr/0011-github-release-configured-by-repo-slug.md)
   - `oci-registry`: [0013](adr/0013-oci-registry-bearer-challenge-dance.md),
     [0014](adr/0014-oci-registry-latest-is-largest-semver-over-full-tag-set.md)
+  - Image tag suffixes (`regex` on `k8s-image` and `oci-registry`):
+    [0042](adr/0042-image-tag-suffixes-are-removed-by-a-source-regex.md)
   - `http-regex`: [0017](adr/0017-http-regex-latest-source.md)
   - Version schemes: [0015](adr/0015-calver-as-a-first-class-version-scheme.md),
     [0022](adr/0022-version-scheme-authority-is-configuration.md),

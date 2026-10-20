@@ -48,22 +48,22 @@ class OciTagSelectorTests {
     private static final String REGISTRY_CONTEXT = "https://registry.example/v2/library/app";
 
     private static OciTagSelector selectorNoFilter() {
-        return new OciTagSelector(new TagSelection(100, 1000, Optional.empty(), false), PARSER, REGISTRY_CONTEXT);
+        return new OciTagSelector(new TagSelection(100, 1000, Optional.empty(), false, Optional.empty()), PARSER, REGISTRY_CONTEXT);
     }
 
     private static OciTagSelector selectorWithFilter(String filter) {
-        return new OciTagSelector(new TagSelection(100, 1000, Optional.of(filter), false), PARSER, REGISTRY_CONTEXT);
+        return new OciTagSelector(new TagSelection(100, 1000, Optional.of(filter), false, Optional.empty()), PARSER, REGISTRY_CONTEXT);
     }
 
     private static OciTagSelector selectorWithFilterAndStrip(String filter) {
-        return new OciTagSelector(new TagSelection(100, 1000, Optional.of(filter), true), PARSER, REGISTRY_CONTEXT);
+        return new OciTagSelector(new TagSelection(100, 1000, Optional.of(filter), true, Optional.empty()), PARSER, REGISTRY_CONTEXT);
     }
 
     private static final VersionParser DOTNET_PARSER = new VersionParser(VersionScheme.DOTNET);
 
     private static OciTagSelector dotnetSelectorNoFilter(boolean stripPrerelease) {
         return new OciTagSelector(
-                new TagSelection(100, 1000, Optional.empty(), stripPrerelease),
+                new TagSelection(100, 1000, Optional.empty(), stripPrerelease, Optional.empty()),
                 DOTNET_PARSER,
                 REGISTRY_CONTEXT);
     }
@@ -253,7 +253,7 @@ class OciTagSelectorTests {
     @Test
     void select_noFilter_optionalPatchParser_selectsTheTwoPartTag() {
         OciTagSelector selector = new OciTagSelector(
-                new TagSelection(100, 1000, Optional.empty(), false),
+                new TagSelection(100, 1000, Optional.empty(), false, Optional.empty()),
                 OPTIONAL_PATCH_PARSER, REGISTRY_CONTEXT);
 
         VersionValue result = selector.select(JELLYFIN_SHAPED_TAGS);
@@ -274,12 +274,73 @@ class OciTagSelectorTests {
     @Test
     void select_withFilterAndStrip_optionalPatchParser_matchesAndStripsATwoPartVariantTag() {
         OciTagSelector selector = new OciTagSelector(
-                new TagSelection(100, 1000, Optional.of("alpine"), true),
+                new TagSelection(100, 1000, Optional.of("alpine"), true, Optional.empty()),
                 OPTIONAL_PATCH_PARSER, REGISTRY_CONTEXT);
 
         VersionValue result = selector.select(List.of("12.1-alpine", "12.2-alpine", "12.2", "12"));
 
         assertEquals("12.2", result.value(),
                 "12.2-alpine matches the filter and is reported stripped, in its published shape");
+    }
+
+    // --- regex: tag-suffix extraction (issue #93) ----------------------------------------------
+
+    private static final String LINUXSERVER_DOTNET_REGEX = "^(\\d+(?:\\.\\d+){1,3})-ls\\d+$";
+
+    private static OciTagSelector selectorWithRegex(String regex, VersionParser parser) {
+        return new OciTagSelector(
+                new TagSelection(100, 1000, Optional.empty(), false, Optional.of(regex)),
+                parser, REGISTRY_CONTEXT);
+    }
+
+    @Test
+    void select_withRegex_linuxserverTags_largestCapturedVersionWins() {
+        List<String> tags = List.of(
+                "latest", "develop", "version-4.0.15.2941", "4.0.14.2939-ls289",
+                "4.0.15.2941-ls290", "amd64-4.0.15.2941-ls290", "4.0.9.2100-ls250");
+
+        VersionValue result = selectorWithRegex(LINUXSERVER_DOTNET_REGEX, DOTNET_PARSER).select(tags);
+
+        assertEquals("4.0.15.2941", result.value(),
+                "capture group 1 is the version; the -lsN build suffix is not part of it");
+    }
+
+    @Test
+    void select_withRegex_nonMatchingTagsAreSkipped_evenWhenTheyParseLarger() {
+        List<String> tags = List.of("1.2.3-ls10", "9.9.9");
+
+        VersionValue result = selectorWithRegex("^(\\d+\\.\\d+\\.\\d+)-ls\\d+$", PARSER).select(tags);
+
+        assertEquals("1.2.3", result.value());
+    }
+
+    @Test
+    void select_withRegex_noTagMatches_throwsNamingTheRegex() {
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> selectorWithRegex(LINUXSERVER_DOTNET_REGEX, DOTNET_PARSER)
+                        .select(List.of("latest", "4.0.15.2941")));
+
+        assertTrue(ex.getMessage().contains("regex"),
+                "the failure must point at the configured regex; was: " + ex.getMessage());
+    }
+
+    @Test
+    void select_withRegexAndFilter_filterAppliesToTheCapturedVersion() {
+        OciTagSelector selector = new OciTagSelector(
+                new TagSelection(100, 1000, Optional.of("alpine"), false, Optional.of("^(.+)-ls\\d+$")),
+                PARSER, REGISTRY_CONTEXT);
+
+        VersionValue result = selector.select(List.of("1.2.3-alpine-ls5", "1.3.0-ls6", "1.1.0-alpine-ls4"));
+
+        assertEquals("1.2.3-alpine", result.value());
+    }
+
+    @Test
+    void construct_withRegexWithoutCaptureGroup_throwsIllegalArgument() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> selectorWithRegex("\\d+-ls\\d+", PARSER));
+
+        assertTrue(ex.getMessage().contains("'oci-registry' latest source's 'regex'"),
+                "was: " + ex.getMessage());
     }
 }

@@ -118,7 +118,8 @@ public class OciRegistryLatestSourceFactory implements LatestVersionSourceFactor
                 cfg.pageSize().orElse(100),
                 cfg.maxTags().orElse(1000),
                 cfg.prereleaseFilter(),
-                cfg.stripPrerelease().orElse(false));
+                cfg.stripPrerelease().orElse(false),
+                cfg.regex().filter(pattern -> !pattern.isBlank()));
     }
 
     private static String assembleBaseUrl(String registry, String repo) {

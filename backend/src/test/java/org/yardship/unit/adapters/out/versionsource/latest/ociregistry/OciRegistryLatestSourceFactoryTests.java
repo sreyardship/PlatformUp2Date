@@ -324,6 +324,41 @@ class OciRegistryLatestSourceFactoryTests {
                 "Absent prereleaseFilter must return a usable source");
     }
 
+    // --- regex threading and validation (ADR-0042) ---------------------------------------------
+
+    @Test
+    void tagSelectionFrom_threadsAConfiguredRegex() {
+        TagSelection selection = OciRegistryLatestSourceFactory.tagSelectionFrom(
+                sourceWithRegex(Optional.of("^(\\d+(?:\\.\\d+){1,3})-ls\\d+$")));
+
+        assertEquals(Optional.of("^(\\d+(?:\\.\\d+){1,3})-ls\\d+$"), selection.regex());
+    }
+
+    @Test
+    void tagSelectionFrom_treatsABlankRegexAsAbsent() {
+        TagSelection selection = OciRegistryLatestSourceFactory.tagSelectionFrom(
+                sourceWithRegex(Optional.of("   ")));
+
+        assertEquals(Optional.empty(), selection.regex());
+    }
+
+    @Test
+    void create_withRegexWithoutCaptureGroup_throwsAConfigErrorNamingTheKind() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> factory.create(sourceWithRegex(Optional.of("\\d+-ls\\d+")), SEMVER_PARSER));
+
+        assertTrue(ex.getMessage().contains("'oci-registry' latest source's 'regex'"),
+                "was: " + ex.getMessage());
+    }
+
+    @Test
+    void create_withRegexThatDoesNotCompile_throwsAConfigError() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> factory.create(sourceWithRegex(Optional.of("(unclosed")), SEMVER_PARSER));
+
+        assertTrue(ex.getMessage().contains("does not compile"), "was: " + ex.getMessage());
+    }
+
     // --- helpers -------------------------------------------------------------------------------
 
     private static ApplicationConfigLoader.VersionSource source(
@@ -498,11 +533,24 @@ class OciRegistryLatestSourceFactoryTests {
             Optional<String> registry,
             Optional<String> repo,
             Optional<String> prereleaseFilter) {
+        return sourceWith(registry, repo, prereleaseFilter, Optional.empty());
+    }
+
+    private static ApplicationConfigLoader.VersionSource sourceWithRegex(Optional<String> regex) {
+        return sourceWith(Optional.of("registry.example.com"), Optional.of("linuxserver/sonarr"),
+                Optional.empty(), regex);
+    }
+
+    private static ApplicationConfigLoader.VersionSource sourceWith(
+            Optional<String> registry,
+            Optional<String> repo,
+            Optional<String> prereleaseFilter,
+            Optional<String> regex) {
         return new ApplicationConfigLoader.VersionSource() {
             @Override public Optional<String> type() { return Optional.of("oci-registry"); }
             @Override public Map<String, String> labels() { return Map.of(); }
             @Override public Optional<String> url() { return Optional.empty(); }
-            @Override public Optional<String> regex() { return Optional.empty(); }
+            @Override public Optional<String> regex() { return regex; }
             @Override public Optional<String> versionHeader()      { return Optional.empty(); }
             @Override public Optional<String> host() { return Optional.empty(); }
             @Override public Optional<Integer> port() { return Optional.empty(); }

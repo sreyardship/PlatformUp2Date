@@ -115,8 +115,47 @@ class K8sImageCurrentSourceFactoryTests {
         verifyNoInteractions(client);
     }
 
+    // --- regex validation (ADR-0042); extraction itself is covered in K8sImageCurrentSourceIT ---
+
+    @Test
+    void create_buildsASource_withAValidRegex() {
+        assertNotNull(factory.create(sourceWithRegex(Optional.of("^(\\d+\\.\\d+\\.\\d+)-ls\\d+$")), SEMVER_PARSER));
+    }
+
+    @Test
+    void create_buildsASource_withABlankRegex_treatingItAsAbsent() {
+        assertNotNull(factory.create(sourceWithRegex(Optional.of("  ")), SEMVER_PARSER));
+    }
+
+    @Test
+    void create_rejectsARegexWithoutACaptureGroup_namingTheKind() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> factory.create(sourceWithRegex(Optional.of("\\d+-ls\\d+")), SEMVER_PARSER));
+        assertTrue(ex.getMessage().contains("'k8s-image' current source's 'regex'"),
+                "was: " + ex.getMessage());
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void create_rejectsARegexThatDoesNotCompile() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> factory.create(sourceWithRegex(Optional.of("(unclosed")), SEMVER_PARSER));
+        assertTrue(ex.getMessage().contains("does not compile"), "was: " + ex.getMessage());
+        verifyNoInteractions(client);
+    }
+
     private static ApplicationConfigLoader.VersionSource source(
             Optional<String> namespace, Optional<String> workload, Optional<String> container) {
+        return source(namespace, workload, container, Optional.empty());
+    }
+
+    private static ApplicationConfigLoader.VersionSource sourceWithRegex(Optional<String> regex) {
+        return source(Optional.of("media"), Optional.of("deployment/sonarr"), Optional.of("sonarr"), regex);
+    }
+
+    private static ApplicationConfigLoader.VersionSource source(
+            Optional<String> namespace, Optional<String> workload, Optional<String> container,
+            Optional<String> regex) {
         return new ApplicationConfigLoader.VersionSource() {
             @Override
             public Optional<String> type() {
@@ -135,7 +174,7 @@ class K8sImageCurrentSourceFactoryTests {
 
             @Override
             public Optional<String> regex() {
-                return Optional.empty();
+                return regex;
             }
 
             @Override

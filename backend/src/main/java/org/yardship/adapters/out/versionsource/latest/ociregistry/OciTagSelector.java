@@ -1,5 +1,6 @@
 package org.yardship.adapters.out.versionsource.latest.ociregistry;
 
+import org.yardship.adapters.out.versionsource.regex.RegexVersionExtractor;
 import org.yardship.core.domain.exceptions.InvalidVersionException;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionValue;
@@ -22,17 +23,25 @@ import java.util.Optional;
  *   <li>{@link #select(List)} — the single entry point; dispatches internally based on whether a
  *       {@link TagSelection#prereleaseFilter() prereleaseFilter} is configured.</li>
  * </ul>
+ *
+ * <p>With a {@link TagSelection#regex() regex}, every tag is first reduced to its capture group 1
+ * and tags that do not match are skipped, before either selection rule runs (ADR-0042). The regex
+ * is validated at construction: one that does not compile or has no capture group throws an
+ * {@link IllegalArgumentException}, the per-app config-error signal (ADR-0032).
  */
 public class OciTagSelector {
 
     private final TagSelection selection;
     private final VersionParser parser;
     private final String registryContext;
+    private final Optional<RegexVersionExtractor> regex;
 
     public OciTagSelector(TagSelection selection, VersionParser parser, String registryContext) {
         this.selection = selection;
         this.parser = parser;
         this.registryContext = registryContext;
+        this.regex = selection.regex()
+                .map(pattern -> new RegexVersionExtractor("'oci-registry' latest source", pattern, parser));
     }
 
     /**
@@ -78,8 +87,8 @@ public class OciTagSelector {
                 .filter(v -> v.preReleaseSegment().filter(filter::equals).isPresent())
                 .reduce((current, candidate) -> current.isOlderThan(candidate) ? candidate : current)
                 .orElseThrow(() -> new IllegalStateException(
-                        "No tag with prerelease segment '" + filter
-                        + "' found in OCI registry tag list for: " + registryContext));
+                        "No tag with prerelease segment '" + filter + "'" + regexClause()
+                        + " found in OCI registry tag list for: " + registryContext));
         return selection.stripPrerelease() ? selected.withoutPreRelease() : selected;
     }
 
@@ -95,10 +104,18 @@ public class OciTagSelector {
                 .flatMap(Optional::stream)
                 .reduce((current, candidate) -> current.isOlderThan(candidate) ? candidate : current)
                 .orElseThrow(() -> new IllegalStateException(
-                        "No clean semver tag found in OCI registry tag list for: " + registryContext));
+                        "No clean semver tag" + regexClause()
+                        + " found in OCI registry tag list for: " + registryContext));
+    }
+
+    private String regexClause() {
+        return selection.regex().map(pattern -> " matching 'regex' " + pattern).orElse("");
     }
 
     private Optional<VersionValue> tryParseVersion(String tag) {
+        if (regex.isPresent()) {
+            return regex.get().firstIn(tag);
+        }
         try {
             return Optional.of(parser.parse(tag));
         } catch (InvalidVersionException ex) {
