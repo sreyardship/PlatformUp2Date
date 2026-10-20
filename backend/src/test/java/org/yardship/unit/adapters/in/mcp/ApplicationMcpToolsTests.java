@@ -1,5 +1,6 @@
 package org.yardship.unit.adapters.in.mcp;
 
+import io.quarkiverse.mcp.server.ToolCallException;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
@@ -36,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
@@ -151,12 +153,13 @@ public class ApplicationMcpToolsTests {
     }
 
     @Test
-    void getApplication_unknownName_returnsNotFound() {
+    void getApplication_unknownName_throwsToolCallExceptionNamingTheApp() {
         stubApplications();
 
-        ApplicationView view = sut.get_application("does-not-exist");
+        ToolCallException thrown = assertThrows(ToolCallException.class,
+                () -> sut.get_application("does-not-exist"));
 
-        assertNull(view, "unknown application name must yield a not-found (null) result");
+        assertEquals("No monitored application named 'does-not-exist'", thrown.getMessage());
     }
 
     // --- trigger_scrape: thin pass-through of the use case's ScrapeStatus ---
