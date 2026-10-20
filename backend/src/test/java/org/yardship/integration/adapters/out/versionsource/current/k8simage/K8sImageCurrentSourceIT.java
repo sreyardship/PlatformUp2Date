@@ -18,14 +18,18 @@ import io.quarkus.test.kubernetes.client.WithKubernetesTestServer;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 import org.yardship.adapters.out.versionsource.current.k8simage.K8sImageCurrentSource;
+import org.yardship.adapters.out.versionsource.regex.RegexVersionExtractor;
+import org.yardship.core.domain.primitives.DotnetVersion;
 import org.yardship.core.domain.primitives.SemverVersion;
 import org.yardship.core.domain.primitives.VersionValue;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Integration test for the real {@link K8sImageCurrentSource} adapter against Fabric8's
@@ -34,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *
  * <p><b>Construction seam:</b> {@code K8sImageCurrentSource} is a plain (non-CDI) per-app object,
  * constructed directly here:
- * <pre>{@code new K8sImageCurrentSource(KubernetesClient client, String namespace, String workload, String container, VersionParser parser)}</pre>
+ * <pre>{@code new K8sImageCurrentSource(KubernetesClient client, String namespace, String workload, String container, boolean stripPrerelease, Optional<RegexVersionExtractor> regex, VersionParser parser)}</pre>
  * where {@code workload} is the {@code kind/name} string (e.g. {@code "deployment/argocd-server"}).
  * {@code version()} fetches that workload from the namespace, reads the named container's image off the
  * POD TEMPLATE ({@code spec.template.spec.containers[].image}), and parses the tag into a
@@ -61,7 +65,7 @@ class K8sImageCurrentSourceIT {
                 .create();
 
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "deployment/argocd-server", "argocd-server", false, SEMVER_PARSER);
+                client, NAMESPACE, "deployment/argocd-server", "argocd-server", false, Optional.empty(), SEMVER_PARSER);
 
         assertEquals(new SemverVersion("2.9.3"), source.version());
     }
@@ -73,7 +77,7 @@ class K8sImageCurrentSourceIT {
                 .create();
 
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "statefulset/redis", "redis", false, SEMVER_PARSER);
+                client, NAMESPACE, "statefulset/redis", "redis", false, Optional.empty(), SEMVER_PARSER);
 
         assertEquals(new SemverVersion("7.2.4"), source.version());
     }
@@ -85,7 +89,7 @@ class K8sImageCurrentSourceIT {
                 .create();
 
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "daemonset/node-exporter", "node-exporter", false, SEMVER_PARSER);
+                client, NAMESPACE, "daemonset/node-exporter", "node-exporter", false, Optional.empty(), SEMVER_PARSER);
 
         assertEquals(new SemverVersion("1.7.0"), source.version());
     }
@@ -99,7 +103,7 @@ class K8sImageCurrentSourceIT {
                 .create();
 
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "deployment/multi", "app", false, SEMVER_PARSER);
+                client, NAMESPACE, "deployment/multi", "app", false, Optional.empty(), SEMVER_PARSER);
 
         assertEquals(new SemverVersion("2.10.1"), source.version());
     }
@@ -113,7 +117,7 @@ class K8sImageCurrentSourceIT {
                 .create();
 
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "deployment/ported", "app", false, SEMVER_PARSER);
+                client, NAMESPACE, "deployment/ported", "app", false, Optional.empty(), SEMVER_PARSER);
 
         assertEquals(new SemverVersion("2.11.2"), source.version());
     }
@@ -126,7 +130,7 @@ class K8sImageCurrentSourceIT {
                 .create();
 
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "deployment/digest-app", "app", false, SEMVER_PARSER);
+                client, NAMESPACE, "deployment/digest-app", "app", false, Optional.empty(), SEMVER_PARSER);
 
         assertThrows(RuntimeException.class, source::version);
     }
@@ -138,7 +142,7 @@ class K8sImageCurrentSourceIT {
                 .create();
 
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "deployment/latest-app", "app", false, SEMVER_PARSER);
+                client, NAMESPACE, "deployment/latest-app", "app", false, Optional.empty(), SEMVER_PARSER);
 
         assertThrows(RuntimeException.class, source::version);
     }
@@ -146,7 +150,7 @@ class K8sImageCurrentSourceIT {
     @Test
     void missingWorkload_throws() {
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "deployment/does-not-exist", "app", false, SEMVER_PARSER);
+                client, NAMESPACE, "deployment/does-not-exist", "app", false, Optional.empty(), SEMVER_PARSER);
 
         assertThrows(RuntimeException.class, source::version);
     }
@@ -161,7 +165,7 @@ class K8sImageCurrentSourceIT {
                 .create();
 
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "deployment/strip-false", "app", false, SEMVER_PARSER);
+                client, NAMESPACE, "deployment/strip-false", "app", false, Optional.empty(), SEMVER_PARSER);
 
         assertEquals(new SemverVersion("1.23.0-alpine"), source.version(),
                 "stripPrerelease=false must preserve the prerelease segment");
@@ -176,10 +180,46 @@ class K8sImageCurrentSourceIT {
                 .create();
 
         K8sImageCurrentSource source = new K8sImageCurrentSource(
-                client, NAMESPACE, "deployment/strip-true", "app", true, SEMVER_PARSER);
+                client, NAMESPACE, "deployment/strip-true", "app", true, Optional.empty(), SEMVER_PARSER);
 
         assertEquals(new SemverVersion("1.23.0"), source.version(),
                 "stripPrerelease=true must strip the prerelease segment: 1.23.0-alpine → 1.23.0");
+    }
+
+    // --- regex: tag-suffix extraction (issue #93, ADR-0042) ------------------------------------
+
+    private static final VersionParser DOTNET_PARSER = new VersionParser(VersionScheme.DOTNET);
+
+    private static Optional<RegexVersionExtractor> linuxserverRegex() {
+        return Optional.of(new RegexVersionExtractor(
+                "'k8s-image' current source", "^(\\d+(?:\\.\\d+){1,3})-ls\\d+$", DOTNET_PARSER));
+    }
+
+    @Test
+    void regex_readsTheCapturedVersion_fromALinuxserverTag() {
+        client.apps().deployments().inNamespace(NAMESPACE)
+                .resource(deployment("sonarr", container("sonarr", "lscr.io/linuxserver/sonarr:4.0.15.2941-ls290")))
+                .create();
+
+        K8sImageCurrentSource source = new K8sImageCurrentSource(
+                client, NAMESPACE, "deployment/sonarr", "sonarr", false, linuxserverRegex(), DOTNET_PARSER);
+
+        VersionValue version = source.version();
+        assertEquals(new DotnetVersion("4.0.15.2941"), version);
+        assertEquals("4.0.15.2941", version.value(), "the -lsN build suffix is not part of the version");
+    }
+
+    @Test
+    void regex_thatDoesNotMatchTheTag_throws() {
+        client.apps().deployments().inNamespace(NAMESPACE)
+                .resource(deployment("sonarr-latest", container("sonarr", "lscr.io/linuxserver/sonarr:latest")))
+                .create();
+
+        K8sImageCurrentSource source = new K8sImageCurrentSource(
+                client, NAMESPACE, "deployment/sonarr-latest", "sonarr", false, linuxserverRegex(), DOTNET_PARSER);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, source::version);
+        assertTrue(ex.getMessage().contains("regex"), "was: " + ex.getMessage());
     }
 
     // --- fixtures -----------------------------------------------------------------------------

@@ -162,16 +162,18 @@ public interface ApplicationConfigLoader {
 
         /**
          * Optional regular expression read by the {@code http-regex} latest source and, optionally,
-         * the {@code http-header} current source. Both apply this pattern via the shared
+         * the {@code http-header}, {@code http-prometheus} and {@code k8s-image} current sources and
+         * the {@code oci-registry} latest source. All apply this pattern via the shared
          * {@code RegexVersionExtractor}, taking <b>capture group 1</b> as each candidate version
          * string (parsed via the app's scheme): {@code http-regex} takes the LARGEST parseable
-         * candidate over every match (a latest-leg selection), {@code http-header} takes the FIRST
-         * (a current-leg observation is not a selection — ADR-0030). For {@code http-regex} the
-         * {@code HttpRegexLatestSourceFactory} validates at boot that it is present; for
-         * {@code http-header} it is optional (absent = the raw trimmed header value is parsed
-         * directly). Either way, {@code RegexVersionExtractor}, built inside the source, validates
-         * that a configured pattern compiles and has at least one capture group. Absent for every
-         * other kind.
+         * candidate over every match (a latest-leg selection), the current kinds take the FIRST
+         * (a current-leg observation is not a selection — ADR-0030), and {@code oci-registry} takes
+         * the first per tag, skipping tags that do not match, before selecting across tags
+         * (ADR-0042). For {@code http-regex} the
+         * {@code HttpRegexLatestSourceFactory} validates at boot that it is present; for the other
+         * kinds it is optional (absent = the raw value or tag is parsed directly). Either way,
+         * {@code RegexVersionExtractor} validates that a configured pattern compiles and has at
+         * least one capture group. Absent for every other kind.
          */
         Optional<String> regex();
 

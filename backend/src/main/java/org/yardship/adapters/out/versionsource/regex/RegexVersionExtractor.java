@@ -9,8 +9,9 @@ import java.util.Optional;
 import java.util.regex.PatternSyntaxException;
 
 /**
- * Leg-neutral, shared extraction core behind the {@code http-regex} latest kind and the
- * {@code http-header} current kind's optional {@code regex}. Delegates
+ * Leg-neutral, shared extraction core behind every {@code regex} key: required on the
+ * {@code http-regex} latest kind, optional on the {@code http-header}, {@code http-prometheus} and
+ * {@code k8s-image} current kinds and the {@code oci-registry} latest kind (ADR-0042). Delegates
  * pattern compilation and candidate matching to {@link VersionPattern} (validating it compiles and
  * has at least one capture group), and exposes two selection rules over its {@link
  * VersionPattern#rawCandidates}: parse each raw candidate through the app's {@link VersionParser},
@@ -36,6 +37,7 @@ import java.util.regex.PatternSyntaxException;
  */
 public class RegexVersionExtractor {
 
+    private final String regex;
     private final VersionPattern pattern;
     private final VersionParser parser;
 
@@ -47,8 +49,25 @@ public class RegexVersionExtractor {
      *                    {@code HttpTransportConfig}.
      */
     public RegexVersionExtractor(String sourceLabel, String regex, VersionParser parser) {
+        this.regex = regex;
         this.pattern = compile(sourceLabel, regex);
         this.parser = parser;
+    }
+
+    /**
+     * The extractor for an optional {@code regex} key: empty when the key is absent or blank (a
+     * blank value is treated as absent, like every other optional field), otherwise a validated
+     * extractor — so a bad pattern throws here, at source creation.
+     */
+    public static Optional<RegexVersionExtractor> optional(
+            String sourceLabel, Optional<String> regex, VersionParser parser) {
+        return regex.filter(value -> !value.isBlank())
+                .map(pattern -> new RegexVersionExtractor(sourceLabel, pattern, parser));
+    }
+
+    /** The pattern as configured, for failure messages. */
+    public String regex() {
+        return regex;
     }
 
     /**

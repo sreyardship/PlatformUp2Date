@@ -22,6 +22,9 @@ import java.util.Optional;
  *   <li>{@link #select(List)} — the single entry point; dispatches internally based on whether a
  *       {@link TagSelection#prereleaseFilter() prereleaseFilter} is configured.</li>
  * </ul>
+ *
+ * <p>With a {@link TagSelection#regex() regex}, every tag is first reduced to its capture group 1
+ * and tags that do not match are skipped, before either selection rule runs (ADR-0042).
  */
 public class OciTagSelector {
 
@@ -78,8 +81,8 @@ public class OciTagSelector {
                 .filter(v -> v.preReleaseSegment().filter(filter::equals).isPresent())
                 .reduce((current, candidate) -> current.isOlderThan(candidate) ? candidate : current)
                 .orElseThrow(() -> new IllegalStateException(
-                        "No tag with prerelease segment '" + filter
-                        + "' found in OCI registry tag list for: " + registryContext));
+                        "No tag with prerelease segment '" + filter + "'" + regexClause()
+                        + " found in OCI registry tag list for: " + registryContext));
         return selection.stripPrerelease() ? selected.withoutPreRelease() : selected;
     }
 
@@ -95,10 +98,18 @@ public class OciTagSelector {
                 .flatMap(Optional::stream)
                 .reduce((current, candidate) -> current.isOlderThan(candidate) ? candidate : current)
                 .orElseThrow(() -> new IllegalStateException(
-                        "No clean semver tag found in OCI registry tag list for: " + registryContext));
+                        "No clean semver tag" + regexClause()
+                        + " found in OCI registry tag list for: " + registryContext));
+    }
+
+    private String regexClause() {
+        return selection.regex().map(regex -> " matching 'regex' " + regex.regex()).orElse("");
     }
 
     private Optional<VersionValue> tryParseVersion(String tag) {
+        if (selection.regex().isPresent()) {
+            return selection.regex().get().firstIn(tag);
+        }
         try {
             return Optional.of(parser.parse(tag));
         } catch (InvalidVersionException ex) {

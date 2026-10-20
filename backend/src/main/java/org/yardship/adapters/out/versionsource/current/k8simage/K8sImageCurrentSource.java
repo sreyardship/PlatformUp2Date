@@ -3,12 +3,14 @@ package org.yardship.adapters.out.versionsource.current.k8simage;
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.PodTemplateSpec;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import org.yardship.adapters.out.versionsource.regex.RegexVersionExtractor;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.domain.primitives.VersionValue;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
 import java.io.Closeable;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * The {@code k8s-image} {@link CurrentVersionSource}: derives an app's current (deployed) version
@@ -27,8 +29,12 @@ import java.util.List;
  * {@code 1.23.0} against an {@code oci-registry} latest source also configured with
  * {@code strip-prerelease: true}.
  *
- * <p>A missing workload, an unknown kind, a missing named container, a digest reference, or a
- * non-semver tag all THROW, so the scrape loop isolates and counts that app's failure (same
+ * <p>When a {@code regex} is configured, the tag is read through it first and capture group 1 is
+ * parsed instead of the whole tag (e.g. LinuxServer's {@code 4.0.15.2941-ls290} →
+ * {@code 4.0.15.2941}); a tag the regex does not match throws (ADR-0042).
+ *
+ * <p>A missing workload, an unknown kind, a missing named container, a digest reference, a tag
+ * the app's scheme cannot parse, or a tag the configured {@code regex} does not match all THROW, so the scrape loop isolates and counts that app's failure (same
  * isolation as an unreachable HTTP endpoint).
  */
 public class K8sImageCurrentSource implements CurrentVersionSource, Closeable {
@@ -38,20 +44,24 @@ public class K8sImageCurrentSource implements CurrentVersionSource, Closeable {
     private final String workload;
     private final String container;
     private final boolean stripPrerelease;
+    private final Optional<RegexVersionExtractor> regex;
     private final VersionParser parser;
 
     /**
      * Primary constructor. {@code stripPrerelease} mirrors the {@code http-json} current source's flag:
      * when {@code true}, the prerelease segment of the parsed version is cleared before reporting.
-     * The {@code parser} produces the {@link VersionValue} in the app's scheme.
+     * {@code regex}, when present, extracts the version from the tag (capture group 1 of the first
+     * match). The {@code parser} produces the {@link VersionValue} in the app's scheme.
      */
     public K8sImageCurrentSource(KubernetesClient client, String namespace, String workload,
-                                 String container, boolean stripPrerelease, VersionParser parser) {
+                                 String container, boolean stripPrerelease,
+                                 Optional<RegexVersionExtractor> regex, VersionParser parser) {
         this.client = client;
         this.namespace = namespace;
         this.workload = workload;
         this.container = container;
         this.stripPrerelease = stripPrerelease;
+        this.regex = regex;
         this.parser = parser;
     }
 
@@ -118,7 +128,14 @@ public class K8sImageCurrentSource implements CurrentVersionSource, Closeable {
         if (tagSeparator < 0) {
             throw new IllegalStateException("Image '" + image + "' has no tag.");
         }
-        return parser.parse(lastSegment.substring(tagSeparator + 1));
+        String tag = lastSegment.substring(tagSeparator + 1);
+        if (regex.isPresent()) {
+            return regex.get().firstIn(tag)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Image '" + image + "': no match of 'regex' " + regex.get().regex()
+                                    + " in tag '" + tag + "' parsed as a version."));
+        }
+        return parser.parse(tag);
     }
 
     /**

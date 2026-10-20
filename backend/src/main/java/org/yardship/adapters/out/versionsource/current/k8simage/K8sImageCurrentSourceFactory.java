@@ -5,6 +5,7 @@ import io.fabric8.kubernetes.client.KubernetesClient;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.yardship.adapters.out.versionsource.ApplicationConfigLoader;
+import org.yardship.adapters.out.versionsource.regex.RegexVersionExtractor;
 import org.yardship.core.domain.primitives.VersionParser;
 import org.yardship.core.ports.out.CurrentVersionSource;
 
@@ -14,7 +15,9 @@ import java.util.function.Supplier;
 /**
  * Factory for the {@code k8s-image} current-version kind. Discovered as a CDI bean; validates its
  * own config fragment ({@code namespace}, {@code workload} and {@code container} are all required and
- * non-blank) and constructs a per-app {@link K8sImageCurrentSource}.
+ * non-blank) and constructs a per-app {@link K8sImageCurrentSource}. An optional {@code regex} must
+ * compile and have a capture group, else an {@link IllegalArgumentException} (a per-app config
+ * error, ADR-0032); a blank one is treated as absent.
  *
  * <p>The injected {@link KubernetesClient} is auto-configured in-cluster from the backend's
  * ServiceAccount token — there is no client config in the app. Validation runs BEFORE any client use
@@ -22,6 +25,8 @@ import java.util.function.Supplier;
  */
 @ApplicationScoped
 public class K8sImageCurrentSourceFactory implements CurrentVersionSourceFactory {
+
+    private static final String EXTRACTOR_LABEL = "'k8s-image' current source";
 
     private final KubernetesClient client;
 
@@ -41,7 +46,10 @@ public class K8sImageCurrentSourceFactory implements CurrentVersionSourceFactory
         String workload = required(cfg.workload(), "workload");
         String container = required(cfg.container(), "container");
         boolean stripPrerelease = cfg.stripPrerelease().orElse(false);
-        return new K8sImageCurrentSource(client, namespace, workload, container, stripPrerelease, parser);
+        Optional<RegexVersionExtractor> regex =
+                RegexVersionExtractor.optional(EXTRACTOR_LABEL, cfg.regex(), parser);
+        return new K8sImageCurrentSource(
+                client, namespace, workload, container, stripPrerelease, regex, parser);
     }
 
     private static String required(Optional<String> value, String field) {
