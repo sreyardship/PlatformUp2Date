@@ -153,7 +153,7 @@ behind multiple replicas with no session affinity.
   (`PATCH` | `MINOR` | `MAJOR`) filters by how far behind an app is; omit it to get every
   app with any drift.
 - **`get_application(name)`** returns the status of a single application by exact name,
-  or nothing if it isn't monitored.
+  or a tool error if it isn't monitored.
 - **`list_applications_with_failed_scrapes()`** returns applications whose most recent
   scrape of either the current or latest side failed. It excludes sides that have never
   been attempted; a failed scrape describes the read, not the health of the application.

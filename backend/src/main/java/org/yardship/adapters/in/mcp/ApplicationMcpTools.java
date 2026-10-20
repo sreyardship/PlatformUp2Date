@@ -3,6 +3,7 @@ package org.yardship.adapters.in.mcp;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
+import io.quarkiverse.mcp.server.ToolCallException;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.yardship.core.domain.primitives.ConfigError;
 import org.yardship.core.domain.primitives.ScrapeTarget;
@@ -64,7 +65,7 @@ public class ApplicationMcpTools {
     @Tool(
             name = "get_application",
             description = "Get the version status of a single monitored platform "
-                    + "application by its exact name. Returns null if no application "
+                    + "application by its exact name. Returns a tool error if no application "
                     + "with that name is monitored.")
     public ApplicationView get_application(
             @ToolArg(name = "name", description = "The exact name of the application to look up.")
@@ -74,7 +75,9 @@ public class ApplicationMcpTools {
                 .findFirst()
                 .map(app -> ApplicationView.from(
                         app, changelogLinkPort.changelogFor(app.name()), configErrorPort.configErrorsFor(app.name())))
-                .orElse(null);
+                // A null return makes the MCP server fail with an internal error (issue #112);
+                // a ToolCallException reaches the client as an isError result with this message.
+                .orElseThrow(() -> new ToolCallException("No monitored application named '" + name + "'"));
     }
 
     @Tool(

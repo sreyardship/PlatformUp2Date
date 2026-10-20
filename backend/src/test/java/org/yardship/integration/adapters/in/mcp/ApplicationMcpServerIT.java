@@ -279,6 +279,27 @@ public class ApplicationMcpServerIT {
                 .thenAssertResults();
     }
 
+    // Issue #112: an unknown name must reach the client as a tool error result, not as a
+    // JSON-RPC internal error. The unit seam (ApplicationMcpToolsTests) cannot catch this alone:
+    // the server failed while it encoded a null return value, so only a real tools/call shows it.
+    @Test
+    void toolsCall_getApplication_unknownName_isToolErrorNamingTheApp() {
+        stubMixedApplications();
+
+        McpStreamableTestClient client = McpAssured.newStreamableClient()
+                .setMcpPath("/api/mcp")
+                .build()
+                .connect();
+        client.when()
+                .toolsCall("get_application", Map.of("name", "does-not-exist"), response -> {
+                    assertTrue(response.isError(),
+                            "an unknown app must be a tool error result, not a protocol error");
+                    assertEquals("No monitored application named 'does-not-exist'",
+                            response.firstContent().asText().text());
+                })
+                .thenAssertResults();
+    }
+
     @Test
     void toolsCall_getApplication_failedRefreshApp_exposesFailedAt() {
         VersionApplication failedApp = new VersionApplication("vault",
