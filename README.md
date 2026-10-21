@@ -1,7 +1,7 @@
 # <img src="frontend/public/logo.svg" alt="PlatformUp2Date logo" align="absmiddle" height="45"/> PlatformUp2Date
 
 [![edge](https://github.com/sreyardship/PlatformUp2Date/actions/workflows/edge.yml/badge.svg)](https://github.com/sreyardship/PlatformUp2Date/actions/workflows/edge.yml)
-[![release](https://img.shields.io/github/v/release/sreyardship/PlatformUp2Date)](https://github.com/sreyardship/PlatformUp2Date/releases/latest)
+[![release](https://img.shields.io/github/v/release/sreyardship/PlatformUp2Date?include_prereleases)](https://github.com/sreyardship/PlatformUp2Date/releases/latest)
 [![license](https://img.shields.io/github/license/sreyardship/PlatformUp2Date)](LICENSE)
 
 You run a platform, a home lab or just a pile of apps. They're all out of date... let's change that!
@@ -44,7 +44,7 @@ docker compose -f compose.quickstart.yml up
 ```
 
 Then open [localhost:3000](http://localhost:3000). You
-should see two application rows:
+should see three application rows:
 
 - **mastodon** `current` is read from the public
   [chaos.social](https://chaos.social) instance's API (an observed running
@@ -57,9 +57,15 @@ should see two application rows:
   [gitea.com](https://gitea.com) SaaS instance's version API; `latest` comes
   from Gitea's official image tags on Docker Hub. gitea.com tracks upstream
   closely, so this card is usually *green* (up to date).
+- **demo-always-behind** is not a live service: `current` is read from a
+  fixture file in this repo ([`docs/demo-current.json`](docs/demo-current.json),
+  pinned to Prometheus 2.53.0) and `latest` comes from Prometheus's GitHub
+  Releases (3.x). This card is always *behind* by a major version, so the
+  quickstart shows a drift card even on a day when both live services above
+  happen to be current. Delete it when you add your own apps.
 
-Both instances are live third-party services, so the colors on any given day
-depend on what they happen to be running. Neither needs credentials.
+The first two are live third-party services, so their colors on any given day
+depend on what they happen to be running. None of the three needs credentials.
 
 ### Monitor your own apps
 
