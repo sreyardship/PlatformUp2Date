@@ -3,10 +3,12 @@
 # kustomize base in this directory (replace it in your overlay — see
 # docs/deployment.md).
 #
-# Monitors two real, public applications that need no credentials on either side —
-# see docs/configuration.md for the full config reference this shape is drawn from.
+# Monitors two real, public applications plus one fixture row. None needs
+# credentials on either side — see docs/configuration.md for the full config
+# reference this shape is drawn from.
 #
-# The two apps are chosen so the board usually shows both outcomes at once:
+# The two live apps are chosen so the board usually shows both outcomes at once;
+# the fixture row guarantees a behind card on days when both happen to be current:
 #
 # - mastodon: current is read from the public chaos.social instance's API (a
 #   genuine Tier A "observed running state" read — /api/v1/instance reports a
@@ -19,6 +21,10 @@
 #   the two sample apps deliberately exercise different "latest" flavors
 #   (github-release vs. oci-registry). gitea.com tracks upstream closely, so
 #   this card is usually GREEN.
+# - demo-always-behind: not a live service. current is a fixture file in this
+#   repo (docs/demo-current.json, pinned to Prometheus 2.53.0, the 2.x LTS line)
+#   and latest is Prometheus's GitHub Releases (3.x). This card is always BEHIND
+#   by a major version. Delete it when you replace this sample with your own apps.
 platform-config:
   scrape-interval: 1h
   # Optional GitHub token for the github-release leg (raises the anonymous
@@ -60,3 +66,14 @@ platform-config:
         #   type: basic
         #   username: ${REGISTRY_USER:}
         #   password: ${REGISTRY_PASSWORD:}
+
+    - name: demo-always-behind
+      # Fixture, not a deployment: the file below pins current to 2.53.0 while
+      # Prometheus's latest release is 3.x, so this row always shows MAJOR drift.
+      changelog-url: https://github.com/prometheus/prometheus/releases/tag/v{version}
+      current:
+        type: http-json
+        url: https://raw.githubusercontent.com/sreyardship/PlatformUp2Date/main/docs/demo-current.json
+      latest:
+        type: github-release
+        repo: prometheus/prometheus

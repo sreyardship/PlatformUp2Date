@@ -2,7 +2,7 @@
 
 For a full working example, see
 [`deploy/k8s/base/platform-config.yaml`](../deploy/k8s/base/platform-config.yaml).
-Both quick starts use it. It monitors two public apps and needs no credentials.
+Both quick starts use it. It monitors two public apps plus one fixture row that is always behind, and needs no credentials.
 
 Each current source has a tier. The tier says how much the reading can be
 trusted, not what access it needs. Stick to Tier A when you can. See
