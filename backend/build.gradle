@@ -41,7 +41,7 @@ dependencies {
     testImplementation 'io.quarkus:quarkus-junit5-mockito'
     testImplementation 'io.rest-assured:rest-assured'
     testImplementation 'org.wiremock:wiremock:3.13.2'
-    testImplementation 'io.quarkiverse.mcp:quarkus-mcp-server-test:2.0.3'
+    testImplementation 'io.quarkiverse.mcp:quarkus-mcp-server-test:2.0.4'
     testImplementation 'io.quarkus:quarkus-test-kubernetes-client'
     // MCP OAuth resource-server integration tests (docs/adr/0026): Keycloak Dev Services
     // (triggered when quarkus-oidc is on the classpath) still relies on
