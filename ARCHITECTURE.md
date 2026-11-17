@@ -2,7 +2,8 @@
 
 This document captures the **leading design thought** behind PlatformUp2Date: why it is
 built the way it is, and the principles that any new feature should be measured against.
-For *how* the backend is laid out (hexagonal packages, build commands), see `CLAUDE.md`.
+For *how* the backend is laid out (hexagonal packages, build commands), see
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Guiding idea: a general, substrate-agnostic version monitor
 
