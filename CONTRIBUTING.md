@@ -131,7 +131,7 @@ build from source (above), make your change, and open a pull request.
 ## AI usage
 AI is fine, AI slop is not.
 
-It just comes down to the fact that you need to understand the code the AI generates. I judge it as any other code, but if the PR is too large it might take a while before I get around to it.
+It just comes down to the fact that you need to understand the code the AI generates. I judge it as any other code, but if the PR is too large it might take a while before I get around to it, if ever.
 
 Let's pray this project stays small enough that PRs can stay open. (Most likely it will, so I'm most likely writing to myself here)
 
