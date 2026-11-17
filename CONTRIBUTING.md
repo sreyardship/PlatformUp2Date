@@ -99,27 +99,27 @@ All three jobs are defined in `.github/workflows/pr.yml`.
 
 - **Commit messages** follow [Conventional Commits](https://www.conventionalcommits.org/)
   (`feat:`, `fix:`, `docs:`, `refactor:`, etc.).
-- **`CONTEXT.md`** is the project's canonical vocabulary — terms like
-  Application, current/latest, drift, version scheme, and fleet clock are
-  defined there precisely. Use those terms consistently in code, commit
-  messages, and PR descriptions rather than inventing synonyms.
-- **Architecture decision records** live in `docs/adr/`. A change that
-  settles a non-obvious design question — a new version-source type, a
-  change to how state is stored or reconciled, a tradeoff that later
-  contributors would otherwise have to rediscover from the diff — should
-  come with a short ADR explaining the decision and its alternatives.
-  Small, self-explanatory changes don't need one; skim a few existing ADRs
-  under `docs/adr/` to get a feel for the right level of detail.
 - **Hexagonal architecture**: the backend is structured as ports & adapters
   (`core/ports/in`, `core/ports/out`, `core/services`, `core/domain`,
   `adapters/in`, `adapters/out`). `core/` must never import from
   `adapters/` — dependencies point inward. New version sources, repository
   implementations, or controllers belong under `adapters/`, driven through
   a port interface defined in `core/`.
+- **`CONTEXT.md` (AI support)** is the project's canonical vocabulary — terms like
+  Application, current/latest, drift, version scheme, and fleet clock are
+  defined there precisely. Use those terms consistently in code, commit
+  messages, and PR descriptions rather than inventing synonyms. It's largely
+  meanth for discussion with AI Agents and normally not needed for humans to
+  read directly, but can be useful occassionally.
+- **Architecture decision records (AI Support)** live in `docs/adr/`. A change that
+  settles a non-obvious design question — a new version-source type, a
+  change to how state is stored or reconciled, a tradeoff that later
+  contributors would otherwise have to rediscover from the diff — should
+  come with a short ADR explaining the decision and its alternatives.
+  Small, self-explanatory changes don't need one.
 
 Note: CONTEXT.md and ADRs are mostly here so AI agents can easily generate
-pretty decent code right off the bat. The fact that we humans also get
-these things documented is a bonus.
+pretty decent code right off the bat.
 
 ## Getting started
 
