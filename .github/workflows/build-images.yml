@@ -88,18 +88,15 @@ jobs:
   #     which is the closest available match to a binary compiled directly
   #     on a GitHub-hosted runner.
   #
-  # KNOWN OPEN RISK (flag for first live run, see NOTES.md): native-image
-  # links against the *build host's* system glibc when not using
-  # `quarkus.native.container-build`, which this job deliberately does not
-  # use. PR native ITs exercise their own build of the shipped image recipe;
-  # this publishing run separately recompiles the event's source with its
-  # resolved identity, then packages that binary without recompilation.
-  # If `ubuntu-latest` ships a newer glibc than UBI9's 2.34 at the time this runs for real, the
-  # packaged binary will fail to start ("GLIBC_x.xx not found"). There is no
-  # way to prove this from a sandbox without GitHub-hosted runners; treat the
-  # first edge publish as the real test of this Dockerfile choice and be
-  # ready to switch to `quarkus.native.container-build=true` with a pinned
-  # builder image if it fails.
+  # glibc coupling: native-image links against the *build host's* system
+  # glibc, because this job does not use `quarkus.native.container-build`.
+  # The runtime base is UBI9 (glibc 2.34). This has held on every published
+  # image so far, but a future `ubuntu-latest` bump can make the binary fail
+  # to start ("GLIBC_x.xx not found"). If that happens, switch to
+  # `quarkus.native.container-build=true` with a pinned builder image.
+  # PR native ITs exercise their own build of the shipped image recipe; this
+  # publishing run separately recompiles the event's source with its resolved
+  # identity, then packages that binary without recompilation.
   backend:
     name: backend image
     needs: identity

@@ -51,8 +51,8 @@ version bump first.
 2. Tag and push:
 
    ```bash
-   git tag v0.2.0
-   git push origin v0.2.0
+   git tag v1.1.0
+   git push origin v1.1.0
    ```
 
 3. Watch the *Release* workflow run; when it finishes, check the release page
@@ -60,13 +60,14 @@ version bump first.
    commit landed on `main`.
 
 To dry-run the pipeline without touching any rolling tag or pin, cut a
-release candidate first (`git tag v0.2.0-rc.1 && git push origin
-v0.2.0-rc.1`), verify, then push the real tag.
+release candidate first (`git tag v1.1.0-rc.1 && git push origin
+v1.1.0-rc.1`), verify, then push the real tag.
 
 Versioning is semver, chosen at tag time by the maintainer: patch for fixes,
 minor for features, major for breaking changes to the config schema or the
-`/api/v1` contract. The project is in `0.x` — minor bumps may still carry
-breaking changes.
+`/api/v1` contract. From `1.0.0` on, those two are the stability promise: a
+config file or `/api/v1` client that works on `1.x` keeps working on every
+later `1.y`.
 
 ## Embedded build identity
 
