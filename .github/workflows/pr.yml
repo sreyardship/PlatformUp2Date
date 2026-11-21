@@ -67,7 +67,7 @@ jobs:
         working-directory: frontend
         run: yarn test
 
-      - name: Frontend build identity (both shipped nginx images, no publishing)
+      - name: Frontend image contract (build identity, both nginx configs, restricted runtime; no publishing)
         run: bash frontend/ci/bin/test-build-version-image.sh
 
   # The frontend image is published for linux/arm64 too (docs/adr/0043), but
@@ -91,7 +91,7 @@ jobs:
         with:
           node-version: 'lts/*'
 
-      - name: Frontend build identity (both shipped nginx images, no publishing)
+      - name: Frontend image contract (build identity, both nginx configs, restricted runtime; no publishing)
         run: bash frontend/ci/bin/test-build-version-image.sh
 
   # The GraalVM native build plus the native @QuarkusIntegrationTest suite
@@ -199,11 +199,13 @@ jobs:
   # (base alone, the quickstart overlay, and base + each component — the rbac
   # component only composes at apply time, so CI fabricates the throwaway
   # overlay a user would write) and schema-validate the output against the
-  # upstream Kubernetes OpenAPI schemas with kubeconform.
+  # upstream Kubernetes OpenAPI schemas with kubeconform. Then check on a real
+  # API server (kind) that the quickstart overlay passes the `restricted` Pod
+  # Security Standard (docs/adr/0044). Schema validation cannot see that.
   manifests:
     name: manifests
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -232,3 +234,8 @@ jobs:
             kubectl kustomize "deploy/k8s/$target" \
               | kubeconform -strict -summary
           done
+
+      # kind and kubectl are part of the runner image. The script creates its
+      # own cluster and deletes it.
+      - name: Restricted Pod Security Standard (quickstart overlay)
+        run: bash ci/check-restricted-pod-security.sh

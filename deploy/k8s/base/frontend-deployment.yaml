@@ -29,8 +29,10 @@ spec:
         - name: frontend
           image: ghcr.io/sreyardship/platformup2date/frontend
           ports:
+            # The image runs unprivileged nginx, which cannot bind a port
+            # below 1024. The Service still exposes port 80.
             - name: http
-              containerPort: 80
+              containerPort: 8080
           env:
             # Injected into window._env_ at container start. Empty means
             # same-origin: the browser calls /api on whatever host served the
@@ -69,3 +71,22 @@ spec:
               memory: 32Mi
             limits:
               memory: 64Mi
+          # Passes the `restricted` Pod Security Standard (docs/adr/0044). The
+          # image runs as UID 101.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          # The only writable path. It holds the env-config.js that is
+          # generated at container start, the nginx pid file, and the nginx
+          # temp paths.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

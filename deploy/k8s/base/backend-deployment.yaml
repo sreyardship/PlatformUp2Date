@@ -68,6 +68,10 @@ spec:
             - name: platform-config
               mountPath: /config
               readOnly: true
+            # The only writable path. Vert.x creates its file cache in /tmp
+            # at start, and the backend does not start without it.
+            - name: tmp
+              mountPath: /tmp
           # Readiness reports DOWN when Valkey is unreachable (the backend
           # fails closed with 503s without it), pulling the replica out of
           # rotation for exactly the window it cannot serve.
@@ -88,7 +92,20 @@ spec:
               memory: 256Mi
             limits:
               memory: 512Mi
+          # Passes the `restricted` Pod Security Standard (docs/adr/0044). The
+          # image runs as UID 1001. All state is in Valkey, so the root
+          # filesystem is read-only.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
       volumes:
         - name: platform-config
           configMap:
             name: platform-config
+        - name: tmp
+          emptyDir: {}

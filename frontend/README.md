@@ -56,7 +56,9 @@ bash ci/bin/test-build-version-image.sh # requires Docker, curl, and Node
 
 The image check builds local and required-injection release/edge variants,
 rejects missing/dev/invalid required injection, and checks both shipped nginx
-configurations without publishing images.
+configurations without publishing images. It also starts the image with the
+limits of the shipped Deployment: a read-only root filesystem with a writable
+`/tmp`, no capabilities, and a user that is not root.
 
 ## Runtime configuration
 
@@ -70,6 +72,10 @@ these environment variables before nginx starts:
 | `OIDC_AUTHORITY` | empty | OIDC issuer URL for web login. |
 | `OIDC_CLIENT_ID` | empty | Public client ID registered for the SPA. |
 | `OIDC_SCOPE` | `openid profile` | Space-separated scopes sent with the authorization request. |
+
+The image runs unprivileged nginx as UID 101 and listens on port 8080. The
+served `env-config.js` is a link to `/tmp/env-config.js`, so `/tmp` is the only
+path that must be writable.
 
 Web login is enabled only when both `OIDC_AUTHORITY` and `OIDC_CLIENT_ID` are
 non-blank. The settings are injected at container startup, so changing them does

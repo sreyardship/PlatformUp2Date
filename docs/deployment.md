@@ -176,6 +176,48 @@ patches:
     target: {kind: ClusterRoleBinding, name: platformup2date-read-workloads}
 ```
 
+### Pod security
+
+All shipped containers pass the `restricted`
+[Pod Security Standard](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
+This applies to the releases after `v1.0.0-rc.8`. You can deploy these
+manifests to a namespace that enforces the standard:
+
+```bash
+kubectl label namespace my-namespace \
+  pod-security.kubernetes.io/enforce=restricted
+```
+
+Each container sets `allowPrivilegeEscalation: false`, drops all capabilities,
+sets `runAsNonRoot: true`, and uses the `RuntimeDefault` seccomp profile. See
+[`docs/adr/0044`](adr/0044-shipped-workloads-pass-the-restricted-pod-security-standard.md).
+
+| Container | User | Root filesystem | Writable path |
+|---|---|---|---|
+| backend | UID 1001, from the image | read-only | `/tmp` (`emptyDir`) |
+| frontend | UID 101, from the image | read-only | `/tmp` (`emptyDir`) |
+| valkey | UID 999, GID 1000, from the manifest | writable | `/data` |
+
+- **Backend**: Vert.x creates its file cache in `/tmp` at start. Without a
+  writable `/tmp`, the backend does not start.
+- **Frontend**: nginx listens on port 8080 in the container, because a
+  process that is not root cannot bind port 80. The Service still exposes
+  port 80. Thus, the routing contract and the examples on this page do not
+  change. `/tmp` holds the generated `env-config.js`, the nginx pid file, and
+  the nginx temp paths.
+- **Valkey**: the upstream image starts as root and then changes to its
+  `valkey` user. The manifest starts the container as that user instead. If
+  you replace the image, make sure that the UID and the GID are still correct
+  for the new image.
+
+The frontend image and the manifests must come from the same release. The
+manifests do not start a frontend image from before this change, because that
+image runs as root. If you write your own Deployment for the frontend, use
+`containerPort: 8080`.
+
+If your overlay adds a container, for example a sidecar, that container must
+also pass the `restricted` profile.
+
 ## What the backend needs (outside Kubernetes)
 
 You can run the backend on Docker, Podman, or another OCI runtime. The base
@@ -505,3 +547,9 @@ The frontend image injects `API_BASE_URL` into `window._env_` at container
 start (`docker-entrypoint.d/40-env-config.sh`), not at build time. Set it as a
 standard environment variable on the container or Pod. Point it at the address
 where a browser can reach the backend.
+
+The two images do not run as root. The backend runs as UID 1001 and listens on
+port 8080. The frontend runs unprivileged nginx as UID 101 and also listens on
+port 8080 (for example, `docker run -p 3000:8080`). The two images can run
+with a read-only root filesystem if `/tmp` is writable (for example,
+`docker run --read-only --tmpfs /tmp`).

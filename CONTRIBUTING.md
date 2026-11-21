@@ -96,7 +96,8 @@ Every pull request must pass five required checks before it can merge:
 - **`frontend image (arm64)`** builds the frontend image on an arm64 runner
   and runs the same image checks that `fast` runs on amd64.
 - **`manifests`** builds every shipped Kubernetes composition and validates
-  the rendered resources with kubeconform.
+  the rendered resources with kubeconform. It also checks on a kind cluster
+  that the quickstart overlay passes the `restricted` Pod Security Standard.
 
 All five jobs are defined in `.github/workflows/pr.yml`.
 
