@@ -12,13 +12,20 @@ COPY . .
 ARG BUILD_VERSION=dev
 ARG BUILD_VERSION_REQUIRED=false
 RUN BUILD_VERSION="$BUILD_VERSION" BUILD_VERSION_REQUIRED="$BUILD_VERSION_REQUIRED" yarn build
+# The runtime config is written at container start, but the static files must
+# stay read-only. Thus, the served path is a link into /tmp, the one writable
+# path of the runtime image (docs/adr/0044). The link is made here, because
+# the runtime stage has no RUN step (docs/adr/0043).
+RUN ln -sf /tmp/env-config.js build/env-config.js
 
-FROM nginx:alpine
+# The unprivileged nginx image runs as UID 101, listens on 8080, and keeps its
+# pid file and temp paths in /tmp.
+FROM nginxinc/nginx-unprivileged:alpine
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/build /usr/share/nginx/html
 COPY --chmod=755 docker-entrypoint.d/40-env-config.sh /docker-entrypoint.d/40-env-config.sh
 
-EXPOSE 80
+EXPOSE 8080
 
 CMD ["nginx", "-g", "daemon off;"]

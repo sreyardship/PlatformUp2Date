@@ -9,6 +9,7 @@ bash ci/check-backend-build-version.sh
 bash frontend/ci/bin/test-build-version-image.sh
 bash ci/test-native-dockerfile-arch.sh
 bash ci/check-image-platforms.sh linux/amd64,linux/arm64 <image-ref>...
+bash ci/check-restricted-pod-security.sh
 ```
 
 - `resolve-build-version.sh release v<semver>` validates strict SemVer and
@@ -23,9 +24,11 @@ bash ci/check-image-platforms.sh linux/amd64,linux/arm64 <image-ref>...
   and checking `/api/version`. Valkey and version-source URLs are deliberately
   unreachable. Runtime identity overrides must be ignored.
 - The frontend check requires Docker, curl, and Node; it checks the static
-  artifact through both shipped nginx configurations. It never publishes images.
-  It builds for the architecture of its host; PR checks run it on amd64 and on
-  arm64.
+  artifact through both shipped nginx configurations. It also starts the image
+  with the limits of the shipped Deployment: a read-only root filesystem with
+  a writable `/tmp`, no capabilities, and a user that is not root. It never
+  publishes images. It builds for the architecture of its host; PR checks run
+  it on amd64 and on arm64.
 - The native Dockerfile test requires Docker (BuildKit) and `readelf`. It builds
   only the `patcher` stage of `Dockerfile.native-ci` with a fixture binary: each
   supported target platform gets its ELF loader, `/nix/store` paths are removed,
@@ -34,6 +37,12 @@ bash ci/check-image-platforms.sh linux/amd64,linux/arm64 <image-ref>...
 - `check-image-platforms.sh` reads each given published tag from the registry
   and fails unless its manifest list carries every given platform. The publish
   workflow runs it on each tag it writes (ADR-0043).
+- `check-restricted-pod-security.sh` requires Docker, kind, and kubectl. It
+  creates a kind cluster with its own kubeconfig, and deletes both on exit. It
+  does not use the current kube context. It applies the quickstart overlay as
+  a server-side dry run to a namespace that has the `restricted` Pod Security
+  label, and fails on each Pod Security warning (ADR-0044). It starts no pods,
+  so it does not prove that the images run with these limits.
 
 Publishing resolves once in `build-images.yml`'s upstream identity job. Every
 build job (the backend job of each architecture and the frontend job) checks

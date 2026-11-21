@@ -42,6 +42,19 @@ spec:
               memory: 32Mi
             limits:
               memory: 128Mi
+          # Passes the `restricted` Pod Security Standard (docs/adr/0044). The
+          # upstream image starts as root and then changes to its `valkey`
+          # user. That change needs capabilities, so start as that user
+          # instead: UID 999 and GID 1000 in the alpine image.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
 ---
 apiVersion: v1
 kind: Service
