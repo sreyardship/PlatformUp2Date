@@ -3,13 +3,19 @@ name: Build and publish images
 # Shared build definition for both publish triggers (edge on push-to-main,
 # release on v* tags — see edge.yml / release.yml). A reusable workflow
 # (workflow_call), not a composite action, because:
-#   - it needs two independent jobs (backend, frontend) with different
-#     toolchains and runtimes, each with its own `permissions:`; a composite
-#     action is a single flat step sequence and cannot declare permissions or
-#     split into parallel jobs.
+#   - it needs independent jobs (backend per architecture, the backend
+#     manifest list, frontend) with different toolchains, runners and
+#     runtimes, each with its own `permissions:`; a composite action is a
+#     single flat step sequence and cannot declare permissions or split into
+#     parallel jobs.
 #   - callers select identity kind and docker/metadata-action tag rules
 #     (edge vs semver), so the two call sites cannot drift apart on the
 #     actual build/push mechanics.
+#
+# Both images are published for linux/amd64 and linux/arm64 as one manifest
+# list per tag (docs/adr/0043). A tag moves only when both architectures are
+# built: the backend tags are written by one job that needs every
+# per-architecture build, the frontend tags by one multi-platform push.
 on:
   workflow_call:
     inputs:
@@ -66,14 +72,14 @@ jobs:
   # the ELF interpreter/RUNPATH because a Nix-built binary points at
   # /nix/store paths that don't exist in the UBI9 micro runtime.
   #
-  # GitHub Actions does not build in the Nix devshell (pr.yml's native job
+  # GitHub Actions does not build in the Nix devshell (pr.yml's native jobs
   # uses graalvm/setup-graalvm@v1, matching the toolchain split documented
   # there), so the Nix-path problem this Dockerfile's patcher stage exists
   # for does not apply here — the patchelf step is a harmless no-op against a
   # standard-interpreter binary (it resets the interpreter to the same
   # standard glibc loader path and drops an RPATH that isn't set). We still
-  # reuse this Dockerfile unmodified rather than Dockerfile.native /
-  # .native-micro because:
+  # reuse this Dockerfile rather than Dockerfile.native / .native-micro
+  # because:
   #   - it is the only one of the four docker/ files that has been touched
   #     since the default Quarkus scaffold (Mar 1) — the other three are
   #     untouched generated stubs — i.e. it is the file this project actually
@@ -91,23 +97,43 @@ jobs:
   # glibc coupling: native-image links against the *build host's* system
   # glibc, because this job does not use `quarkus.native.container-build`.
   # The runtime base is UBI9 (glibc 2.34). This has held on every published
-  # image so far, but a future `ubuntu-latest` bump can make the binary fail
-  # to start ("GLIBC_x.xx not found"). If that happens, switch to
+  # image so far, but a runner image bump can make the binary fail to start
+  # ("GLIBC_x.xx not found"). The runner images are therefore pinned, to the
+  # same Ubuntu release on both architectures and to the same pair that
+  # pr.yml's native jobs gate on. If a bump breaks the coupling, switch to
   # `quarkus.native.container-build=true` with a pinned builder image.
   # PR native ITs exercise their own build of the shipped image recipe; this
   # publishing run separately recompiles the event's source with its resolved
   # identity, then packages that binary without recompilation.
+  #
+  # One job per architecture: native-image has no cross-compilation, so each
+  # binary is compiled on a runner of its own architecture (emulation was
+  # rejected, docs/adr/0043). Each job pushes its image by digest only (no
+  # tag); `backend-manifest` below writes the tags.
   backend:
-    name: backend image
+    name: backend image (${{ matrix.arch }})
     needs: identity
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
     env:
+      IMAGE: ghcr.io/sreyardship/platformup2date/backend
       BUILD_VERSION: ${{ needs.identity.outputs.version }}
       BUILD_SOURCE_SHA: ${{ needs.identity.outputs.source-sha }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     permissions:
       contents: read
       packages: write
+    # A matrix job has one set of outputs, so each architecture writes its own
+    # key and leaves the other empty.
+    outputs:
+      digest-amd64: ${{ steps.digest.outputs.digest-amd64 }}
+      digest-arm64: ${{ steps.digest.outputs.digest-arm64 }}
     steps:
       - name: Check out resolved source
         uses: actions/checkout@v7
@@ -117,7 +143,7 @@ jobs:
       - name: Verify build source
         run: test "$(git rev-parse HEAD)" = "$BUILD_SOURCE_SHA"
 
-      # Same split as pr.yml's native job: GraalVM CE 25 provides
+      # Same split as pr.yml's native jobs: GraalVM CE 25 provides
       # native-image (via GRAALVM_HOME, which Quarkus prefers over
       # JAVA_HOME); Gradle 8.14.x cannot launch on JDK 25, so JDK 21 is set
       # up afterwards and wins JAVA_HOME/PATH for the Gradle launcher.
@@ -169,22 +195,97 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/sreyardship/platformup2date/backend
+          images: ${{ env.IMAGE }}
           tags: ${{ inputs.tags-config }}
           labels: |
             org.opencontainers.image.licenses=Apache-2.0
 
-      - name: Build and push backend image
+      # Tags are not applied here; only the labels of the metadata are used.
+      - name: Build and push backend image by digest
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: backend
           file: backend/src/main/docker/Dockerfile.native-ci
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          platforms: linux/${{ matrix.arch }}
           labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export image digest
+        id: digest
+        env:
+          ARCH: ${{ matrix.arch }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [[ "$DIGEST" == sha256:* ]] || { echo "no image digest for $ARCH" >&2; exit 1; }
+          echo "digest-$ARCH=$DIGEST" >> "$GITHUB_OUTPUT"
+
+  # Writes every backend tag as one manifest list over the two
+  # per-architecture images. `needs: backend` covers the whole matrix, so no
+  # tag is written or moved when one architecture fails.
+  backend-manifest:
+    name: backend image (manifest list)
+    needs: [identity, backend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/sreyardship/platformup2date/backend
+    steps:
+      - name: Check out resolved source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.identity.outputs.source-sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE }}
+          tags: ${{ inputs.tags-config }}
+
+      - name: Create and push manifest list
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST_AMD64: ${{ needs.backend.outputs.digest-amd64 }}
+          DIGEST_ARM64: ${{ needs.backend.outputs.digest-arm64 }}
+        run: |
+          set -euo pipefail
+          sources=()
+          for digest in "$DIGEST_AMD64" "$DIGEST_ARM64"; do
+            [[ "$digest" == sha256:* ]] || { echo 'a per-architecture digest is missing' >&2; exit 1; }
+            sources+=("$IMAGE@$digest")
+          done
+          tag_args=()
+          while IFS= read -r tag; do
+            if [[ -n "$tag" ]]; then tag_args+=(--tag "$tag"); fi
+          done <<< "$TAGS"
+          (( ${#tag_args[@]} > 0 )) || { echo 'no tags resolved' >&2; exit 1; }
+          docker buildx imagetools create "${tag_args[@]}" "${sources[@]}"
+
+      - name: Verify published platforms
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: xargs bash ci/check-image-platforms.sh linux/amd64,linux/arm64 <<< "$TAGS"
 
   # Frontend: build identity is embedded in the static assets. Deployment
   # config (API_BASE_URL/OIDC) remains injected separately at container start.
+  # The assets are the same for every architecture and the Dockerfile has no
+  # target-platform RUN step, so one job builds both platforms without
+  # emulation and pushes them as one manifest list.
   frontend:
     name: frontend image
     needs: identity
@@ -231,6 +332,12 @@ jobs:
           build-args: |
             BUILD_VERSION=${{ needs.identity.outputs.version }}
             BUILD_VERSION_REQUIRED=true
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Verify published platforms
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: xargs bash ci/check-image-platforms.sh linux/amd64,linux/arm64 <<< "$TAGS"

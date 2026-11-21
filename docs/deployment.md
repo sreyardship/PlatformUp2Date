@@ -496,6 +496,11 @@ on each `v*` tag (`:X.Y.Z` / `:X.Y` / `:X` / `:latest`):
 - `ghcr.io/sreyardship/platformup2date/backend`
 - `ghcr.io/sreyardship/platformup2date/frontend`
 
+Each tag supports `linux/amd64` and `linux/arm64` (64-bit ARM, for example a
+Raspberry Pi with a 64-bit OS or an ARM cloud node). The container runtime
+selects the correct architecture; no tag suffix or node selector is necessary.
+32-bit ARM is not supported.
+
 The frontend image injects `API_BASE_URL` into `window._env_` at container
 start (`docker-entrypoint.d/40-env-config.sh`), not at build time. Set it as a
 standard environment variable on the container or Pod. Point it at the address

@@ -1,4 +1,7 @@
-FROM node:24-alpine AS build
+# The build output is static assets, the same for every target architecture.
+# The build stage therefore runs on the build platform, and the runtime stage
+# has no RUN step, so a multi-arch build needs no emulation (docs/adr/0043).
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 
 WORKDIR /app
 
@@ -14,8 +17,7 @@ FROM nginx:alpine
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/build /usr/share/nginx/html
-COPY docker-entrypoint.d/40-env-config.sh /docker-entrypoint.d/40-env-config.sh
-RUN chmod +x /docker-entrypoint.d/40-env-config.sh
+COPY --chmod=755 docker-entrypoint.d/40-env-config.sh /docker-entrypoint.d/40-env-config.sh
 
 EXPOSE 80
 

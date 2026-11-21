@@ -4,12 +4,23 @@
 # so the loader resolves libc/libpthread/librt/libdl from the micro image's
 # /lib64. The binary requires GLIBC_2.34, so the runtime base must be UBI9
 # (glibc 2.34) — quarkus-micro-image:2.0 is UBI8 (glibc 2.28) and is too old.
-FROM alpine:3 AS patcher
+#
+# The loader path depends on the target architecture (docs/adr/0043). patchelf
+# only rewrites ELF headers, so this stage runs on the build platform and
+# never needs emulation; the binary itself must already be compiled for the
+# target. BUILDPLATFORM/TARGETARCH are BuildKit's automatic platform args.
+FROM --platform=$BUILDPLATFORM alpine:3 AS patcher
+ARG TARGETARCH
 RUN apk add --no-cache patchelf
 WORKDIR /work/
 COPY build-native/*-runner /work/application
-RUN patchelf \
-        --set-interpreter /lib64/ld-linux-x86-64.so.2 \
+RUN case "$TARGETARCH" in \
+        amd64) loader=/lib64/ld-linux-x86-64.so.2 ;; \
+        arm64) loader=/lib/ld-linux-aarch64.so.1 ;; \
+        *) echo "unsupported target architecture: ${TARGETARCH:-unset (BuildKit required)}; supported: amd64, arm64" >&2; exit 1 ;; \
+    esac \
+    && patchelf \
+        --set-interpreter "$loader" \
         --remove-rpath \
         /work/application
 

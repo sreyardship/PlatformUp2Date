@@ -8,7 +8,9 @@ under `.github/workflows/` and in
 ## Channels
 
 Both images (`ghcr.io/sreyardship/platformup2date/backend` and
-`.../frontend`) are always tagged in lockstep. What you can pull:
+`.../frontend`) are always tagged in lockstep. Each tag is one manifest list
+for `linux/amd64` and `linux/arm64`, so the same tag works on both
+architectures. What you can pull:
 
 | Tag | Moves when | Meant for |
 |---|---|---|
@@ -20,6 +22,11 @@ Both images (`ghcr.io/sreyardship/platformup2date/backend` and
 Release-candidate tags (`vX.Y.Z-rc.N`) publish **only** their exact
 `X.Y.Z-rc.N` image tag and a GitHub prerelease — they never move `latest`,
 `X.Y`, `X`, or the deploy pins.
+
+On every channel, the backend native binary is compiled on one runner per
+architecture; a last job joins the two images into the manifest list and
+writes the tags. A tag moves only when both architectures are built
+([ADR 0043](docs/adr/0043-images-are-multi-arch-built-natively-per-architecture.md)).
 
 There is deliberately **no release per merge**: merges to `main` feed `edge`,
 and a release happens only when a maintainer tags. `edge` plus the immutable
@@ -84,8 +91,9 @@ does not ask the backend for its version.
 
 The shared publishing workflow resolves identity once **after checkout**, using
 [`ci/resolve-build-version.sh`](ci/resolve-build-version.sh). Release tags must
-be strict SemVer with a leading `v`; only that prefix is removed. Both image
-jobs check out the resolved commit and consume the same identity:
+be strict SemVer with a leading `v`; only that prefix is removed. Every image
+job (the backend job of each architecture and the frontend job) checks out the
+resolved commit and consumes the same identity:
 
 - Backend: `gradle ... -PbuildVersion=<identity> -PbuildVersionRequired=true`, before
   native compilation, not in the later Docker packaging step.
@@ -110,7 +118,8 @@ docker build frontend --build-arg BUILD_VERSION=1.2.3-rc.6+build.1 \
 PR checks test the identity CLI, rebuild the JVM artifact with changed injection
 without cleaning generated output, query its public endpoint, and exercise the
 frontend build and nginx images. Native integration tests use explicit
-injection through the packaged native image. Those tests validate the source
+injection through the packaged native image, on both published architectures.
+Those tests validate the source
 and image recipe, **not the exact binary later published**: the publishing run
 separately recompiles the triggering source with the release/edge identity.
 Tag pushes rebuild both images; they do not promote or retag an earlier `edge`
