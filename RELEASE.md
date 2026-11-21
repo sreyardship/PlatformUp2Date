@@ -118,10 +118,11 @@ docker build frontend --build-arg BUILD_VERSION=1.2.3-rc.6+build.1 \
 PR checks test the identity CLI, rebuild the JVM artifact with changed injection
 without cleaning generated output, query its public endpoint, and exercise the
 frontend build and nginx images. Native integration tests use explicit
-injection through the packaged native image, on both published architectures.
-Those tests validate the source
-and image recipe, **not the exact binary later published**: the publishing run
-separately recompiles the triggering source with the release/edge identity.
+injection through the packaged native image. The image checks and the native
+integration tests run on both published architectures. Those tests validate
+the source and image recipe, **not the exact binary later published**: the
+publishing run separately recompiles the triggering source with the
+release/edge identity.
 Tag pushes rebuild both images; they do not promote or retag an earlier `edge`
 artifact. Publication tag policies and the pin-bump flow above are unchanged.
 

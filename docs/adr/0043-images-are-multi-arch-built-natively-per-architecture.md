@@ -33,7 +33,7 @@ Three rules follow:
   pre-merge proof that the arm64 binary compiles and that its image boots on
   the UBI9 runtime. The runner images are pinned, to the same pair for PR
   checks and for publishing, because the binary links against the build host's
-  glibc.
+  glibc. The frontend image checks run on an arm64 runner too.
 
 ## Considered Options
 
