@@ -81,7 +81,7 @@ yarn build   # production build
 
 ## The merge gate
 
-Every pull request must pass four required checks before it can merge:
+Every pull request must pass five required checks before it can merge:
 
 - **`fast`** runs the backend unit and JVM integration tests
   (`gradle :backend:test`) plus the frontend test suite.
@@ -93,10 +93,12 @@ Every pull request must pass four required checks before it can merge:
   `docs/adr/0025-ssh-os-release-native-image-reachability.md` records one
   example. Both architectures are published, so both are gated
   (`docs/adr/0043-images-are-multi-arch-built-natively-per-architecture.md`).
+- **`frontend image (arm64)`** builds the frontend image on an arm64 runner
+  and runs the same image checks that `fast` runs on amd64.
 - **`manifests`** builds every shipped Kubernetes composition and validates
   the rendered resources with kubeconform.
 
-All four jobs are defined in `.github/workflows/pr.yml`.
+All five jobs are defined in `.github/workflows/pr.yml`.
 
 ## Conventions
 

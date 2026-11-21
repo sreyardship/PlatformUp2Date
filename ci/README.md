@@ -24,6 +24,8 @@ bash ci/check-image-platforms.sh linux/amd64,linux/arm64 <image-ref>...
   unreachable. Runtime identity overrides must be ignored.
 - The frontend check requires Docker, curl, and Node; it checks the static
   artifact through both shipped nginx configurations. It never publishes images.
+  It builds for the architecture of its host; PR checks run it on amd64 and on
+  arm64.
 - The native Dockerfile test requires Docker (BuildKit) and `readelf`. It builds
   only the `patcher` stage of `Dockerfile.native-ci` with a fixture binary: each
   supported target platform gets its ELF loader, `/nix/store` paths are removed,

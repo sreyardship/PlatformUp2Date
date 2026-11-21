@@ -70,6 +70,30 @@ jobs:
       - name: Frontend build identity (both shipped nginx images, no publishing)
         run: bash frontend/ci/bin/test-build-version-image.sh
 
+  # The frontend image is published for linux/arm64 too (docs/adr/0043), but
+  # `fast` builds and starts it on amd64 only. This job runs the same
+  # shipped-image contract on an arm64 runner, so the arm64 nginx base, the
+  # entrypoint script and both nginx configurations are started and checked on
+  # arm64 before merge. The script builds its own image on this runner; the
+  # published arm64 image is cross-built on amd64 from the same Dockerfile.
+  # Node is only the script's JSON assertion tool; the frontend build itself
+  # runs in the Docker build.
+  frontend-image-arm64:
+    name: frontend image (arm64)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 'lts/*'
+
+      - name: Frontend build identity (both shipped nginx images, no publishing)
+        run: bash frontend/ci/bin/test-build-version-image.sh
+
   # The GraalVM native build plus the native @QuarkusIntegrationTest suite
   # (SshOsReleaseResourceIT et al. — see docs/adr/0025). `quarkusIntTest` boots
   # the freshly built native binary and exercises it over HTTP, so this job
