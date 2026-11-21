@@ -43,6 +43,9 @@ jobs:
       - name: Build identity CLI tests
         run: bash ci/test-resolve-build-version.sh
 
+      - name: Native Dockerfile loader per target architecture (patcher stage only)
+        run: bash ci/test-native-dockerfile-arch.sh
+
       - name: Backend unit + integration tests
         run: gradle --no-daemon :backend:test
 
@@ -71,9 +74,25 @@ jobs:
   # (SshOsReleaseResourceIT et al. — see docs/adr/0025). `quarkusIntTest` boots
   # the freshly built native binary and exercises it over HTTP, so this job
   # gates on native-image regressions the JVM-mode `fast` job cannot see.
+  #
+  # One job per published architecture (docs/adr/0043). The publish workflows
+  # run only on main and on tags, so these jobs are the only pre-merge proof
+  # that each architecture's binary compiles and that its shipped image boots
+  # on the UBI9 runtime. The runner images are pinned to the same pair that
+  # build-images.yml compiles the published binaries on (glibc coupling, see
+  # the comment there). fail-fast is off so that one architecture's failure
+  # does not hide the other's result.
   native:
-    name: native
-    runs-on: ubuntu-latest
+    name: native (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
       - name: Check out repository

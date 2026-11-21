@@ -81,19 +81,22 @@ yarn build   # production build
 
 ## The merge gate
 
-Every pull request must pass three required checks before it can merge:
+Every pull request must pass four required checks before it can merge:
 
 - **`fast`** runs the backend unit and JVM integration tests
   (`gradle :backend:test`) plus the frontend test suite.
-- **`native`** performs a full GraalVM native build and runs the native
-  integration tests against the built image. Expect roughly 20–30 minutes.
-  Native-image behavior can diverge from JVM behavior in ways the fast job
-  cannot see; `docs/adr/0025-ssh-os-release-native-image-reachability.md`
-  records one example.
+- **`native (amd64)`** and **`native (arm64)`** each perform a full GraalVM
+  native build on a runner of that architecture and run the native
+  integration tests against the built image. The two jobs run in parallel;
+  expect roughly 20–30 minutes. Native-image behavior can diverge from JVM
+  behavior in ways the fast job cannot see;
+  `docs/adr/0025-ssh-os-release-native-image-reachability.md` records one
+  example. Both architectures are published, so both are gated
+  (`docs/adr/0043-images-are-multi-arch-built-natively-per-architecture.md`).
 - **`manifests`** builds every shipped Kubernetes composition and validates
   the rendered resources with kubeconform.
 
-All three jobs are defined in `.github/workflows/pr.yml`.
+All four jobs are defined in `.github/workflows/pr.yml`.
 
 ## Conventions
 
