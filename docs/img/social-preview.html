@@ -1,0 +1,120 @@
+<!doctype html>
+<!--
+  Source of social-preview.png, the GitHub social preview image (1280x640).
+
+  Needs the Inter font: run `yarn install` in frontend/ first.
+  Render from the repository root:
+
+    google-chrome-stable \
+      --headless=new --hide-scrollbars --force-device-scale-factor=1 \
+      --allow-file-access-from-files --window-size=1280,640 --virtual-time-budget=3000 \
+      --screenshot="$PWD/docs/img/social-preview.png" \
+      "file://$PWD/docs/img/social-preview.html"
+
+  Then upload the PNG in the repository settings (General, Social preview).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Social preview</title>
+<style>
+  @font-face { font-family: Inter; font-weight: 400; src: url("../../frontend/node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2") format("woff2"); }
+  @font-face { font-family: Inter; font-weight: 500; src: url("../../frontend/node_modules/@fontsource/inter/files/inter-latin-500-normal.woff2") format("woff2"); }
+  @font-face { font-family: Inter; font-weight: 700; src: url("../../frontend/node_modules/@fontsource/inter/files/inter-latin-700-normal.woff2") format("woff2"); }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1280px; height: 640px; overflow: hidden; }
+  body {
+    position: relative;
+    font-family: Inter, sans-serif;
+    color: #e0e3e8;
+    background:
+      radial-gradient(900px 520px at 12% 38%, rgba(48, 114, 240, 0.20), transparent 70%),
+      #0b0c0e;
+  }
+
+  .copy {
+    position: absolute;
+    left: 80px;
+    top: 0;
+    width: 480px;
+    height: 640px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .brand { align-self: flex-start; display: flex; flex-direction: column; align-items: center; }
+  .logo { width: 92px; height: auto; margin-bottom: 30px; }
+  h1 {
+    font-size: 52px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    color: #ffffff;
+  }
+  h1 span { color: #91ccff; }
+  .tagline {
+    margin-top: 20px;
+    font-size: 25px;
+    font-weight: 400;
+    line-height: 1.4;
+    color: #c3c7cf;
+  }
+  .chips { margin-top: 34px; display: flex; flex-wrap: wrap; gap: 10px; }
+  .chip {
+    padding: 8px 15px;
+    font-size: 17px;
+    font-weight: 500;
+    color: #e0e3e8;
+    background: #181b1f;
+    border: 1px solid #282c31;
+    border-radius: 999px;
+  }
+
+  /* Board screenshot: source 1600x1068, shown at 0.75 scale, cropped to the
+     content area, with the right edge cut before the action buttons. */
+  .board {
+    position: absolute;
+    left: 592px;
+    top: 92px;
+    width: 720px;
+    height: 600px;
+    border: 1px solid #282c31;
+    border-radius: 14px 0 0 0;
+    background-color: #0b0c0e;
+    background-image: url("board.png");
+    background-repeat: no-repeat;
+    background-size: 1200px auto;
+    background-position: -156px -52px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(145, 204, 255, 0.06);
+  }
+</style>
+</head>
+<body>
+  <div class="copy">
+    <div class="brand">
+      <img class="logo" src="../../frontend/public/logo.svg" alt="">
+      <h1>Platform<span>Up2Date</span></h1>
+    </div>
+    <p class="tagline">Observed running version against the latest upstream release.</p>
+    <div class="chips">
+      <span class="chip">Prometheus</span>
+      <span class="chip">Grafana</span>
+      <span class="chip">Web board</span>
+      <span class="chip">MCP</span>
+    </div>
+  </div>
+  <div class="board"></div>
+  <script>
+    document.fonts.ready.then(() => {
+      const logo = document.querySelector(".logo");
+      const capTop = document.querySelector("h1").getBoundingClientRect().top + 9.7;
+      const boardTop = document.querySelector(".board").getBoundingClientRect().top;
+      const r = logo.getBoundingClientRect();
+      const shift = (boardTop + capTop) / 2 - (r.top + r.height / 2);
+      logo.style.transform = `translateY(${shift}px)`;
+      document.body.dataset.shift = `${shift.toFixed(1)} capTop=${capTop.toFixed(1)} boardTop=${boardTop.toFixed(1)} logoTop=${r.top.toFixed(1)} logoH=${r.height.toFixed(1)}`;
+    });
+  </script>
+</body>
+</html>
